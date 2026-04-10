@@ -31,14 +31,12 @@ export default function Home() {
 
   return (
     <div className="bg-[#fcfcfc] min-h-screen font-sans">
-      {/* Hero Header */}
       <header className="max-w-6xl mx-auto px-6 pt-24 pb-12 text-center">
         <h1 className="text-7xl md:text-9xl font-black text-gray-900 tracking-[-0.05em] mb-6">
           AI<span className="text-blue-600">Vault</span>
         </h1>
         <p className="text-xl text-gray-400 font-medium mb-12 italic">Handcrafted by Mantu Patra.</p>
 
-        {/* Search Bar */}
         <div className="max-w-2xl mx-auto mb-12 relative group">
           <input
             type="text"
@@ -49,7 +47,6 @@ export default function Home() {
           <div className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-black tracking-widest text-gray-300">SEARCH</div>
         </div>
 
-        {/* Categories */}
         <div className="flex flex-wrap justify-center gap-3 mb-20">
           {categories.map((cat) => (
             <button
@@ -65,7 +62,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Tools Grid */}
       <main className="max-w-6xl mx-auto px-6 pb-32">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredTools.map((tool) => (
