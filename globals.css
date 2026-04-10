@@ -1,0 +1,38 @@
+/* Markdown Content Styling */
+.markdown-content h2 {
+  font-size: 2.25rem;
+  font-weight: 900;
+  color: #111827;
+  margin-top: 3rem;
+  margin-bottom: 1.5rem;
+  border-left: 5px solid #2563eb;
+  padding-left: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.markdown-content p {
+  font-size: 1.125rem;
+  line-height: 1.8;
+  color: #4b5563;
+  margin-bottom: 1.5rem;
+}
+
+.markdown-content strong {
+  color: #111827;
+  font-weight: 800;
+}
+
+.markdown-content ul {
+  margin-bottom: 2rem;
+  list-style-type: square;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.75rem;
+  color: #4b5563;
+}
+
+.markdown-content li::marker {
+  color: #2563eb;
+}
