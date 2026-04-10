@@ -36,7 +36,7 @@ export default function Home() {
         <h1 className="text-7xl md:text-9xl font-black text-gray-900 tracking-[-0.05em] mb-6">
           AI<span className="text-blue-600">Vault</span>
         </h1>
-        <p className="text-xl text-gray-400 font-medium mb-12 italic">Handcrafted by Mantu Patra for the future.</p>
+        <p className="text-xl text-gray-400 font-medium mb-12 italic">Handcrafted by Mantu Patra.</p>
 
         {/* Search Bar */}
         <div className="max-w-2xl mx-auto mb-12 relative group">
@@ -56,7 +56,7 @@ export default function Home() {
               key={cat}
               onClick={() => setActiveCat(cat)}
               className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                activeCat === cat ? "bg-blue-600 text-white shadow-lg" : "bg-white text-gray-400 border border-gray-100 hover:border-blue-600"
+                activeCat === cat ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-gray-400 border border-gray-100 hover:border-blue-600"
               }`}
             >
               {cat}
