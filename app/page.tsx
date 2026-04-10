@@ -1,4 +1,3 @@
-// Is file mein sirf Header section ko thoda change kar lo ya pura replace:
 "use client";
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
@@ -9,7 +8,7 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export default function Page() {
+export default function Home() {
   const [tools, setTools] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [activeCat, setActiveCat] = useState("All");
@@ -31,16 +30,16 @@ export default function Page() {
   });
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-[#fcfcfc]">
       <header className="max-w-6xl mx-auto px-6 pt-20 pb-12 text-center">
-        <h2 className="text-5xl md:text-8xl font-black text-gray-900 tracking-[-0.05em] mb-6">
-          Find Your Next <br/><span className="text-blue-600 underline decoration-gray-100">AI Power.</span>
+        <h2 className="text-6xl md:text-8xl font-black text-gray-900 tracking-[-0.05em] mb-6">
+          Find Your Next <br/><span className="text-blue-600">AI Power.</span>
         </h2>
         
         <div className="max-w-2xl mx-auto mt-12 mb-10 relative">
           <input
             type="text"
-            placeholder="Search AI tools (e.g. ChatGPT, Sora...)"
+            placeholder="Search 1,000+ AI tools..."
             className="w-full px-8 py-6 rounded-3xl border-2 border-gray-100 outline-none text-xl shadow-sm focus:border-blue-600 transition-all bg-white"
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -52,7 +51,7 @@ export default function Page() {
               key={cat}
               onClick={() => setActiveCat(cat)}
               className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${
-                activeCat === cat ? "bg-blue-600 text-white shadow-lg shadow-blue-200" : "bg-white text-gray-400 border border-gray-100"
+                activeCat === cat ? "bg-blue-600 text-white shadow-lg" : "bg-white text-gray-400 border border-gray-100"
               }`}
             >
               {cat}
@@ -66,10 +65,21 @@ export default function Page() {
           {filtered.map((tool: any) => (
             <Link href={`/tool/${tool.slug}`} key={tool.id} className="group">
               <div className="bg-white p-8 rounded-[2rem] border border-gray-50 hover:border-blue-600 transition-all hover:shadow-2xl h-full flex flex-col">
+                {/* Dynamic Tool Image */}
+                <div className="w-14 h-14 mb-6 rounded-2xl overflow-hidden border border-gray-100 bg-gray-50 flex items-center justify-center">
+                  {tool.image_url ? (
+                    <img src={tool.image_url} alt={tool.name} className="w-full h-full object-contain p-2" />
+                  ) : (
+                    <span className="text-xl font-black text-blue-600 opacity-20">{tool.name.charAt(0)}</span>
+                  )}
+                </div>
+
                 <span className="text-[10px] font-black text-blue-600 uppercase mb-4 block">{tool.category}</span>
                 <h3 className="text-2xl font-black text-gray-900 mb-4 group-hover:text-blue-600 transition-colors">{tool.name}</h3>
-                <p className="text-gray-400 line-clamp-2 text-sm mb-8 italic">{tool.description.replace(/\*/g, '').slice(0, 100)}...</p>
-                <div className="mt-auto font-black text-[10px] uppercase text-gray-300 group-hover:text-blue-600 tracking-widest">Explore Review →</div>
+                <p className="text-gray-400 line-clamp-2 text-sm mb-8 italic">
+                  {tool.description.replace(/\*/g, '').slice(0, 100)}...
+                </p>
+                <div className="mt-auto font-black text-[10px] uppercase text-gray-300 group-hover:text-blue-600 tracking-widest transition-colors">View Review →</div>
               </div>
             </Link>
           ))}
