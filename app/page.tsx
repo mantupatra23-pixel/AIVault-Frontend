@@ -23,14 +23,13 @@ export default function Home() {
 
   const categories = ["All", "Chatbot", "Image Gen", "Video Gen", "Writing", "Coding", "Marketing"];
 
-  const filteredTools = tools.filter((t) => {
+  const filteredTools = tools.filter((t: any) => {
     const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase());
     const matchesCat = activeCat === "All" || t.category === activeCat;
     return matchesSearch && matchesCat;
   });
 
-  return (
-    <div className="bg-[#fcfcfc] min-h-screen font-sans">
+  return (<div className="bg-[#fcfcfc] min-h-screen font-sans">
       <header className="max-w-6xl mx-auto px-6 pt-24 pb-12 text-center">
         <h1 className="text-7xl md:text-9xl font-black text-gray-900 tracking-[-0.05em] mb-6">
           AI<span className="text-blue-600">Vault</span>
@@ -64,13 +63,13 @@ export default function Home() {
 
       <main className="max-w-6xl mx-auto px-6 pb-32">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {filteredTools.map((tool) => (
+          {filteredTools.map((tool: any) => (
             <Link href={`/tool/${tool.slug}`} key={tool.id}>
               <div className="bg-white p-8 rounded-[2rem] border border-gray-50 hover:border-blue-600 transition-all h-full flex flex-col">
                 <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4">{tool.category}</span>
-                <h3 className="text-3xl font-black text-gray-900 mb-4">{tool.name}</h3>
+                <h3 className="text-3xl font-black text-gray-900 mb-4 tracking-tighter">{tool.name}</h3>
                 <p className="text-gray-400 line-clamp-3 text-sm leading-relaxed mb-8">
-                   {tool.description.replace(/\*/g, '')}
+                  {tool.description.replace(/\*/g, '')}
                 </p>
                 <div className="mt-auto font-black text-[10px] uppercase tracking-[0.2em] text-gray-300">View Review →</div>
               </div>
@@ -78,6 +77,5 @@ export default function Home() {
           ))}
         </div>
       </main>
-    </div>
-  );
+    </div>);
 }
