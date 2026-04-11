@@ -11,7 +11,7 @@ const supabase = createClient(
 export default function AdminDashboard() {
   const router = useRouter()
   const [tools, setTools] = useState<any[]>([])
-  const [stats, setStats] = useState({ total: 0, categories: 0 })
+  const [stats, setStats] = useState({ total: 0, categories: 0, monetized: 0 })
   const [loading, setLoading] = useState(true)
   const [isTriggering, setIsTriggering] = useState(false)
   
@@ -23,34 +23,34 @@ export default function AdminDashboard() {
     checkUser()
   }, [])
 
-  // 🛡️ SECURITY: Founder-Only Gatekeeper
+  // 🛡️ SECURITY: Founder-Only Access
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
-    
-    // Yahan apni registered email verify karein
     if (!user || user.email !== 'mantupatra23@gmail.com') {
       router.push('/login')
     } else {
-      fetchStats()
+      fetchData()
     }
   }
 
-  async function fetchStats() {
+  async function fetchData() {
     try {
       const { data, count, error } = await supabase
         .from('ai_tools')
         .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false })
+        .order('click_count', { ascending: false })
+      
       if (data) {
         setTools(data)
         const uniqueCats = new Set(data.map(t => t.category)).size
-        setStats({ total: count || 0, categories: uniqueCats })
+        const monetizedCount = data.filter(t => t.affiliate_url).length
+        setStats({ total: count || 0, categories: uniqueCats, monetized: monetizedCount })
       }
     } catch (err) { console.error(err) }
     finally { setLoading(false) }
   }
 
-  // 📝 UPDATE LOGIC
+  // 💸 UPDATE & MONETIZE LOGIC
   async function handleUpdate() {
     const { error } = await supabase
       .from('ai_tools')
@@ -59,14 +59,16 @@ export default function AdminDashboard() {
         category: editingTool.category,
         description: editingTool.description,
         pricing: editingTool.pricing,
+        affiliate_url: editingTool.affiliate_url,
+        is_featured: editingTool.is_featured,
         score: editingTool.score
       })
       .eq('id', editingTool.id)
 
     if (!error) {
       setIsEditOpen(false)
-      fetchStats()
-      alert("✅ Vault Synced: Intelligence Updated.")
+      fetchData()
+      alert("✅ Vault Synced: Intelligence & Monetization Updated.")
     } else { alert("Sync Failed: " + error.message) }
   }
 
@@ -74,7 +76,7 @@ export default function AdminDashboard() {
   async function deleteTool(id: string, name: string) {
     if (confirm(`Mantu, terminate '${name}' intelligence permanently?`)) {
       const { error } = await supabase.from('ai_tools').delete().eq('id', id)
-      if (!error) fetchStats()
+      if (!error) fetchData()
     }
   }
 
@@ -83,7 +85,7 @@ export default function AdminDashboard() {
     setIsTriggering(true)
     try {
       await fetch('https://aivault-faqc.onrender.com/auto-pilot', { mode: 'no-cors' })
-      alert("🚀 DISCOVERY SIGNAL SENT. 10 tools incoming...")
+      alert("🚀 DISCOVERY SIGNAL SENT. 10 fresh tools incoming...")
     } finally { setTimeout(() => setIsTriggering(false), 2000) }
   }
 
@@ -97,7 +99,7 @@ export default function AdminDashboard() {
     <div className="min-h-screen flex items-center justify-center bg-[#f8f9fb]">
         <div className="text-center">
             <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">Authenticating Founder...</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-400">Loading Business Hub...</p>
         </div>
     </div>
   )
@@ -110,9 +112,9 @@ export default function AdminDashboard() {
         <div>
             <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-5xl font-[1000] tracking-tighter text-gray-900 uppercase italic">Control Hub<span className="text-blue-600">.</span></h1>
-                <button onClick={handleLogout} className="text-[8px] font-black text-red-500 border border-red-100 px-2 py-1 rounded hover:bg-red-50 uppercase">Exit Vault</button>
+                <button onClick={handleLogout} className="text-[8px] font-black text-red-500 border border-red-100 px-2 py-1 rounded hover:bg-red-50 uppercase">Logout</button>
             </div>
-            <p className="text-blue-600 font-black text-[10px] tracking-[0.4em] uppercase">Verified Session: Mantu Patra</p>
+            <p className="text-blue-600 font-black text-[10px] tracking-[0.4em] uppercase">Monetization Mode: Active</p>
         </div>
         <button 
             onClick={triggerRobot}
@@ -123,30 +125,31 @@ export default function AdminDashboard() {
         </button>
       </div>
 
-      {/* METRICS */}
-      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+      {/* BUSINESS METRICS */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
           <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100">
-              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Inventory Size</span>
+              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Total Intelligence</span>
               <div className="text-7xl font-[1000] text-gray-900 tracking-tighter mt-2">{stats.total}</div>
           </div>
-          <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100 border-l-4 border-l-blue-600">
-              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Active Sectors</span>
-              <div className="text-7xl font-[1000] text-gray-900 tracking-tighter mt-2">{stats.categories}</div>
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-sm border border-gray-100 border-l-4 border-l-green-500">
+              <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Monetized Tools</span>
+              <div className="text-7xl font-[1000] text-green-600 tracking-tighter mt-2">{stats.monetized}</div>
           </div>
-          <div className="bg-black p-12 rounded-[3.5rem] shadow-2xl shadow-blue-100 text-white flex flex-col justify-center">
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Core Engine</span>
-              <div className="text-3xl font-[1000] tracking-tighter mt-2 italic uppercase">System Optimal</div>
+          <div className="bg-blue-600 p-12 rounded-[3.5rem] shadow-2xl shadow-blue-100 text-white flex flex-col justify-center">
+              <span className="text-[10px] font-black text-blue-200 uppercase tracking-widest">Revenue Status</span>
+              <div className="text-3xl font-[1000] tracking-tighter mt-2 italic uppercase italic">Optimizing ROI</div>
           </div>
       </div>
 
-      {/* INTELLIGENCE TABLE */}
+      {/* INVENTORY & ANALYTICS TABLE */}
       <div className="max-w-7xl mx-auto bg-white rounded-[4rem] border border-gray-100 shadow-sm overflow-hidden mb-20">
           <div className="overflow-x-auto">
               <table className="w-full text-left">
                   <thead>
                       <tr className="bg-gray-50/50 text-[10px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-50">
-                          <th className="px-10 py-10">Neural Entity</th>
-                          <th className="px-10 py-10">Access Mode</th>
+                          <th className="px-10 py-10">Entity Name</th>
+                          <th className="px-10 py-10">Clicks</th>
+                          <th className="px-10 py-10">Monetization</th>
                           <th className="px-10 py-10 text-right">Operations</th>
                       </tr>
                   </thead>
@@ -154,20 +157,33 @@ export default function AdminDashboard() {
                       {tools.map((tool) => (
                           <tr key={tool.id} className="hover:bg-blue-50/20 transition-all group">
                               <td className="px-10 py-10">
-                                  <div className="font-black text-gray-900 text-xl tracking-tight capitalize group-hover:text-blue-600 transition-colors">{tool.name}</div>
-                                  <div className="text-[10px] text-blue-600 font-bold uppercase tracking-widest mt-1">{tool.category}</div>
+                                  <div className="font-black text-gray-900 text-xl tracking-tight capitalize flex items-center gap-2">
+                                    {tool.name}
+                                    {tool.is_featured && <span className="text-[8px] bg-amber-400 text-black px-2 py-0.5 rounded tracking-widest">HOT</span>}
+                                  </div>
+                                  <div className="text-[10px] text-blue-600 font-bold uppercase tracking-widest">{tool.category}</div>
                               </td>
-                              <td className="px-10 py-10 font-black text-gray-400 text-[10px] uppercase">{tool.pricing}</td>
+                              <td className="px-10 py-10">
+                                  <div className="text-2xl font-black text-gray-900 tracking-tighter">{tool.click_count || 0}</div>
+                                  <div className="text-[8px] font-black text-gray-300 uppercase">Live Hits</div>
+                              </td>
+                              <td className="px-10 py-10">
+                                  {tool.affiliate_url ? (
+                                      <span className="text-[9px] font-black text-green-600 bg-green-50 px-3 py-1 rounded-full border border-green-100 uppercase tracking-widest">$$ Active</span>
+                                  ) : (
+                                      <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest italic">No Link</span>
+                                  )}
+                              </td>
                               <td className="px-10 py-10 text-right space-x-4">
                                   <button 
                                     onClick={() => { setEditingTool(tool); setIsEditOpen(true); }}
-                                    className="bg-gray-100 text-gray-900 px-6 py-3 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-600 hover:text-white transition-all"
+                                    className="bg-gray-900 text-white px-6 py-3 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg"
                                   >
-                                      Modify
+                                      Setup & Edit
                                   </button>
                                   <button 
                                     onClick={() => deleteTool(tool.id, tool.name)}
-                                    className="text-red-500 hover:bg-red-50 px-6 py-3 rounded-2xl font-black text-[9px] uppercase tracking-widest transition-all"
+                                    className="text-red-400 hover:text-red-600 font-black text-[9px] uppercase transition-all"
                                   >
                                       Terminate
                                   </button>
@@ -179,16 +195,20 @@ export default function AdminDashboard() {
           </div>
       </div>
 
-      {/* --- EDIT INTELLIGENCE MODAL --- */}
+      {/* --- MONETIZATION & EDIT MODAL --- */}
       {isEditOpen && editingTool && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center p-6 z-50">
             <div className="bg-white w-full max-w-2xl rounded-[4rem] p-12 shadow-2xl overflow-y-auto max-h-[90vh]">
-                <h2 className="text-4xl font-[1000] tracking-tighter uppercase italic mb-10 border-b-4 border-blue-600 inline-block pb-2">Modify Entity</h2>
+                <h2 className="text-4xl font-[1000] tracking-tighter uppercase italic mb-10 border-b-4 border-green-500 inline-block pb-2">Monetize Intelligence</h2>
                 <div className="space-y-8">
+                    <div>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Affiliate / Partner Link</label>
+                        <input className="w-full border-2 border-gray-50 bg-gray-50/50 p-5 rounded-3xl mt-2 font-bold focus:ring-2 focus:ring-green-500 outline-none text-blue-600" placeholder="https://impact.com/your-id..." value={editingTool.affiliate_url || ''} onChange={(e) => setEditingTool({...editingTool, affiliate_url: e.target.value})} />
+                    </div>
                     <div className="grid grid-cols-2 gap-6">
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Identity</label>
-                            <input className="w-full border-2 border-gray-50 bg-gray-50/50 p-5 rounded-3xl mt-2 font-bold focus:ring-2 focus:ring-blue-600 outline-none" value={editingTool.name} onChange={(e) => setEditingTool({...editingTool, name: e.target.value})} />
+                        <div className="flex items-center gap-4 bg-gray-50 p-6 rounded-3xl">
+                            <input type="checkbox" className="w-6 h-6 rounded-lg accent-blue-600" checked={editingTool.is_featured} onChange={(e) => setEditingTool({...editingTool, is_featured: e.target.checked})} />
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-900">Feature (HOT Badge)</label>
                         </div>
                         <div>
                             <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Score (1-100)</label>
@@ -196,12 +216,12 @@ export default function AdminDashboard() {
                         </div>
                     </div>
                     <div>
-                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Analysis Segment</label>
+                        <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Full Description</label>
                         <textarea className="w-full border-2 border-gray-50 bg-gray-50/50 p-6 rounded-3xl mt-2 font-medium h-48 outline-none leading-relaxed" value={editingTool.description} onChange={(e) => setEditingTool({...editingTool, description: e.target.value})} />
                     </div>
                     <div className="flex gap-4 pt-6">
-                        <button onClick={handleUpdate} className="flex-1 bg-blue-600 text-white p-6 rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-black transition-all">Sync To Vault ↗</button>
-                        <button onClick={() => setIsEditOpen(false)} className="bg-gray-100 text-gray-400 px-10 rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-gray-200">Cancel</button>
+                        <button onClick={handleUpdate} className="flex-1 bg-blue-600 text-white p-6 rounded-[2rem] font-black text-[10px] uppercase tracking-widest shadow-xl shadow-blue-100 hover:bg-black transition-all">Save & Sync ↗</button>
+                        <button onClick={() => setIsEditOpen(false)} className="bg-gray-100 text-gray-400 px-10 rounded-[2rem] font-black text-[10px] uppercase tracking-widest hover:bg-gray-200">Abort</button>
                     </div>
                 </div>
             </div>
