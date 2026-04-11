@@ -7,118 +7,107 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
-  try {
-    const { slug } = await params;
-    const { data: tool } = await supabase.from('ai_tools').select('name').ilike('slug', slug).single();
-    return { title: `${tool?.name || 'AI Tool'} Review | AIVault` };
-  } catch (e) { return { title: 'AIVault Review' }; }
-}
-
 export default async function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;
-  const { data: tool, error } = await supabase.from('ai_tools').select('*').ilike('slug', slug).single();
+  const { slug } = await params
+  
+  const { data: tool } = await supabase
+    .from('ai_tools')
+    .select('*')
+    .eq('slug', slug)
+    .single()
 
-  if (error || !tool) notFound();
-
-  const sections: string[] = tool.description ? tool.description.split('##').map((sec: string) => sec.trim()).filter(Boolean) : [];
+  if (!tool) return notFound()
 
   return (
-    <div className="bg-[#fcfcfc] min-h-screen font-sans selection:bg-blue-600 selection:text-white">
-      <div className="h-1.5 bg-blue-600 sticky top-0 z-[110]"></div>
+    <main className="min-h-screen bg-[#fcfcfc] font-sans pb-20">
+      {/* Top Navigation Bar */}
+      <nav className="max-w-7xl mx-auto p-6 flex justify-between items-center">
+        <Link href="/" className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-600">← Back to Directory</Link>
+        <div className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 italic">AIVault Intelligence</div>
+      </nav>
 
-      <article className="max-w-6xl mx-auto px-6 py-16 md:py-24">
-        <nav className="mb-16 text-[10px] font-black uppercase tracking-[0.3em]">
-          <Link href="/" className="text-blue-600 hover:opacity-50">← Back to Directory</Link>
-        </nav>
+      <article className="max-w-4xl mx-auto px-6 pt-20">
+        {/* HEADER SECTION */}
+        <header className="mb-16">
+          <div className="flex items-center gap-4 mb-8">
+            <span className="bg-black text-white text-[8px] font-black px-3 py-1 rounded uppercase tracking-widest">{tool.category}</span>
+            <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Verified by Mantu Patra</span>
+          </div>
+          
+          <h1 className="text-7xl md:text-9xl font-[1000] tracking-tighter text-gray-900 leading-[0.8] mb-12">
+            {tool.name}<span className="text-blue-600">.</span>
+          </h1>
 
-        {/* Hero Section */}
-        <header className="mb-24 border-b border-gray-100 pb-16 grid grid-cols-1 md:grid-cols-[160px,1fr] gap-12 items-center text-center md:text-left">
-          <div className="w-40 h-40 bg-white rounded-[2.5rem] border border-gray-100 mx-auto flex items-center justify-center relative shadow-2xl shadow-blue-100/20 overflow-hidden">
-             {tool.image_url ? (
-               <img src={tool.image_url} alt={tool.name} className="w-full h-full object-contain p-6" />
-             ) : (
-               <div className="text-4xl font-black text-blue-600 opacity-20 uppercase">{tool.name.charAt(0)}</div>
-             )}
-          </div>
-          <div>
-             <div className="flex items-center justify-center md:justify-start gap-3 mb-6 font-black text-[10px] uppercase tracking-widest">
-                <span className="bg-black text-white px-2 py-0.5 rounded-sm">{tool.category}</span>
-                <span className="text-gray-300 italic">Mantu Patra Verified Review</span>
-             </div>
-             <h1 className="text-6xl md:text-9xl font-black text-gray-900 tracking-[-0.06em] leading-[0.8]">
-               {tool.name}<span className="text-blue-600">.</span>
-             </h1>
-          </div>
+          {tool.score && (
+            <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full border border-blue-100 mb-10">
+                <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">Vault Score:</span>
+                <span className="text-lg font-[1000] text-blue-700">{tool.score}/100</span>
+            </div>
+          )}
         </header>
 
-        {/* --- MAGAZINE GRID START --- */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr,380px] gap-20">
-          
-          {/* LEFT COLUMN: Main Review Content */}
-          <div className="space-y-20">
-            {sections.map((section: string, idx: number) => {
-              const lines = section.split('\n');
-              const rawTitle = lines[0].replace(/\*/g, '').trim();
-              const isIntro = idx === 0 && !section.startsWith('##');
-              
-              // Sidebar items ko yahan skip karenge
-              const isSidebarItem = ["PROS", "CONS", "FAQ", "QUESTIONS"].some(k => rawTitle.toUpperCase().includes(k));
-              if (isSidebarItem && !isIntro) return null;
+        {/* MAIN DESCRIPTION */}
+        <section className="prose prose-xl max-w-none text-gray-600 leading-[1.8] font-medium mb-20">
+          <div className="h-1 w-20 bg-blue-600 mb-12 rounded-full"></div>
+          {tool.description.split('\n').map((para: string, i: number) => (
+            <p key={i} className="mb-8">{para}</p>
+          ))}
+        </section>
 
-              const body = isIntro ? section : lines.slice(1).join('\n');
-              const cleanedBody = body.replace(/\*\*/g, '').replace(/\*/g, '•').trim();
+        {/* PROS & CONS SECTION */}
+        {tool.pros_cons && (
+          <section className="bg-white border-2 border-gray-50 rounded-[3rem] p-10 md:p-16 my-16 shadow-sm">
+            <h3 className="text-2xl font-[1000] uppercase tracking-tighter text-gray-900 mb-10 italic">Analysis: Pros & Cons</h3>
+            <div className="text-gray-500 leading-relaxed font-medium whitespace-pre-line italic text-lg border-l-4 border-blue-600 pl-8">
+                {tool.pros_cons}
+            </div>
+          </section>
+        )}
 
-              return (
-                <section key={idx} className={isIntro ? "border-l-4 border-blue-600 pl-8" : ""}>
-                  {!isIntro && <h2 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter mb-10 uppercase italic underline decoration-blue-100 decoration-8 underline-offset-[-2px]">{rawTitle}</h2>}
-                  <div className={`text-xl leading-[1.9] text-gray-600 whitespace-pre-wrap font-medium ${isIntro ? 'text-2xl text-gray-900 font-bold' : ''}`}>
-                    {cleanedBody}
-                  </div>
-                </section>
-              );
-            })}
-          </div>
+        {/* FAQ SECTION */}
+        {tool.faq && (
+          <section className="my-20">
+            <div className="flex items-center gap-6 mb-12">
+                <h3 className="text-xs font-black uppercase tracking-[0.4em] whitespace-nowrap text-gray-400">Frequently Asked Questions</h3>
+                <div className="h-px w-full bg-gray-100"></div>
+            </div>
+            <div className="grid gap-8">
+                {tool.faq.split('Q:').filter(Boolean).map((item: string, i: number) => {
+                    const [q, a] = item.split('A:');
+                    return (
+                        <div key={i} className="bg-gray-50/50 p-8 rounded-[2rem] border border-gray-100/50 hover:bg-white transition-colors">
+                            <h4 className="font-black text-gray-900 mb-3 flex gap-3">
+                                <span className="text-blue-600">Q.</span> {q?.trim()}
+                            </h4>
+                            <p className="text-gray-500 font-medium leading-relaxed pl-7">
+                                {a?.trim()}
+                            </p>
+                        </div>
+                    );
+                })}
+            </div>
+          </section>
+        )}
 
-          {/* RIGHT COLUMN: Pros, Cons, & FAQ Cards */}
-          <aside className="space-y-8">
-            {sections.map((section: string, idx: number) => {
-              const lines = section.split('\n');
-              const rawTitle = lines[0].replace(/\*/g, '').trim();
-              const body = lines.slice(1).join('\n').trim();
-              const cleanedBody = body.replace(/\*\*/g, '').replace(/\*/g, '•').replace(/-/g, '•').trim();
-
-              const isPros = rawTitle.toUpperCase().includes("PROS");
-              const isCons = rawTitle.toUpperCase().includes("CONS");
-              const isFaq = rawTitle.toUpperCase().includes("FAQ") || rawTitle.toUpperCase().includes("QUESTION");
-
-              if (!isPros && !isCons && !isFaq) return null;
-
-              return (
-                <div key={idx} className={`p-10 rounded-[3rem] border shadow-sm transition-all hover:shadow-xl ${
-                  isPros ? 'bg-blue-50/50 border-blue-100 text-blue-900' : 
-                  isCons ? 'bg-red-50/50 border-red-100 text-red-900' : 
-                  'bg-white border-gray-100 text-gray-600'
-                }`}>
-                  <h3 className="text-2xl font-black uppercase tracking-tighter mb-6 underline decoration-2 underline-offset-8">{rawTitle}</h3>
-                  <div className="text-lg leading-relaxed whitespace-pre-wrap font-semibold italic">{cleanedBody}</div>
-                </div>
-              );
-            })}
-          </aside>
-        </div>
-        {/* --- MAGAZINE GRID END --- */}
-
-        {/* Final CTA Card */}
-        <div className="mt-40 p-1 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-[4rem] shadow-2xl shadow-blue-200">
-          <div className="bg-white p-16 md:p-32 rounded-[3.9rem] text-center relative overflow-hidden">
-            <h2 className="text-6xl md:text-8xl font-black text-gray-900 mb-12 tracking-tighter leading-none">Execute <br/> {tool.name}.</h2>
-            <a href={tool.website_url} target="_blank" className="inline-block bg-blue-600 text-white px-20 py-8 rounded-2xl font-black text-2xl hover:bg-black transition-all transform hover:scale-105 shadow-xl shadow-blue-200">
+        {/* CTA SECTION */}
+        <section className="mt-32">
+          <div className="bg-blue-600 rounded-[4rem] p-12 md:p-24 text-center text-white shadow-2xl shadow-blue-200">
+            <h2 className="text-5xl md:text-8xl font-[1000] tracking-tighter mb-12 leading-none uppercase italic">Execute<br/>{tool.name}</h2>
+            <a 
+              href={tool.website_url} 
+              target="_blank" 
+              className="inline-block bg-white text-blue-600 px-12 py-6 rounded-2xl font-[1000] uppercase tracking-widest text-sm hover:scale-105 transition-all"
+            >
               Visit Official Site ↗
             </a>
           </div>
-        </div>
+        </section>
       </article>
-    </div>
+
+      {/* FOOTER */}
+      <footer className="max-w-7xl mx-auto px-6 mt-40 pt-20 border-t border-gray-50 text-center opacity-30">
+        <div className="text-[10px] font-black uppercase tracking-[0.5em]">Optimized for High-Speed Global Traffic • AIVault</div>
+      </footer>
+    </main>
   )
 }
