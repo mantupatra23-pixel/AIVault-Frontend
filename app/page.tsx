@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-// Supabase Initialization
+// Supabase Safe Initialization
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -14,7 +14,6 @@ export default function Home() {
   const [tools, setTools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
 
   // 1. NEURAL DATA FETCHING ENGINE
   useEffect(() => {
@@ -28,7 +27,6 @@ export default function Home() {
         }
         
         const { data, error } = await query.order('created_at', { ascending: false });
-        
         if (error) throw error;
         setTools(data || []);
       } catch (err) {
@@ -42,10 +40,11 @@ export default function Home() {
 
   const categories = ['All', 'Chatbot', 'Image Gen', 'Video Gen', 'Coding', 'Marketing', 'Productivity'];
 
-  // Helper to extract clean domain for Clearbit Logos
+  // 2. LOGO ENGINE: Instant Domain Extraction
   const getLogo = (tool: any) => {
     if (tool.image_url && tool.image_url.includes('http')) return tool.image_url;
     try {
+      // Direct Clearbit fetch using hostname from link
       const domain = new URL(tool.link).hostname;
       return `https://logo.clearbit.com/${domain}`;
     } catch {
@@ -63,7 +62,7 @@ export default function Home() {
             VISORA<span className="text-blue-600">.</span>
           </Link>
           <div className="flex items-center gap-4">
-            <div className="bg-blue-600 text-white text-[9px] px-4 py-2 rounded-full font-black tracking-widest animate-pulse">VAULT LIVE</div>
+            <div className="bg-blue-600 text-white text-[9px] px-4 py-2 rounded-full font-black tracking-widest animate-pulse uppercase">Vault Live</div>
           </div>
         </div>
       </nav>
@@ -101,7 +100,7 @@ export default function Home() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {tools.map((tool) => (
-              <div key={tool.id} className="group relative bg-white border border-gray-100 rounded-[40px] p-8 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] transition-all duration-500 hover:-translate-y-2">
+              <div key={tool.id} className="group relative bg-white border border-gray-100 rounded-[40px] p-8 hover:shadow-2xl transition-all duration-500 hover:-translate-y-2">
                 <Link href={`/tool/${tool.slug}`} className="absolute inset-0 z-10"></Link>
                 
                 <div className="flex justify-between items-start mb-8">
@@ -126,8 +125,8 @@ export default function Home() {
                 </p>
 
                 <div className="flex items-center justify-between pt-6 border-t border-gray-50">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">NEURAL REPORT →</span>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-300">{tool.category}</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-blue-600 italic">Neural Report →</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-gray-300 italic">{tool.category}</span>
                 </div>
               </div>
             ))}
