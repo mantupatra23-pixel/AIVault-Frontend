@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
-// 1. DONT CHANGE THESE - Standard Connection
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
@@ -15,7 +14,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [activeCat, setActiveCat] = useState('All');
 
-  // 2. BACKEND & LOGO LOGIC
   useEffect(() => {
     async function fetchTools() {
       setLoading(true);
@@ -45,7 +43,9 @@ export default function Home() {
           <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
             VISORA<span className="text-blue-600">.</span>
           </Link>
-          <div className="bg-blue-600 text-white text-[9px] px-4 py-2 rounded-full font-black animate-pulse uppercase tracking-widest">Vault Live</div>
+          <div className="flex items-center gap-4">
+             <div className="bg-blue-600 text-white text-[9px] px-4 py-2 rounded-full font-black animate-pulse uppercase tracking-widest">Vault Live</div>
+          </div>
         </div>
       </nav>
 
@@ -61,7 +61,7 @@ export default function Home() {
               key={cat}
               onClick={() => setActiveCat(cat)}
               className={`px-6 py-2.5 rounded-full text-[10px] font-[1000] uppercase tracking-widest transition-all border ${
-                activeCat === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-100 text-gray-400'
+                activeCat === cat ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-600/20' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-600'
               }`}
             >
               {cat}
@@ -81,29 +81,39 @@ export default function Home() {
                 <Link href={`/tool/${tool.slug}`} className="absolute inset-0 z-10"></Link>
                 
                 <div className="flex justify-between items-start mb-8">
-                  <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center border border-gray-100 group-hover:scale-110 transition-all">
-                    <img 
-                      src={`https://logo.clearbit.com/${tool.link?.replace('https://','').replace('http://','').split('/')[0]}`} 
-                      alt="" 
-                      className="w-10 h-10 object-contain"
-                      onError={(e: any) => { e.target.src = "https://ai-vault-frontend-blue.vercel.app/neon-logo.png" }} 
-                    />
+                  {/* 🛡️ PREMIUM TEXT-LOGO ENGINE */}
+                  <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center text-white text-3xl font-[1000] italic group-hover:scale-110 transition-all shadow-lg shadow-blue-600/10">
+                    {tool.name.charAt(0).toUpperCase()}
                   </div>
-                  <span className="bg-black text-[9px] text-white px-3 py-1 rounded-full font-bold uppercase">{tool.pricing}</span>
+                  <div className="bg-black text-[9px] text-white px-3 py-1 rounded-full font-bold uppercase tracking-widest">
+                    {tool.pricing}
+                  </div>
                 </div>
 
-                <h3 className="text-3xl font-[1000] tracking-tighter mb-3 uppercase italic group-hover:text-blue-600">{tool.name}.</h3>
-                <p className="text-gray-400 text-sm line-clamp-2 italic mb-8">{tool.description}</p>
+                <h3 className="text-3xl font-[1000] tracking-tighter mb-3 uppercase italic group-hover:text-blue-600 transition-colors">
+                  {tool.name}.
+                </h3>
+                <p className="text-gray-400 text-sm line-clamp-2 italic mb-8">
+                  {tool.description || `Exploring the advanced neural capabilities of ${tool.name} for modern creators.`}
+                </p>
 
                 <div className="pt-6 border-t border-gray-50 flex justify-between text-[9px] font-black tracking-widest uppercase">
-                  <span className="text-blue-600">Report →</span>
-                  <span className="text-gray-300">{tool.category}</span>
+                  <span className="text-blue-600 italic">Report →</span>
+                  <span className="text-gray-300 italic">{tool.category}</span>
                 </div>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {/* 🌐 FOOTER */}
+      <footer className="bg-white border-t border-gray-100 py-20 text-center">
+        <h2 className="text-4xl font-[1000] tracking-tighter mb-4 italic">VISORA<span className="text-blue-600">.</span></h2>
+        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-[0.3em]">
+          © 2026 Bharat Made • Mantu Patra CEO
+        </p>
+      </footer>
     </main>
   );
 }
