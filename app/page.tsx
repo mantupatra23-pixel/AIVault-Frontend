@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 
-// 1. PERFORMANCE ENGINE
+// 1. PERFORMANCE & SEO ENGINE
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
@@ -10,16 +10,22 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 )
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string }> }) {
+export default async function Home({ searchParams }: any) {
   const params = await searchParams;
   const activeCat = params.cat || 'All';
   const searchQuery = params.q || '';
 
   // 2. SEARCH & FILTER LOGIC
-  let query = supabase.from('ai_tools').select('*', { count: 'exact' })
-  if (activeCat !== 'All') { query = query.ilike('category', `%${activeCat}%`) }
-  if (searchQuery) { query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`) }
-  const { data: tools, count } = await query.order('created_at', { ascending: false })
+  let query = supabase.from('ai_tools').select('*', { count: 'exact' });
+  
+  if (activeCat !== 'All') {
+    query = query.ilike('category', activeCat);
+  }
+  if (searchQuery) {
+    query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
+  }
+
+  const { data: tools, count } = await query.order('created_at', { ascending: false });
 
   const categories = [
     { name: 'All', icon: '⚡' },
@@ -32,56 +38,56 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
   ];
 
   return (
-    <main className="min-h-screen bg-[#fcfcfc] font-sans selection:bg-blue-600 selection:text-white">
+    <main className="min-h-screen bg-[#fcfcfc] font-sans text-gray-900 selection:bg-blue-100">
       
       {/* 🧭 PREMIUM STICKY NAVIGATION */}
-      <nav className="fixed top-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center z-[10000] px-6">
-        <div className="max-w-7xl mx-auto w-full flex justify-between items-center">
-            <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase flex items-center gap-1">
-              VISORA<span className="text-blue-600">.</span>
-            </Link>
-            <div className="flex items-center gap-4">
-                <Link href="/about" className="hidden md:block text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-blue-600 transition-colors">Mission</Link>
-                <a href="#" className="bg-black text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-blue-600 transition-all">Submit Tool</a>
-            </div>
+      <nav className="fixed top-0 left-0 right-0 h-20 bg-white/80 backdrop-blur-xl z-50 border-b border-gray-100">
+        <div className="max-w-7xl mx-auto w-full h-full flex items-center justify-between px-6">
+          <Link href="/" className="font-[1000] text-2xl tracking-tighter hover:opacity-70 transition-all">
+            VISORA<span className="text-blue-600">.</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/about" className="hidden md:block text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-black">MISSION</Link>
+            <a href="#" className="bg-black text-white text-[10px] px-6 py-3 rounded-full font-bold uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl shadow-black/10">SUBMIT TOOL</a>
+          </div>
         </div>
       </nav>
 
       {/* 🏆 HERO SECTION */}
-      <header className="max-w-7xl mx-auto px-6 pt-40 pb-20 text-center relative">
-        <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-full mb-8 border border-blue-100">
-            <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
-            <span className="text-[10px] font-[1000] uppercase tracking-widest text-blue-600">
-                {count || 0} Neural Engines Verified
-            </span>
+      <header className="max-w-7xl mx-auto px-6 pt-40 pb-20 text-center">
+        <div className="inline-flex items-center gap-2 bg-white border border-gray-100 px-4 py-2 rounded-full mb-8 shadow-sm">
+          <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse"></span>
+          <span className="text-[10px] font-[1000] uppercase tracking-widest text-gray-500">
+             {count || 0} Neural Engines Verified
+          </span>
         </div>
         
-        <h1 className="text-6xl md:text-[130px] font-[1000] tracking-tighter leading-[0.8] mb-12 uppercase italic">
-            Vault of<br/><span className="text-blue-600">Intelligence.</span>
+        <h1 className="text-6xl md:text-[130px] font-[1000] leading-[0.85] tracking-tighter mb-12 uppercase">
+          Vault of<br/><span className="text-blue-600">Intelligence.</span>
         </h1>
 
         {/* 🔍 SEARCH HUB */}
-        <form action="/" method="GET" className="max-w-2xl mx-auto mb-16 relative group">
+        <form action="/" method="GET" className="max-w-2xl mx-auto relative mb-16">
           <input 
             name="q"
             defaultValue={searchQuery}
-            placeholder="Search Autonomous Intelligence..."
-            className="w-full px-8 py-6 rounded-3xl bg-white border border-slate-100 shadow-2xl shadow-blue-100/30 outline-none focus:border-blue-600 transition-all text-lg font-medium italic"
+            placeholder="Search Autonomous Intelligence..." 
+            className="w-full px-8 py-6 rounded-3xl bg-white border border-gray-100 shadow-2xl shadow-black/5 focus:ring-4 focus:ring-blue-500/10 transition-all outline-none text-lg font-medium"
           />
-          <button type="submit" className="absolute right-4 top-4 bg-black text-white px-6 py-2 rounded-2xl font-black text-[10px] uppercase tracking-widest">Execute</button>
+          <button type="submit" className="absolute right-4 top-4 bg-black text-white px-6 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-blue-600 transition-all">EXECUTE</button>
           {activeCat !== 'All' && <input type="hidden" name="cat" value={activeCat} />}
         </form>
 
         {/* 🗂️ CATEGORY CLUSTERS */}
-        <div className="flex flex-wrap justify-center gap-3">
+        <div className="flex flex-wrap justify-center gap-3 max-w-4xl mx-auto">
           {categories.map((c) => (
             <Link 
               key={c.name}
               href={`/?cat=${c.name}${searchQuery ? `&q=${searchQuery}` : ''}`}
-              className={`flex items-center gap-2 px-6 py-3.5 rounded-2xl text-[9px] font-[1000] uppercase tracking-[0.15em] border transition-all ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all duration-300 border ${
                 activeCat === c.name 
-                ? 'bg-blue-600 text-white border-blue-600 shadow-xl shadow-blue-100' 
-                : 'bg-white border-slate-100 text-slate-400 hover:border-blue-600'
+                ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-600/20 scale-105' 
+                : 'bg-white border-slate-100 text-slate-400 hover:border-blue-200 hover:text-blue-600'
               }`}
             >
               <span>{c.icon}</span> {c.name}
@@ -92,90 +98,80 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ c
 
       {/* 🚀 TOOLS GRID */}
       <section className="max-w-7xl mx-auto px-6 pb-40">
-        <div className="flex items-center gap-6 mb-16 opacity-30">
-            <span className="text-[10px] font-[1000] uppercase tracking-[0.5em] italic">Verified Directory</span>
-            <div className="h-px w-full bg-slate-900" />
+        <div className="flex items-center gap-6 mb-12">
+          <span className="text-[10px] font-[1000] uppercase tracking-widest text-gray-300">Verified Directory</span>
+          <div className="h-px w-full bg-slate-900/5"></div>
         </div>
 
         {tools && tools.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {tools.map((tool) => (
-              <Link key={tool.id} href={`/tool/${tool.slug}`} className="group relative bg-white border border-slate-100 p-10 rounded-[3rem] hover:shadow-2xl hover:shadow-blue-100 transition-all hover:-translate-y-3">
-                <div className="absolute top-8 right-8">
-                    <span className="text-[8px] font-black uppercase bg-slate-900 text-white px-3 py-1 rounded-full italic tracking-tighter">{tool.pricing || 'Freemium'}</span>
-                </div>
+              <div key={tool.id} className="group relative bg-white border border-gray-100 rounded-[40px] p-8 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.08)] transition-all duration-700">
+                <Link href={`/tool/${tool.slug}`} className="absolute inset-0 z-10"></Link>
                 
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center mb-8 border border-slate-100 overflow-hidden">
-                    {tool.image_url ? (
-                        <img src={tool.image_url} alt={tool.name} className="w-full h-full object-cover" />
-                    ) : (
-                        <span className="text-2xl font-[1000] text-slate-200 uppercase">{tool.name[0]}</span>
-                    )}
+                <div className="flex justify-between items-start mb-8">
+                   <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden border border-gray-50">
+                    <img 
+                      src={tool.image_url || "https://ai-vault-frontend-blue.vercel.app/neon-logo.png"} 
+                      alt={tool.name} 
+                      className="w-full h-full object-contain p-2"
+                      onError={(e) => { (e.target as HTMLImageElement).src = "https://ai-vault-frontend-blue.vercel.app/neon-logo.png" }}
+                    />
+                  </div>
+                  <div className="bg-black text-[9px] text-white px-3 py-1 rounded-full font-bold tracking-widest uppercase">
+                    {tool.pricing}
+                  </div>
                 </div>
 
-                <h3 className="text-3xl font-[1000] text-slate-900 uppercase italic mb-4 leading-none tracking-tighter group-hover:text-blue-600 transition-colors">
-                    {tool.name}<span className="text-blue-600">.</span>
+                <h3 className="text-3xl font-[1000] tracking-tighter mb-3 group-hover:text-blue-600 transition-colors uppercase">
+                  {tool.name}<span className="text-blue-600">.</span>
                 </h3>
-                <p className="text-slate-400 text-sm leading-relaxed font-medium mb-8 line-clamp-2 italic">
-                    {tool.description?.split('.')[0]}.
+                <p className="text-slate-400 text-sm leading-relaxed mb-8 line-clamp-2 italic">
+                  {tool.description}
                 </p>
 
-                <div className="flex items-center justify-between pt-8 border-t border-slate-50">
-                    <span className="text-[8px] font-black uppercase tracking-widest text-blue-600 italic">Neural Report →</span>
-                    <span className="text-[8px] font-black uppercase tracking-widest text-slate-300">{tool.category}</span>
+                <div className="flex items-center justify-between pt-6 border-t border-gray-50">
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-blue-600">Neural Report →</span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-300">{tool.category}</span>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         ) : (
-          <div className="text-center py-40 border-4 border-dashed border-slate-50 rounded-[5rem]">
-            <h3 className="text-4xl font-[1000] text-slate-200 uppercase italic">Awaiting Data...</h3>
+          <div className="text-center py-40 border-4 border-dashed border-gray-50 rounded-[60px]">
+            <h3 className="text-4xl font-[1000] text-gray-200 uppercase tracking-tighter">Awaiting Data...</h3>
           </div>
         )}
       </section>
 
-      {/* 🌐 NEURAL SITEMAP INDEX (SEO BOOSTER) */}
-      <footer className="bg-white border-t border-slate-50 pt-32 pb-20">
-        <div className="max-w-7xl mx-auto px-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-20 mb-32">
-                <div className="md:col-span-2 text-center md:text-left">
-                    <h2 className="text-5xl font-[1000] italic uppercase mb-8 tracking-tighter">VISORA<span className="text-blue-600">.</span></h2>
-                    <p className="text-slate-400 text-lg font-medium leading-relaxed italic max-w-sm mx-auto md:mx-0">
-                        Made in Bharat for the world. Curating 100+ high-performance AI engines for the next 10Cr creators.
-                    </p>
-                </div>
-                <div className="text-center md:text-left">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-300 mb-8 italic">Company</h4>
-                    <ul className="space-y-4 text-[10px] font-black uppercase tracking-widest text-slate-900 italic">
-                        <li><Link href="/" className="hover:text-blue-600">Directory</Link></li>
-                        <li><Link href="/about" className="hover:text-blue-600">Mission</Link></li>
-                        <li><a href="#" className="hover:text-blue-600 text-blue-600">Submit Tool</a></li>
-                    </ul>
-                </div>
-                <div className="text-center md:text-left">
-                    <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-300 mb-8 italic">Founder</h4>
-                    <ul className="space-y-4 text-[10px] font-black uppercase tracking-widest text-slate-900 italic">
-                        <li><a href="mailto:mantu@visora.ai" className="hover:text-blue-600 underline">Inquiry</a></li>
-                        <li className="text-slate-400">© 2026 Bharat Made</li>
-                    </ul>
-                </div>
+      {/* 🌐 FOOTER & SEO LINKS */}
+      <footer className="bg-white border-t border-slate-100 py-40">
+        <div className="max-w-7xl mx-auto px-6 text-center md:text-left">
+           <div className="grid grid-cols-1 md:grid-cols-4 gap-20">
+            <div className="md:col-span-2">
+              <h2 className="text-5xl font-[1000] tracking-tighter mb-6">VISORA<span className="text-blue-600">.</span></h2>
+              <p className="text-slate-400 text-sm max-w-sm leading-relaxed mb-8">
+                Made in Bharat for the world. Curating 100+ high-performance AI engines for the next 10Cr creators.
+              </p>
+              <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">© 2026 Bharat Made</p>
+            </div>
+            
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-300 mb-8">Navigation</h4>
+              <ul className="space-y-4 text-sm font-bold uppercase tracking-tighter">
+                <li><Link href="/" className="hover:text-blue-600">Directory</Link></li>
+                <li><Link href="/about" className="hover:text-blue-600">Mission</Link></li>
+              </ul>
             </div>
 
-            {/* THE BOT MAGNET (82 TOOLS LINKS) */}
-            <div className="pt-24 border-t border-slate-100">
-                <h4 className="text-[9px] font-black uppercase tracking-[0.8em] text-slate-300 mb-12 text-center italic">Neural Cluster Network</h4>
-                <div className="flex flex-wrap justify-center gap-x-8 gap-y-5 opacity-60 hover:opacity-100 transition-opacity duration-700">
-                    {tools?.map((t) => (
-                        <Link key={t.id} href={`/tool/${t.slug}`} className="text-[9px] font-[1000] text-slate-600 hover:text-blue-600 uppercase tracking-tighter">
-                            {t.name}
-                        </Link>
-                    ))}
-                </div>
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-300 mb-8">Contact</h4>
+              <ul className="space-y-4 text-sm font-bold uppercase tracking-tighter">
+                <li><a href="mailto:mantu@visora.ai" className="hover:text-blue-600">Founder Inquiry</a></li>
+                <li className="text-slate-400 text-[10px] tracking-widest font-medium italic">Mantu Patra CEO</li>
+              </ul>
             </div>
-
-            <div className="mt-40 text-center text-[9px] font-black uppercase tracking-[2em] text-slate-200">
-                VISORA AI ENGINE • BHARAT MISSION
-            </div>
+          </div>
         </div>
       </footer>
     </main>
