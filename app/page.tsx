@@ -3,78 +3,93 @@ import Link from 'next/link'
 
 export const dynamic = 'force-dynamic';
 
+// Supabase Connection
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-)
+);
 
-export default async function Home({ searchParams }: any) {
-  // Safe extraction for all Next.js versions
-  const params = await (searchParams || {});
-  const activeCat = params.cat || 'All';
-  const searchQuery = params.q || '';
+export default async function Home(props: any) {
+  // Safe extraction for Next.js 14/15
+  const searchParams = await (props.searchParams || {});
+  const activeCat = searchParams.cat || 'All';
+  const searchQuery = searchParams.q || '';
 
-  let query = supabase.from('ai_tools').select('*', { count: 'exact' });
+  // Data Fetching
+  let query = supabase.from('ai_tools').select('*');
   
   if (activeCat !== 'All') query = query.ilike('category', activeCat);
   if (searchQuery) query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`);
 
-  const { data: tools, count } = await query.order('created_at', { ascending: false });
+  const { data: tools } = await query.order('created_at', { ascending: false });
 
-  const categories = [
-    { name: 'All', icon: '⚡' }, { name: 'Chatbot', icon: '💬' }, 
-    { name: 'Image Gen', icon: '🎨' }, { name: 'Video Gen', icon: '🎥' }, 
-    { name: 'Coding', icon: '💻' }, { name: 'Marketing', icon: '📈' }, 
-    { name: 'Productivity', icon: '🚀' }
-  ];
+  const categories = ['All', 'Chatbot', 'Image Gen', 'Video Gen', 'Coding', 'Marketing', 'Productivity'];
 
   return (
-    <main className="min-h-screen bg-[#fcfcfc] text-gray-900">
-      <nav className="fixed top-0 w-full h-20 bg-white/80 backdrop-blur-xl z-50 border-b border-gray-100 flex items-center justify-between px-6">
-        <Link href="/" className="font-[1000] text-2xl tracking-tighter italic">VISORA<span className="text-blue-600">.</span></Link>
-        <button className="bg-black text-white text-[10px] px-6 py-3 rounded-full font-bold uppercase tracking-widest">SUBMIT TOOL</button>
+    <main className="min-h-screen bg-white text-black font-sans">
+      {/* Navbar */}
+      <nav className="p-6 border-b flex justify-between items-center sticky top-0 bg-white/80 backdrop-blur-md z-50">
+        <Link href="/" className="text-2xl font-black italic tracking-tighter">VISORA<span className="text-blue-600">.</span></Link>
+        <div className="text-[10px] font-bold bg-black text-white px-4 py-2 rounded-full">FOUNDER MODE</div>
       </nav>
 
-      <header className="max-w-7xl mx-auto px-6 pt-40 pb-20 text-center">
-        <h1 className="text-6xl md:text-[100px] font-[1000] leading-[0.85] tracking-tighter mb-12 uppercase italic">
+      {/* Hero */}
+      <div className="max-w-7xl mx-auto px-6 pt-32 pb-20 text-center">
+        <h1 className="text-6xl md:text-9xl font-black tracking-tighter mb-8 uppercase italic leading-none">
           Vault of<br/><span className="text-blue-600">Intelligence.</span>
         </h1>
 
-        <form action="/" method="GET" className="max-w-2xl mx-auto relative mb-12">
-          <input name="q" defaultValue={searchQuery} placeholder="Search Neural Engines..." className="w-full px-8 py-6 rounded-3xl bg-white border border-gray-100 shadow-xl outline-none" />
-          <button type="submit" className="absolute right-4 top-4 bg-black text-white px-6 py-2.5 rounded-2xl font-bold text-xs uppercase tracking-widest">EXECUTE</button>
+        {/* Search */}
+        <form action="/" method="GET" className="max-w-xl mx-auto mb-12">
+          <input 
+            name="q" 
+            defaultValue={searchQuery}
+            placeholder="Search AI Engines..." 
+            className="w-full p-6 rounded-2xl border-2 border-gray-100 focus:border-blue-600 outline-none transition-all shadow-lg text-lg"
+          />
         </form>
 
-        <div className="flex flex-wrap justify-center gap-3">
-          {categories.map((c) => (
-            <Link key={c.name} href={`/?cat=${c.name}`} className={`px-5 py-2.5 rounded-full text-[10px] font-bold uppercase border ${activeCat === c.name ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-400 border-slate-100'}`}>
-              {c.icon} {c.name}
+        {/* Categories */}
+        <div className="flex flex-wrap justify-center gap-2">
+          {categories.map((cat) => (
+            <Link 
+              key={cat} 
+              href={`/?cat=${cat}`}
+              className={`px-6 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all ${activeCat === cat ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-400 border-gray-100 hover:border-blue-600'}`}
+            >
+              {cat}
             </Link>
           ))}
         </div>
-      </header>
+      </div>
 
-      <section className="max-w-7xl mx-auto px-6 pb-40">
+      {/* Grid */}
+      <div className="max-w-7xl mx-auto px-6 pb-40">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {tools?.map((tool) => (
-            <div key={tool.id} className="group bg-white border border-gray-100 rounded-[40px] p-8 hover:shadow-2xl transition-all duration-500">
+          {tools?.map((tool: any) => (
+            <div key={tool.id} className="border-2 border-gray-50 rounded-[32px] p-8 hover:border-blue-600 transition-all group relative">
               <Link href={`/tool/${tool.slug}`} className="absolute inset-0 z-10"></Link>
-              <div className="flex justify-between mb-8">
-                <div className="w-16 h-16 bg-slate-50 rounded-2xl overflow-hidden">
-                  <img src={tool.image_url || "https://ai-vault-frontend-blue.vercel.app/neon-logo.png"} alt="" className="w-full h-full object-contain p-2" onError={(e) => { (e.target as HTMLImageElement).src = "https://ai-vault-frontend-blue.vercel.app/neon-logo.png" }} />
+              <div className="flex justify-between items-start mb-6">
+                <div className="w-14 h-14 bg-gray-50 rounded-xl overflow-hidden p-2">
+                  <img 
+                    src={tool.image_url || "https://ai-vault-frontend-blue.vercel.app/neon-logo.png"} 
+                    alt="" 
+                    className="w-full h-full object-contain"
+                    onError={(e: any) => { e.target.src = "https://ai-vault-frontend-blue.vercel.app/neon-logo.png" }}
+                  />
                 </div>
-                <span className="bg-black text-[9px] text-white px-3 py-1 rounded-full font-bold">{tool.pricing}</span>
+                <span className="text-[10px] font-bold bg-gray-100 px-3 py-1 rounded-full uppercase">{tool.pricing}</span>
               </div>
-              <h3 className="text-2xl font-[1000] mb-2 uppercase italic">{tool.name}.</h3>
-              <p className="text-slate-400 text-sm line-clamp-2 mb-6">{tool.description}</p>
-              <div className="pt-6 border-t border-gray-50 flex justify-between">
-                <span className="text-[8px] font-black text-blue-600 uppercase">Neural Report →</span>
-                <span className="text-[8px] font-black text-slate-300 uppercase">{tool.category}</span>
+              <h3 className="text-2xl font-black mb-2 uppercase italic">{tool.name}.</h3>
+              <p className="text-gray-400 text-sm line-clamp-2 mb-6 italic">{tool.description}</p>
+              <div className="pt-6 border-t flex justify-between items-center">
+                <span className="text-[10px] font-black text-blue-600">REPORT →</span>
+                <span className="text-[10px] font-bold text-gray-300 uppercase">{tool.category}</span>
               </div>
             </div>
           ))}
         </div>
-      </section>
+      </div>
     </main>
-  )
+  );
 }
