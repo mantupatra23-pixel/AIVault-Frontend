@@ -11,7 +11,6 @@ export default async function ToolPage({ params }: any) {
   const resolvedParams = await params
   const { slug } = resolvedParams
 
-  // 1. DATA FETCHING
   const { data: tool } = await supabase
     .from('ai_tools')
     .select('*')
@@ -27,48 +26,47 @@ export default async function ToolPage({ params }: any) {
     .neq('slug', slug)
     .limit(4)
 
-  // 🔗 SAFE URL ENGINE (Fixes the "Not Opening" issue)
+  // 🔗 URL Sanitizer (Ensures links are clickable)
   const getSafeUrl = (url: string) => {
     if (!url) return "#";
-    if (url.startsWith('http://') || url.startsWith('https://')) return url;
-    return `https://${url}`;
+    const cleanUrl = url.trim();
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+    return `https://${cleanUrl}`;
   };
 
   const finalUrl = getSafeUrl(tool.affiliate_url || tool.link || tool.website);
 
   return (
-    <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 selection:bg-blue-600 selection:text-white">
+    <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 overflow-x-hidden">
       
       {/* 🧭 NAVIGATION */}
-      <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[100] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
+      <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[999] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
         <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
           VISORA<span className="text-blue-600">.</span>
         </Link>
-        <div className="flex items-center gap-4">
+        <div className="relative z-[1000]">
           <a 
             href={finalUrl} 
             target="_blank" 
             rel="noopener noreferrer" 
-            className="bg-black text-white text-[10px] px-8 py-3 rounded-full font-black uppercase tracking-widest hover:bg-blue-600 transition-all pointer-events-auto"
+            className="bg-black text-white text-[10px] px-8 py-3 rounded-full font-black uppercase tracking-widest hover:bg-blue-600 transition-all cursor-pointer inline-block"
           >
             Visit Portal
           </a>
         </div>
       </nav>
 
-      <article className="max-w-4xl mx-auto px-6 pt-44">
+      <article className="max-w-4xl mx-auto px-6 pt-44 relative z-10">
         
         {/* 🏆 HEADER */}
         <header className="mb-20">
           <div className="flex items-center gap-4 mb-8">
             <span className="bg-blue-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">{tool.category}</span>
-            <span className="text-slate-400 text-[10px] font-bold uppercase tracking-widest italic">Neural Score: 9.8</span>
           </div>
           <h1 className="text-6xl md:text-[110px] font-[1000] leading-[0.8] tracking-tighter italic uppercase mb-12">
             {tool.name}<span className="text-blue-600">.</span>
           </h1>
           <div className="bg-slate-900 rounded-[50px] p-10 md:p-16 text-white shadow-2xl">
-            <h3 className="text-blue-400 text-[10px] font-black uppercase tracking-[0.3em] mb-6 italic">Strategic Summary</h3>
             <p className="text-2xl md:text-4xl font-medium italic leading-tight">
               "Visora analysis identifies {tool.name} as a top-tier engine for {tool.category}."
             </p>
@@ -77,8 +75,7 @@ export default async function ToolPage({ params }: any) {
 
         {/* 🧬 DESCRIPTION */}
         <section className="mb-32">
-          <h2 className="text-[12px] font-black uppercase tracking-[0.4em] text-blue-600 mb-10 italic">Analysis Report</h2>
-          <div className="text-xl md:text-2xl text-slate-600 leading-relaxed italic space-y-8 font-medium border-l-4 border-slate-50 pl-8">
+          <div className="text-xl md:text-2xl text-slate-600 leading-relaxed italic space-y-8 font-medium border-l-4 border-slate-100 pl-8">
             {tool.description?.split('\n').map((p: string, i: number) => <p key={i}>{p}</p>)}
           </div>
         </section>
@@ -86,43 +83,41 @@ export default async function ToolPage({ params }: any) {
         {/* ⚖️ PROS/CONS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-32">
           <div className="bg-[#f0fff4] p-12 rounded-[50px] border border-green-100">
-            <h4 className="text-green-600 text-[10px] font-black uppercase tracking-widest mb-6 italic">✓ The Edge</h4>
-            <div className="text-lg font-bold text-green-900 italic whitespace-pre-line">{tool.pros || "Optimized Neural Mapping"}</div>
+            <div className="text-lg font-bold text-green-900 italic whitespace-pre-line">{tool.pros || "Optimized Performance"}</div>
           </div>
           <div className="bg-[#fff5f5] p-12 rounded-[50px] border border-red-100">
-            <h4 className="text-red-600 text-[10px] font-black uppercase tracking-widest mb-6 italic">× Friction</h4>
-            <div className="text-lg font-bold text-red-900 italic whitespace-pre-line">{tool.cons || "Learning Curve Involved"}</div>
+            <div className="text-lg font-bold text-red-900 italic whitespace-pre-line">{tool.cons || "Learning Curve"}</div>
           </div>
         </div>
 
-        {/* 💰 PRICING CTA (STRICT CLICK FIX) */}
-        <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40 overflow-visible">
-          <span className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-300 mb-6 block italic">Access Node</span>
-          <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none">
+        {/* 💰 PRICING CTA - ULTRA FORCE CLICK FIX */}
+        <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40">
+          <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none">
             {tool.pricing}
           </div>
           
-          <div className="relative z-[50]">
+          {/* 🔥 THE IMMORTAL BUTTON */}
+          <div className="relative z-[5000] block">
             <a 
               href={finalUrl} 
               target="_blank" 
               rel="noopener noreferrer"
-              className="inline-block bg-blue-600 text-white px-16 py-7 rounded-full font-[1000] text-2xl uppercase tracking-widest hover:scale-105 transition-all shadow-2xl shadow-blue-600/40 pointer-events-auto cursor-pointer"
+              style={{ position: 'relative', zIndex: 9999, display: 'inline-block' }}
+              className="bg-blue-600 text-white px-16 py-7 rounded-full font-[1000] text-2xl uppercase tracking-widest hover:scale-105 transition-all shadow-2xl shadow-blue-600/40 cursor-pointer active:scale-95"
             >
               Visit Official Portal ↗
             </a>
           </div>
           
-          <p className="mt-14 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Verified by Mantu Patra CEO</p>
+          <p className="mt-14 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 pointer-events-none">Verified Intelligence • Mantu Patra CEO</p>
         </section>
 
         {/* 🌐 RELATED */}
         <section className="pt-24 border-t border-gray-100">
-          <h3 className="text-[12px] font-black uppercase tracking-[0.4em] text-gray-300 mb-12 italic">Neural Discovery</h3>
+          <h3 className="text-[12px] font-black uppercase tracking-[0.4em] text-gray-300 mb-12 italic uppercase">Neural Discovery</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {related?.map((t) => (
-              <Link key={t.slug} href={`/tool/${t.slug}`} className="group p-8 bg-white border border-gray-100 rounded-[40px] hover:border-blue-600 transition-all block">
-                <span className="text-[9px] font-black uppercase text-blue-600 block mb-3 italic">{t.category}</span>
+              <Link key={t.slug} href={`/tool/${t.slug}`} className="group p-8 bg-white border border-gray-100 rounded-[40px] hover:border-blue-600 transition-all block relative z-10">
                 <h4 className="text-2xl font-[1000] italic uppercase leading-tight group-hover:text-blue-600">{t.name}</h4>
               </Link>
             ))}
