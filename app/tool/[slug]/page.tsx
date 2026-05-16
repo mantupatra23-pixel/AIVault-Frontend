@@ -1,8 +1,10 @@
+export const dynamic = 'force-dynamic';
+
 import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-// 1. DATABASE INITIALIZATION
+// 1. DATABASE CONFIGURATION
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -12,7 +14,7 @@ export default async function ToolPage({ params }: any) {
   const resolvedParams = await params
   const { slug } = resolvedParams
 
-  // 2. FETCH MAIN TOOL DATA
+  // 2. FETCH SPECIFIC TOOL BY UNIQUE SLUG
   const { data: tool } = await supabase
     .from('ai_tools')
     .select('*')
@@ -21,7 +23,7 @@ export default async function ToolPage({ params }: any) {
 
   if (!tool) return notFound()
 
-  // 3. FETCH RELATED RELEVANT CLUSTERS
+  // 3. FETCH RELEVANT RELATED INTERSECTIONS
   const { data: related } = await supabase
     .from('ai_tools')
     .select('name, slug, category, pricing')
@@ -29,12 +31,12 @@ export default async function ToolPage({ params }: any) {
     .neq('slug', slug)
     .limit(4)
 
-  // 🔗 ACCURATE SCHEMA URL RESOLVER
+  // 🔗 ACCURATE SCHEMA LINK RESOLVER (Loop & Null Protector)
   const getSafeUrl = (url: string) => {
     if (!url) return "#";
     const cleanUrl = url.trim();
     
-    // Loop Protection against relative slugs or loops
+    // Safety Fallback against loops or internal routes
     if (cleanUrl === "#" || cleanUrl.includes(`/tool/`) || cleanUrl === slug) {
       return `https://www.google.com/search?q=${encodeURIComponent(tool.name + " AI tool official website")}`;
     }
@@ -45,13 +47,13 @@ export default async function ToolPage({ params }: any) {
     return `https://${cleanUrl}`;
   };
 
-  // Targeting 'website_url' directly as mapped in Supabase schema
+  // Targeting the precise 'website_url' verified in the schema
   const finalUrl = getSafeUrl(tool.website_url || tool.affiliate_url || tool.link);
 
   return (
     <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 overflow-x-hidden selection:bg-blue-600 selection:text-white">
       
-      {/* 🧭 NAVIGATION */}
+      {/* 🧭 NAVIGATION MASTER NODE */}
       <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[999] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
         <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
           VISORA<span className="text-blue-600">.</span>
@@ -70,7 +72,7 @@ export default async function ToolPage({ params }: any) {
 
       <article className="max-w-4xl mx-auto px-6 pt-44 relative z-10">
         
-        {/* 🏆 HEADER SECTION */}
+        {/* 🏆 HERO HEADER */}
         <header className="mb-20">
           <div className="flex items-center gap-4 mb-8">
             <span className="bg-blue-600 text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">{tool.category}</span>
@@ -87,7 +89,7 @@ export default async function ToolPage({ params }: any) {
           </div>
         </header>
 
-        {/* 🧬 DESCRIPTION ANALYSIS */}
+        {/* 🧬 INTELLIGENCE REPORT */}
         <section className="mb-32">
           <h2 className="text-[12px] font-black uppercase tracking-[0.4em] text-blue-600 mb-10 italic">Analysis Report</h2>
           <div className="text-xl md:text-2xl text-slate-600 leading-relaxed italic space-y-8 font-medium border-l-4 border-slate-100 pl-8">
@@ -95,7 +97,7 @@ export default async function ToolPage({ params }: any) {
           </div>
         </section>
 
-        {/* ⚖️ PROS / CONS MODULE */}
+        {/* ⚖️ ACCELERATION VS FRICTION MATRIX */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-32">
           <div className="bg-[#f0fff4] p-12 rounded-[50px] border border-green-100 shadow-sm">
             <h4 className="text-green-600 text-[10px] font-black uppercase tracking-widest mb-6 italic">✓ The Edge</h4>
@@ -103,17 +105,17 @@ export default async function ToolPage({ params }: any) {
           </div>
           <div className="bg-[#fff5f5] p-12 rounded-[50px] border border-red-100 shadow-sm">
             <h4 className="text-red-600 text-[10px] font-black uppercase tracking-widest mb-6 italic">× Friction</h4>
-            <div className="text-lg font-bold text-red-900 italic whitespace-pre-line">{tool.cons || "Learning Curve Involved\nAPI Context Tokens Dependency"}</div>
+            <div className="text-lg font-bold text-red-900 italic whitespace-pre-line">{tool.cons || "Learning Curve Involved\nContext Window Tokens Dependency"}</div>
           </div>
         </div>
 
-        {/* 💰 PRICING CTA (INLINE STACKING CONTEXT FIXED) */}
+        {/* 💰 PRICING CTA SECTION */}
         <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40">
           <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none select-none">
             {tool.pricing}
           </div>
           
-          {/* 🔥 TOUCH TRIGGER LAYER ISOLATION */}
+          {/* 🔥 HIGH-STACKING CONTEXT TRIGGER BUTTON */}
           <div className="relative z-[999] block">
             <a 
               href={finalUrl} 
