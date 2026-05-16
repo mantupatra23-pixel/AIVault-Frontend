@@ -13,8 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        {/* Google Adsense Script Placeholder */}
+        {/* Google Adsense Script */}
         <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-YOUR_ADSENSE_ID" crossOrigin="anonymous"></script>
+        
+        {/* 🔥 ACTUAL GOOGLE SEARCH CONSOLE VERIFICATION TAG */}
+        <meta name="google-site-verification" content="5pWbW0oMklroG1SOUP3ZO2TcOuhyiNOwDb4pduL-Ae4" />
       </head>
       <body className={inter.className}>{children}</body>
     </html>
