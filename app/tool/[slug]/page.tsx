@@ -4,7 +4,6 @@ import { createClient } from '@supabase/supabase-js'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-// 1. DATABASE CONFIGURATION
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -14,7 +13,6 @@ export default async function ToolPage({ params }: any) {
   const resolvedParams = await params
   const { slug } = resolvedParams
 
-  // 2. FETCH SPECIFIC TOOL BY UNIQUE SLUG
   const { data: tool } = await supabase
     .from('ai_tools')
     .select('*')
@@ -23,7 +21,6 @@ export default async function ToolPage({ params }: any) {
 
   if (!tool) return notFound()
 
-  // 3. FETCH RELEVANT RELATED INTERSECTIONS
   const { data: related } = await supabase
     .from('ai_tools')
     .select('name, slug, category, pricing')
@@ -31,13 +28,18 @@ export default async function ToolPage({ params }: any) {
     .neq('slug', slug)
     .limit(4)
 
-  // 🔗 ACCURATE SCHEMA LINK RESOLVER (Loop & Null Protector)
+  // 🔗 LINK MATRIX SNIPER (Frontend Level Loop Protection)
   const getSafeUrl = (url: string) => {
-    if (!url) return "#";
+    if (!url) return `https://www.google.com/search?q=${encodeURIComponent(tool.name + " AI tool official website")}`;
     const cleanUrl = url.trim();
     
-    // Safety Fallback against loops or internal routes
-    if (cleanUrl === "#" || cleanUrl.includes(`/tool/`) || cleanUrl === slug) {
+    // 🔥 SENSING & BYPASSING PRODUCT HUNT LINKS ON THE FLY
+    if (
+      cleanUrl === "#" || 
+      cleanUrl.includes(`/tool/`) || 
+      cleanUrl === slug || 
+      cleanUrl.includes("producthunt.com")
+    ) {
       return `https://www.google.com/search?q=${encodeURIComponent(tool.name + " AI tool official website")}`;
     }
     
@@ -47,13 +49,12 @@ export default async function ToolPage({ params }: any) {
     return `https://${cleanUrl}`;
   };
 
-  // Targeting the precise 'website_url' verified in the schema
   const finalUrl = getSafeUrl(tool.website_url || tool.affiliate_url || tool.link);
 
   return (
     <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 overflow-x-hidden selection:bg-blue-600 selection:text-white">
       
-      {/* 🧭 NAVIGATION MASTER NODE */}
+      {/* 🧭 NAVIGATION */}
       <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[999] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
         <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
           VISORA<span className="text-blue-600">.</span>
@@ -89,7 +90,7 @@ export default async function ToolPage({ params }: any) {
           </div>
         </header>
 
-        {/* 🧬 INTELLIGENCE REPORT */}
+        {/* 🧬 ANALYSIS REPORT */}
         <section className="mb-32">
           <h2 className="text-[12px] font-black uppercase tracking-[0.4em] text-blue-600 mb-10 italic">Analysis Report</h2>
           <div className="text-xl md:text-2xl text-slate-600 leading-relaxed italic space-y-8 font-medium border-l-4 border-slate-100 pl-8">
@@ -97,7 +98,7 @@ export default async function ToolPage({ params }: any) {
           </div>
         </section>
 
-        {/* ⚖️ ACCELERATION VS FRICTION MATRIX */}
+        {/* ⚖️ PROS/CONS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-32">
           <div className="bg-[#f0fff4] p-12 rounded-[50px] border border-green-100 shadow-sm">
             <h4 className="text-green-600 text-[10px] font-black uppercase tracking-widest mb-6 italic">✓ The Edge</h4>
@@ -109,13 +110,12 @@ export default async function ToolPage({ params }: any) {
           </div>
         </div>
 
-        {/* 💰 PRICING CTA SECTION */}
+        {/* 💰 PRICING CTA */}
         <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40">
           <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none select-none">
             {tool.pricing}
           </div>
           
-          {/* 🔥 HIGH-STACKING CONTEXT TRIGGER BUTTON */}
           <div className="relative z-[999] block">
             <a 
               href={finalUrl} 
