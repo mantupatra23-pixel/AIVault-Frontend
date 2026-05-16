@@ -26,20 +26,30 @@ export default async function ToolPage({ params }: any) {
     .neq('slug', slug)
     .limit(4)
 
-  // 🔗 LINK SANITIZER ENGINE (Bulletproof Format Check)
-  const getSafeUrl = (url: string) => {
-    if (!url) return "#";
-    const cleanUrl = url.trim();
-    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) return cleanUrl;
+  // 🔗 IMMORTAL URL RESOLVER (Loop Breaker)
+  const resolvePortalUrl = () => {
+    // Database se saare possible link fields nikal rahe hain
+    const rawUrl = tool.affiliate_url || tool.link || tool.website || "";
+    const cleanUrl = rawUrl.trim();
+
+    // Loop Protection: Agar link mein khud ka slug ya 'tool' word aa raha hai, toh use bypass karo
+    if (!cleanUrl || cleanUrl === "#" || cleanUrl.includes(`/tool/`) || cleanUrl === slug) {
+      // Hard fallback: Agar database mein link missing/wrong hai, toh direct name search logic link banao
+      return `https://www.google.com/search?q=${encodeURIComponent(tool.name + " AI tool official website")}`;
+    }
+
+    if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+      return cleanUrl;
+    }
     return `https://${cleanUrl}`;
   };
 
-  const finalUrl = getSafeUrl(tool.affiliate_url || tool.link || tool.website);
+  const finalUrl = resolvePortalUrl();
 
   return (
     <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 overflow-x-hidden">
       
-      {/* 🧭 FIXED NAVIGATION */}
+      {/* 🧭 NAVIGATION */}
       <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[999] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
         <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
           VISORA<span className="text-blue-600">.</span>
@@ -90,13 +100,13 @@ export default async function ToolPage({ params }: any) {
           </div>
         </div>
 
-        {/* 💰 PRICING CTA (MANDATORY INLINE Z-INDEX FOR DIRECT TOUCH OVERRIDE) */}
+        {/* 💰 PRICING CTA */}
         <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40">
           <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none select-none">
             {tool.pricing}
           </div>
           
-          {/* 🔥 STACKING CONTEXT ISOLATION */}
+          {/* 🔥 DIRECT STRAW ANCHOR FORCED FOR EXTERNAL TARGET */}
           <div className="relative z-[999] block">
             <a 
               href={finalUrl} 
