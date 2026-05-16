@@ -26,7 +26,7 @@ export default async function ToolPage({ params }: any) {
     .neq('slug', slug)
     .limit(4)
 
-  // 🔗 URL Sanitizer (Ensures links are clickable)
+  // 🔗 LINK SANITIZER ENGINE (Bulletproof Format Check)
   const getSafeUrl = (url: string) => {
     if (!url) return "#";
     const cleanUrl = url.trim();
@@ -39,7 +39,7 @@ export default async function ToolPage({ params }: any) {
   return (
     <main className="min-h-screen bg-white text-slate-900 font-sans pb-20 overflow-x-hidden">
       
-      {/* 🧭 NAVIGATION */}
+      {/* 🧭 FIXED NAVIGATION */}
       <nav className="fixed top-0 left-0 right-0 h-20 bg-white/90 backdrop-blur-xl z-[999] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
         <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">
           VISORA<span className="text-blue-600">.</span>
@@ -90,26 +90,26 @@ export default async function ToolPage({ params }: any) {
           </div>
         </div>
 
-        {/* 💰 PRICING CTA - ULTRA FORCE CLICK FIX */}
+        {/* 💰 PRICING CTA (MANDATORY INLINE Z-INDEX FOR DIRECT TOUCH OVERRIDE) */}
         <section className="relative bg-white border-[8px] border-black rounded-[60px] p-12 md:p-24 text-center shadow-2xl mb-40">
-          <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none">
+          <div className="text-7xl md:text-[100px] font-[1000] italic uppercase tracking-tighter mb-14 leading-none pointer-events-none select-none">
             {tool.pricing}
           </div>
           
-          {/* 🔥 THE IMMORTAL BUTTON */}
-          <div className="relative z-[5000] block">
+          {/* 🔥 STACKING CONTEXT ISOLATION */}
+          <div className="relative z-[999] block">
             <a 
               href={finalUrl} 
               target="_blank" 
               rel="noopener noreferrer"
               style={{ position: 'relative', zIndex: 9999, display: 'inline-block' }}
-              className="bg-blue-600 text-white px-16 py-7 rounded-full font-[1000] text-2xl uppercase tracking-widest hover:scale-105 transition-all shadow-2xl shadow-blue-600/40 cursor-pointer active:scale-95"
+              className="bg-blue-600 text-white px-16 py-7 rounded-full font-[1000] text-2xl uppercase tracking-widest hover:scale-105 transition-all shadow-2xl shadow-blue-600/40 cursor-pointer active:scale-95 pointer-events-auto"
             >
               Visit Official Portal ↗
             </a>
           </div>
           
-          <p className="mt-14 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 pointer-events-none">Verified Intelligence • Mantu Patra CEO</p>
+          <p className="mt-14 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 pointer-events-none select-none">Verified Intelligence • Mantu Patra CEO</p>
         </section>
 
         {/* 🌐 RELATED */}
