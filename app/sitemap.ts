@@ -1,27 +1,32 @@
 import { createClient } from '@supabase/supabase-js'
+import { MetadataRoute } from 'next'
 
-export default async function sitemap() {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const baseUrl = 'https://ai-vault-frontend-blue.vercel.app'
+
   const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 
-  // Saare tools ke slugs mangwao
-  const { data: tools } = await supabase.from('ai_tools').select('slug, created_at')
+  // 🛰️ FETCH ALL VERIFIED TARGET NODE SLUGS FROM TABLE
+  const { data: tools } = await supabase
+    .from('ai_tools')
+    .select('slug, created_at')
 
-  const toolEntries = tools?.map((tool) => ({
-    url: `https://ai-vault-frontend-blue.vercel.app/tool/${tool.slug}`,
-    lastModified: new Date(tool.created_at),
-    changeFrequency: 'weekly',
+  const toolEntries = (tools || []).map((tool: any) => ({
+    url: `${baseUrl}/tool/${tool.slug}`,
+    lastModified: tool.created_at ? new Date(tool.created_at) : new Date(),
+    changeFrequency: 'weekly' as const,
     priority: 0.8,
-  })) || []
+  }))
 
   return [
     {
-      url: 'https://ai-vault-frontend-blue.vercel.app/',
+      url: baseUrl,
       lastModified: new Date(),
-      changeFrequency: 'daily',
-      priority: 1,
+      changeFrequency: 'daily' as const,
+      priority: 1.0,
     },
     ...toolEntries,
   ]
