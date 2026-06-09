@@ -1,10 +1,10 @@
 import { MetadataRoute } from 'next';
 
-// 🟢 OFFICIAL CUSTOM DOMAIN
+// 🟢 HAMARA NAYA OFFICIAL CUSTOM DOMAIN
 const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 1. Static Core Main Pages
+  // 1. Main Pages Links
   const staticRoutes = [
     {
       url: `${URL}`,
@@ -27,14 +27,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // 2. SAARE TOOLS KI DYNAMIC ARRAY LIST
-    // Bhai, aapke jitne bhi main 280+ tools hain aur aage aane wale tools honge, unke names bas is list mein comma (,) laga kar jodte jana.
-    // Yeh pure Next.js production serverless build ko super-fast aur compatible rakhta hai.
+    // 2. YAHAN AAPKE SAARE TOOLS KE NAMES (SLUGS) AA JAYENGE
+    // Bhai, aapke jitne bhi main tools hain (jaise ghost, text-repeater, qr-generator), unke folder names is list mein comma laga kar daal do:
     const toolsSlugs = [
       'ghost', 
       'text-repeater', 
       'qr-generator',
-      // Naye tools ke folder-slugs yahan niche add karte jao:
+      // Aapke jo bhi baki naye 10-10 tools hain, unke naam bas yahan list mein niche add karte jana
     ];
 
     const dynamicRoutes = toolsSlugs.map((slug) => ({
@@ -47,7 +46,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticRoutes, ...dynamicRoutes];
     
   } catch (error) {
-    console.error("NextJS Dynamic Sitemap Pipeline Error:", error);
+    console.error("Sitemap generation error:", error);
     return staticRoutes;
   }
 }
