@@ -1,25 +1,36 @@
 import './globals.css'
 import { Inter } from 'next/font/google'
+import { Metadata } from 'next'
 
 const inter = Inter({ subsets: ['latin'] })
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'Visora | Global AI Vault & Neural Directory',
-  description: 'Discover 150+ verified AI tools and neural engines. Curated by Mantu Patra for AI innovators and creators worldwide.',
-  keywords: 'AI directory, Artificial Intelligence, AI Tools, Neural Engines, Visora AI, Make in India SaaS',
+  description: 'Discover 150+ verified AI tools and services.',
+  keywords: 'AI directory, Artificial Intelligence, AI tools',
+  verification: {
+    google: 'Eu4N5bGiGJlgKiTyB77SeKDxfKrWJolQzphJAkPRK0k',
+  },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="en">
       <head>
         {/* Google Adsense Script */}
-        <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-YOUR_ADSENSE_ID" crossOrigin="anonymous"></script>
-        
-        {/* 🔥 ACTUAL GOOGLE SEARCH CONSOLE VERIFICATION TAG */}
-        <meta name="google-site-verification" content="5pWbW0oMklroG1SOUP3ZO2TcOuhyiNOwDb4pduL-Ae4" />
+        <script 
+          async 
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-YOUR_CLIENT_ID" 
+          crossOrigin="anonymous"
+        ></script>
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        {children}
+      </body>
     </html>
   )
 }
