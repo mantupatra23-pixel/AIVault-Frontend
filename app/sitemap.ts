@@ -1,12 +1,12 @@
 import { MetadataRoute } from 'next';
-import fs from 'fs';
-import path from 'path';
+// 🟢 DIRECT JSON IMPORT (Bina kisi fs/path error ke tools data link karein)
+import toolsData from '../data/tools.json';
 
-// 🟢 HAMARA NAYA OFFICIAL CUSTOM DOMAIN
+// HAMARA OFFICIAL CUSTOM DOMAIN
 const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 1. Static Core Pages
+  // 1. Static Core Pages Links
   const staticRoutes = [
     {
       url: `${URL}`,
@@ -29,20 +29,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // 2. AUTOMATIC JSON DATA READING LOGIC
-    // Yeh code aapki data/tools.json file ka path dhoondhega
-    const jsonPath = path.join(process.cwd(), 'data', 'tools.json');
-    
     let toolsSlugs: string[] = [];
 
-    if (fs.existsSync(jsonPath)) {
-      const fileContent = fs.readFileSync(jsonPath, 'utf-8');
-      const toolsData = JSON.parse(fileContent);
-
-      // Agar toolsData ek array hai, toh usme se saare 'slug' nikal lega
-      if (Array.isArray(toolsData)) {
-        toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
-      }
+    // Agar tools.json ka data sahi se array mein hai, toh slugs extract karega
+    if (Array.isArray(toolsData)) {
+      toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
     }
 
     // Saare 280+ tools ke liye automatic dynamic URLs generate honge
@@ -56,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticRoutes, ...dynamicRoutes];
     
   } catch (error) {
-    console.error("NextJS JSON Sitemap Pipeline Error:", error);
+    console.error("NextJS Sitemap JSON Import Error:", error);
     return staticRoutes;
   }
 }
