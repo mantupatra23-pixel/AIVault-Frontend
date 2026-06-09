@@ -1,12 +1,12 @@
 import { MetadataRoute } from 'next';
-// 🟢 DIRECT JSON IMPORT (Bina kisi fs/path error ke tools data link karein)
-import toolsData from '../data/tools.json';
+// 🟢 ABSOLUTE ALIAS PATH (Next.js config ke mutabik bina kisi folder routing error ke)
+import toolsData from '@/data/tools.json';
 
 // HAMARA OFFICIAL CUSTOM DOMAIN
 const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 1. Static Core Pages Links
+  // 1. Static Core Main Pages
   const staticRoutes = [
     {
       url: `${URL}`,
@@ -31,12 +31,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     let toolsSlugs: string[] = [];
 
-    // Agar tools.json ka data sahi se array mein hai, toh slugs extract karega
+    // JSON file ke saare entries mein se automatic slug nikalega
     if (Array.isArray(toolsData)) {
       toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
     }
 
-    // Saare 280+ tools ke liye automatic dynamic URLs generate honge
+    // Saare 280+ tools ke liye naye domain par links inject karega
     const dynamicRoutes = toolsSlugs.map((slug) => ({
       url: `${URL}/tool/${slug}`,
       lastModified: new Date().toISOString(),
@@ -47,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticRoutes, ...dynamicRoutes];
     
   } catch (error) {
-    console.error("NextJS Sitemap JSON Import Error:", error);
+    console.error("NextJS Sitemap Runtime Pipeline Error:", error);
     return staticRoutes;
   }
 }
