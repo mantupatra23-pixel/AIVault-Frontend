@@ -1,35 +1,52 @@
-import { createClient } from "@supabase/supabase-js"
-import { MetadataRoute } from "next"
+import { MetadataRoute } from 'next';
+import toolsData from '@/data/tools.json';
+
+// 🟢 strict dynamic server behavior configuration for Vercel
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
+const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://aivault.pp.ua"
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  // FETCH ALL VERIFIED TARGET NODE SLUGS FROM TABLE
-  const { data: tools } = await supabase
-    .from("ai_tools")
-    .select("slug, created_at")
-
-  const toolEntries = (tools || []).map((tool: any) => ({
-    url: `${baseUrl}/tool/${tool.slug}`,
-    lastModified: tool.created_at
-      ? new Date(tool.created_at)
-      : new Date(),
-    changeFrequency: "weekly" as const,
-    priority: 0.8,
-  }))
-
-  return [
+  const staticRoutes = [
     {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: "daily" as const,
+      url: `${URL}`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'daily' as const,
       priority: 1.0,
     },
-    ...toolEntries,
-  ]
+    {
+      url: `${URL}/about`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    },
+    {
+      url: `${URL}/contact`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    },
+  ];
+
+  try {
+    let toolsSlugs: string[] = [];
+
+    if (Array.isArray(toolsData)) {
+      toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
+    }
+
+    const dynamicRoutes = toolsSlugs.map((slug) => ({
+      url: `${URL}/tool/${slug}`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
+
+    return [...staticRoutes, ...dynamicRoutes];
+    
+  } catch (error) {
+    console.error("NextJS Sitemap Runtime Pipeline Error:", error);
+    return staticRoutes;
+  }
 }
