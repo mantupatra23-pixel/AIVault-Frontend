@@ -5,7 +5,7 @@ import toolsData from '@/data/tools.json';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-const URL = "https://aivault.pp.ua";
+cont URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes = [
