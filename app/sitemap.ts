@@ -1,13 +1,14 @@
 import { MetadataRoute } from 'next';
 import toolsData from '@/data/tools.json';
 
-// 🟢 strict dynamic server behavior configuration for Vercel
+// Vercel deployment ko strictly route parameters update karne par force karega
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // 1. Static Core Application Pages
   const staticRoutes = [
     {
       url: `${URL}`,
@@ -32,10 +33,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     let toolsSlugs: string[] = [];
 
-    if (Array.isArray(toolsData)) {
+    // Safe parsing data layer checker
+    if (toolsData && Array.isArray(toolsData)) {
       toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
+    } else if (toolsData && typeof toolsData === 'object') {
+      // Agar JSON backup structure object nesting array mein hai
+      const dataArray = (toolsData as any).tools || Object.values(toolsData);
+      if (Array.isArray(dataArray)) {
+        toolsSlugs = dataArray.map((tool: any) => tool.slug).filter(Boolean);
+      }
     }
 
+    // Dynamic pages inject structure
     const dynamicRoutes = toolsSlugs.map((slug) => ({
       url: `${URL}/tool/${slug}`,
       lastModified: new Date().toISOString(),
@@ -46,7 +55,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticRoutes, ...dynamicRoutes];
     
   } catch (error) {
-    console.error("NextJS Sitemap Runtime Pipeline Error:", error);
+    console.error("Critical NextJS Sitemap Generator Exception:", error);
     return staticRoutes;
   }
 }
