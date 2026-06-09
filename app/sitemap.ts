@@ -1,33 +1,46 @@
-import { createClient } from '@supabase/supabase-js'
-import { MetadataRoute } from 'next'
+import { MetadataRoute } from 'next';
+
+// 🟢 HAMARA NAYA OFFICIAL CUSTOM DOMAIN
+const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://ai-vault-frontend-blue.vercel.app'
-
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-
-  // 🛰️ FETCH ALL VERIFIED TARGET NODE SLUGS FROM TABLE
-  const { data: tools } = await supabase
-    .from('ai_tools')
-    .select('slug, created_at')
-
-  const toolEntries = (tools || []).map((tool: any) => ({
-    url: `${baseUrl}/tool/${tool.slug}`,
-    lastModified: tool.created_at ? new Date(tool.created_at) : new Date(),
-    changeFrequency: 'weekly' as const,
-    priority: 0.8,
-  }))
-
-  return [
+  // Static Routes (Jo routes hamesha same rehte hain)
+  const staticRoutes = [
     {
-      url: baseUrl,
-      lastModified: new Date(),
+      url: `${URL}`,
+      lastModified: new Date().toISOString(),
       changeFrequency: 'daily' as const,
       priority: 1.0,
     },
-    ...toolEntries,
-  ]
+    {
+      url: `${URL}/about`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    },
+    {
+      url: `${URL}/contact`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'monthly' as const,
+      priority: 0.5,
+    },
+  ];
+
+  try {
+    // Agar aapka koi external database ya dynamic tools data list API hai, toh tools fetch karne ka logic yahan aayega.
+    // Udaharan ke liye agar aapke paas static array ya slug list hai:
+    const toolsSlugs = ['ghost', 'text-repeater', 'qr-generator']; // Aapke baaki tools ke slugs yahan dynamic array se bhi aa sakte hain
+
+    const dynamicRoutes = toolsSlugs.map((slug) => ({
+      url: `${URL}/tool/${slug}`,
+      lastModified: new Date().toISOString(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.8,
+    }));
+
+    return [...staticRoutes, ...dynamicRoutes];
+  } catch (error) {
+    console.error("Sitemap generation error:", error);
+    return staticRoutes;
+  }
 }
