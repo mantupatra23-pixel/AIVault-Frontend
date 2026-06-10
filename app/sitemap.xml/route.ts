@@ -1,14 +1,14 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Vercel deployment ko strictly live network request update karne par force karega
+// Vercel deployment ko strictly static cache bypass karne par force karega
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const URL = "https://aivault.pp.ua";
 
 export async function GET() {
-  // 1. Static Core Application Pages
+  // 1. Static Core Main Pages
   const staticRoutes = [
     { url: `${URL}`, changefreq: 'daily', priority: '1.0' },
     { url: `${URL}/about`, changefreq: 'monthly', priority: '0.5' },
@@ -17,7 +17,7 @@ export async function GET() {
 
   let toolsSlugs: { slug: string; created_at: string | null }[] = [];
 
-  // 2. Database Layer Connectivity (Supabase Fetching)
+  // 2. Supabase Database Integration
   try {
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,13 +32,13 @@ export async function GET() {
       toolsSlugs = tools;
     }
   } catch (error) {
-    console.error("Critical error fetching dynamic supabase nodes for sitemap:", error);
+    console.error("Critical error fetching supabase nodes for sitemap:", error);
   }
 
-  // 3. Raw XML Text Data Construction
+  // 3. Raw XML String Construction
   let xmlItems = '';
 
-  // Static loop inject
+  // Static pages template loop inject
   staticRoutes.forEach((route) => {
     xmlItems += `
     <url>
@@ -49,7 +49,7 @@ export async function GET() {
     </url>`;
   });
 
-  // Dynamic 280+ database tools automatic stream loop injection
+  // Dynamic 280+ tools tools loop template auto inject
   toolsSlugs.forEach((tool) => {
     const lastModDate = tool.created_at ? new Date(tool.created_at).toISOString() : new Date().toISOString();
     xmlItems += `
@@ -61,13 +61,13 @@ export async function GET() {
     </url>`;
   });
 
-  // Root Schema layout wrapping
+  // Full Metadata Structure wrap
   const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
   <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     ${xmlItems}
   </urlset>`;
 
-  // 4. Return Raw Response with Strict XML Content Type Headers
+  // 4. Return Raw Response with Tight XML Content-Type
   return new NextResponse(sitemapXml, {
     headers: {
       'Content-Type': 'application/xml; charset=utf-8',
