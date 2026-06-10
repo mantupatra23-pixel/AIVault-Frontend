@@ -1,62 +1,39 @@
-import { MetadataRoute } from 'next';
-import fs from 'fs';
-import path from 'path';
+import { createClient } from "@supabase/supabase-js"
+import { MetadataRoute } from "next"
 
-// Vercel deployment ko strictly cache-bypass aur dynamic data update karne par force karega
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
-const URL = "https://aivault.pp.ua";
+// 🟢 Vercel pipeline aur Next.js ko strictly target dynamic response par force karega
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 1. Static Application Pages
-  const staticRoutes = [
+  const baseUrl = "https://aivault.pp.ua"
+
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+
+  // FETCH ALL VERIFIED TARGET NODE SLUGS FROM TABLE
+  const { data: tools } = await supabase
+    .from("ai_tools")
+    .select("slug, created_at")
+
+  const toolEntries = (tools || []).map((tool: any) => ({
+    url: `${baseUrl}/tool/${tool.slug}`,
+    lastModified: tool.created_at
+      ? new Date(tool.created_at).toISOString()
+      : new Date().toISOString(),
+    changeFrequency: "weekly" as const,
+    priority: 0.8,
+  }))
+
+  return [
     {
-      url: `${URL}`,
+      url: baseUrl,
       lastModified: new Date().toISOString(),
-      changeFrequency: 'daily' as const,
+      changeFrequency: "daily" as const,
       priority: 1.0,
     },
-    {
-      url: `${URL}/about`,
-      lastModified: new Date().toISOString(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.5,
-    },
-    {
-      url: `${URL}/contact`,
-      lastModified: new Date().toISOString(),
-      changeFrequency: 'monthly' as const,
-      priority: 0.5,
-    },
-  ];
-
-  try {
-    // 2. Safe Runtime JSON Reading Layer
-    const jsonPath = path.join(process.cwd(), 'data', 'tools.json');
-    let toolsSlugs: string[] = [];
-
-    if (fs.existsSync(jsonPath)) {
-      const fileContent = fs.readFileSync(jsonPath, 'utf-8');
-      const toolsData = JSON.parse(fileContent);
-
-      if (Array.isArray(toolsData)) {
-        toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
-      }
-    }
-
-    // 3. Mapping 280+ tools dynamically
-    const dynamicRoutes = toolsSlugs.map((slug) => ({
-      url: `${URL}/tool/${slug}`,
-      lastModified: new Date().toISOString(),
-      changeFrequency: 'weekly' as const,
-      priority: 0.8,
-    }));
-
-    return [...staticRoutes, ...dynamicRoutes];
-    
-  } catch (error) {
-    console.error("NextJS Core Sitemap Pipeline Error:", error);
-    return staticRoutes;
-  }
+    ...toolEntries,
+  ]
 }
