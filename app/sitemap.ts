@@ -1,14 +1,15 @@
 import { MetadataRoute } from 'next';
+import fs from 'fs';
 import path from 'path';
 
-// Vercel deployment ko strictly static cache bypass karne par force karega
+// Vercel deployment ko strictly cache-bypass aur dynamic data update karne par force karega
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 const URL = "https://aivault.pp.ua";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  // 1. Static Core Main Pages
+  // 1. Static Application Pages
   const staticRoutes = [
     {
       url: `${URL}`,
@@ -31,18 +32,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // 2. SAFE INLINE DATA FETCHING
-    // TypeScript module aur tsconfig errors ko bypass karne ke liye standard inline require block
+    // 2. Safe Runtime JSON Reading Layer
     const jsonPath = path.join(process.cwd(), 'data', 'tools.json');
-    const toolsData = require(jsonPath);
-
     let toolsSlugs: string[] = [];
 
-    if (toolsData && Array.isArray(toolsData)) {
-      toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
+    if (fs.existsSync(jsonPath)) {
+      const fileContent = fs.readFileSync(jsonPath, 'utf-8');
+      const toolsData = JSON.parse(fileContent);
+
+      if (Array.isArray(toolsData)) {
+        toolsSlugs = toolsData.map((tool: any) => tool.slug).filter(Boolean);
+      }
     }
 
-    // Dynamic 280+ tools mapping loop
+    // 3. Mapping 280+ tools dynamically
     const dynamicRoutes = toolsSlugs.map((slug) => ({
       url: `${URL}/tool/${slug}`,
       lastModified: new Date().toISOString(),
@@ -53,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [...staticRoutes, ...dynamicRoutes];
     
   } catch (error) {
-    console.error("Critical error inside sitemap generation engine:", error);
+    console.error("NextJS Core Sitemap Pipeline Error:", error);
     return staticRoutes;
   }
 }
