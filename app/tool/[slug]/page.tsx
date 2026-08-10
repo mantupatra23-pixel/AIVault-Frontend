@@ -11,6 +11,11 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+interface FormattedListItem {
+  title?: string;
+  description: string;
+}
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -57,6 +62,51 @@ async function getRelatedTools(category: string, currentSlug: string) {
   } catch {
     return [];
   }
+}
+
+// Clean parser for bulleted strings & key-value pros/cons
+function parseStructuredList(input: any): FormattedListItem[] {
+  if (!input) return [];
+
+  let rawLines: string[] = [];
+  if (Array.isArray(input)) {
+    rawLines = input.map((item) => String(item));
+  } else if (typeof input === "string") {
+    rawLines = input.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
+  }
+
+  const items: FormattedListItem[] = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i].replace(/^\d+\.\s*/, "").trim(); // Remove "1. ", "2. " prefixes
+    if (!line) continue;
+
+    // Handle Title / Description splits (e.g. "Title - Description" or "Title: Description")
+    if (line.includes(":") || line.includes(" - ")) {
+      const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
+      if (parts.length >= 2) {
+        items.push({
+          title: parts[0].trim(),
+          description: parts.slice(1).join(" ").trim(),
+        });
+        continue;
+      }
+    }
+
+    // Check if current line is a title and next line is its description
+    if (line.length < 40 && i + 1 < rawLines.length && rawLines[i + 1].length > 40) {
+      items.push({
+        title: line,
+        description: rawLines[i + 1].replace(/^\d+\.\s*/, "").trim(),
+      });
+      i++; // Skip next line
+      continue;
+    }
+
+    items.push({ description: line });
+  }
+
+  return items;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -117,33 +167,23 @@ export default async function ToolPage({ params }: Props) {
     ? (tool.score / 10).toFixed(1)
     : "8.5";
 
-  // Safe list parser for array or string fields
-  const parseItems = (val: any): string[] => {
-    if (Array.isArray(val)) return val.map((item) => String(item).trim()).filter(Boolean);
-    if (typeof val === "string") {
-      return val
-        .split(/\n|•|\*/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-    return [];
-  };
+  // Extract Pros & Cons
+  let prosItems = parseStructuredList(tool.pros);
+  let consItems = parseStructuredList(tool.cons);
 
-  // Robust Pros & Cons extraction
-  let prosList: string[] = parseItems(tool.pros);
-  let consList: string[] = parseItems(tool.cons);
-
-  // If separate arrays are empty, extract from pros_cons text string safely
-  if (prosList.length === 0 && consList.length === 0 && tool.pros_cons) {
+  // Fallback extraction if separate arrays are empty but pros_cons string exists
+  if (prosItems.length === 0 && consItems.length === 0 && tool.pros_cons) {
     const text = String(tool.pros_cons);
     if (text.includes("Cons:") || text.includes("CONS:")) {
       const parts = text.split(/Cons:|CONS:/i);
-      prosList = parseItems(parts[0].replace(/Pros:|PROS:/i, ""));
-      consList = parseItems(parts[1]);
+      prosItems = parseStructuredList(parts[0].replace(/Pros:|PROS:/i, ""));
+      consItems = parseStructuredList(parts[1]);
     } else {
-      prosList = parseItems(text);
+      prosItems = parseStructuredList(text);
     }
   }
+
+  const officialUrl = tool.website_url || tool.official_url || "#";
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -153,7 +193,7 @@ export default async function ToolPage({ params }: Props) {
     applicationCategory: tool.category || "Application",
     operatingSystem: "Web",
     offers: tool.pricing ? { "@type": "Offer", description: tool.pricing } : undefined,
-    url: tool.website_url || `https://aivault.pp.ua/tool/${tool.slug}`,
+    url: officialUrl,
   };
 
   return (
@@ -164,6 +204,7 @@ export default async function ToolPage({ params }: Props) {
       />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+        {/* Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -173,7 +214,7 @@ export default async function ToolPage({ params }: Props) {
             </Link>
 
             <a
-              href={tool.website_url || "#"}
+              href={officialUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold tracking-wider uppercase text-white bg-blue-600 hover:bg-blue-700 rounded-full transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95"
@@ -238,7 +279,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Specifications Grid */}
+          {/* Core Content & Specs */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
@@ -250,41 +291,49 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {/* Corrected Pros & Cons Panel */}
+              {/* Clean Pros & Cons Panel */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Pros */}
+                {/* Pros Panel */}
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 text-emerald-700 text-xs font-extrabold tracking-widest uppercase">
                     <span className="text-base">✓</span> Global Edge (Pros)
                   </div>
-                  {prosList.length > 0 ? (
-                    <ul className="space-y-2.5 text-sm text-slate-700">
-                      {prosList.map((pro: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-emerald-500 font-bold">•</span>
-                          <span>{pro}</span>
+                  {prosItems.length > 0 ? (
+                    <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
+                      {prosItems.map((item, i) => (
+                        <li key={i} className="leading-relaxed">
+                          {item.title && (
+                            <strong className="text-slate-900 font-bold mr-1">
+                              {item.title}:
+                            </strong>
+                          )}
+                          <span>{item.description}</span>
                         </li>
                       ))}
-                    </ul>
+                    </ol>
                   ) : (
                     <p className="text-xs text-slate-400 italic">No explicit pros recorded.</p>
                   )}
                 </div>
 
-                {/* Cons */}
+                {/* Cons Panel */}
                 <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <div className="flex items-center gap-2 text-amber-700 text-xs font-extrabold tracking-widest uppercase">
                     <span className="text-base">×</span> Friction Warning (Cons)
                   </div>
-                  {consList.length > 0 ? (
-                    <ul className="space-y-2.5 text-sm text-slate-700">
-                      {consList.map((con: string, i: number) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-amber-500 font-bold">•</span>
-                          <span>{con}</span>
+                  {consItems.length > 0 ? (
+                    <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
+                      {consItems.map((item, i) => (
+                        <li key={i} className="leading-relaxed">
+                          {item.title && (
+                            <strong className="text-slate-900 font-bold mr-1">
+                              {item.title}:
+                            </strong>
+                          )}
+                          <span>{item.description}</span>
                         </li>
                       ))}
-                    </ul>
+                    </ol>
                   ) : (
                     <p className="text-xs text-slate-400 italic">No significant limitations recorded.</p>
                   )}
@@ -292,6 +341,7 @@ export default async function ToolPage({ params }: Props) {
               </div>
             </div>
 
+            {/* Sidebar System Specification */}
             <div className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -301,7 +351,7 @@ export default async function ToolPage({ params }: Props) {
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Blueprint</dt>
-                    <dd className="font-bold text-slate-900">{tool.name}</dd>
+                    <dd className="font-bold text-slate-900 truncate max-w-[150px]">{tool.name}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
@@ -324,7 +374,7 @@ export default async function ToolPage({ params }: Props) {
                 </dl>
 
                 <a
-                  href={tool.website_url || "#"}
+                  href={officialUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center py-4 px-6 text-sm font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all shadow-md hover:shadow-blue-500/25 active:scale-98"

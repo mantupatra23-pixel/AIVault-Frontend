@@ -11,7 +11,7 @@ export interface ToolLogoInput {
 export function resolveToolLogo(tool: ToolLogoInput): string | null {
   if (!tool) return null;
 
-  // Primary image fields check in order of database priority
+  // Check database logo fields in order of priority
   const candidate =
     tool.image_url ||
     tool.logo_url ||
@@ -30,12 +30,12 @@ export function resolveToolLogo(tool: ToolLogoInput): string | null {
     return null;
   }
 
-  // Handle local assets
+  // Handle local relative assets
   if (trimmed.startsWith("/")) {
     return trimmed;
   }
 
-  // Valid URL check
+  // Validate HTTP/HTTPS protocol
   try {
     const parsed = new URL(trimmed);
     if (parsed.protocol === "http:" || parsed.protocol === "https:") {
