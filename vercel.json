@@ -1,0 +1,20 @@
+{
+  "redirects": [
+    {
+      "source": "/tools/:slug*",
+      "destination": "/tool/:slug*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "ai-vault-frontend-blue.vercel.app"
+        }
+      ],
+      "destination": "https://aivault.pp.ua/:path*",
+      "permanent": true
+    }
+  ]
+}

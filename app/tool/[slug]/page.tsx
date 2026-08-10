@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
+import { SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -121,7 +122,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const canonicalUrl = `https://aivault.pp.ua/tool/${tool.slug}`;
+  const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
   const title = tool.meta_title || `${tool.name} — AI Features & Neural Analysis | VISORA`;
   const description =
     tool.meta_description ||
@@ -133,7 +134,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
-    alternates: { canonical: canonicalUrl },
+    alternates: {
+      canonical: canonicalUrl,
+    },
     openGraph: {
       title: `${tool.name} | VISORA AI Vault`,
       description,
