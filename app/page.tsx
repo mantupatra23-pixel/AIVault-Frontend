@@ -40,11 +40,13 @@ function HomeContent() {
     fetchTools();
   }, [activeCat]);
 
-  const filteredTools = tools.filter(
-    (t) =>
-      t.name?.toLowerCase().includes(localSearch.toLowerCase()) ||
-      t.description?.toLowerCase().includes(localSearch.toLowerCase())
-  );
+  const filteredTools = tools.filter((t) => {
+    const term = localSearch.toLowerCase();
+    const nameMatch = t.name?.toLowerCase().includes(term);
+    const descMatch = t.description?.toLowerCase().includes(term);
+    const catMatch = t.category?.toLowerCase().includes(term);
+    return nameMatch || descMatch || catMatch;
+  });
 
   const categories = [
     { name: "All", icon: "⚡" },
@@ -67,7 +69,7 @@ function HomeContent() {
         name: "AI Vault",
         description: "Discover, compare and explore 740+ AI tools.",
         potentialAction: {
-          "@type": "EntryPoint",
+          "@type": "SearchAction",
           target: {
             "@type": "EntryPoint",
             urlTemplate: `${SITE_URL}/?q={search_term_string}`,
@@ -87,14 +89,13 @@ function HomeContent() {
 
   return (
     <>
-      {/* Schema.org JSON-LD Script Injection */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
 
       <main className="min-h-screen bg-[#fcfcfc] text-slate-900 font-sans">
-        {/* 🧭 PREMIUM NAV */}
+        {/* 🧭 NAVIGATION */}
         <nav className="fixed top-0 w-full h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 z-50 px-6 flex items-center justify-between">
           <Link href="/" className="font-[1000] text-2xl tracking-tight text-slate-950 font-serif">
             AI Vault<span className="text-blue-600">.</span>
@@ -121,7 +122,7 @@ function HomeContent() {
           </div>
         </nav>
 
-        {/* 🏆 HERO */}
+        {/* 🏆 HERO HEADER */}
         <header className="max-w-7xl mx-auto px-6 pt-32 pb-12 text-center space-y-6">
           <h1 className="text-5xl sm:text-7xl md:text-[90px] font-black tracking-tight text-slate-950 font-serif leading-none">
             Discover the World's <br />
@@ -131,7 +132,7 @@ function HomeContent() {
             Discover, compare, and explore 740+ verified AI engines across Productivity, Coding, Image, and Video Generation.
           </p>
 
-          {/* 🔍 SEARCH */}
+          {/* 🔍 SEARCH BAR */}
           <div className="max-w-2xl mx-auto relative">
             <input
               type="text"
@@ -145,7 +146,7 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* 📁 CATEGORIES */}
+          {/* 📁 CATEGORIES FILTER */}
           <div className="flex flex-wrap justify-center gap-2 pt-4">
             {categories.map((c) => (
               <Link
@@ -164,7 +165,7 @@ function HomeContent() {
           </div>
         </header>
 
-        {/* 🚀 GRID */}
+        {/* 🚀 DIRECTORY GRID */}
         <section className="max-w-7xl mx-auto px-6 pb-24">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -178,57 +179,64 @@ function HomeContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredTools.map((tool) => (
-                <div
-                  key={tool.id}
-                  className="group bg-white border border-slate-200/80 hover:border-blue-300 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
-                >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      {/* Integrated ToolLogo Component */}
-                      <ToolLogo tool={tool} size="lg" />
+              {filteredTools.map((tool) => {
+                // Ensure slug is clean and normalized
+                const cleanSlug = tool.slug
+                  ? String(tool.slug).toLowerCase().trim()
+                  : tool.name
+                  ? String(tool.name).toLowerCase().replace(/[\W_]+/g, "-").trim()
+                  : "";
 
-                      <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
-                        {tool.pricing || "Freemium"}
+                if (!cleanSlug) return null;
+
+                return (
+                  <Link
+                    key={tool.id || cleanSlug}
+                    href={`/tool/${cleanSlug}`}
+                    className="group bg-white border border-slate-200/80 hover:border-blue-300 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between cursor-pointer active:scale-[0.98] select-none [touch-action:manipulation]"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <ToolLogo tool={tool} size="lg" />
+
+                        <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
+                          {tool.pricing || "Freemium"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h3 className="text-2xl font-bold tracking-tight text-slate-950 group-hover:text-blue-600 transition-colors font-serif">
+                          {tool.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-2 leading-relaxed">
+                          {tool.description || "Verified AI automation tool."}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                        {tool.category || "General AI"}
+                      </span>
+
+                      {/* Span instead of nested Link to maintain valid HTML and seamless click handling */}
+                      <span className="text-xs font-extrabold uppercase tracking-wider text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1">
+                        FULL REPORT →
                       </span>
                     </div>
-
-                    <div>
-                      <h3 className="text-2xl font-bold tracking-tight text-slate-950 group-hover:text-blue-600 transition-colors font-serif">
-                        {tool.name}
-                      </h3>
-                      <p className="text-xs text-slate-500 line-clamp-2 mt-2 leading-relaxed">
-                        {tool.description || "Verified AI automation tool."}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-                      {tool.category || "General AI"}
-                    </span>
-
-                    {/* Relative Link for Internal Navigation */}
-                    <Link
-                      href={`/tool/${tool.slug}`}
-                      className="text-xs font-extrabold uppercase tracking-wider text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1"
-                    >
-                      FULL REPORT →
-                    </Link>
-                  </div>
-                </div>
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           )}
         </section>
 
-        {/* 🌐 ADSENSE READY FOOTER */}
+        {/* 🌐 FOOTER */}
         <footer className="bg-white border-t border-slate-200 py-16 px-6 text-center space-y-8">
           <h2 className="text-3xl font-black tracking-tight font-serif text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </h2>
 
-          {/* LEGAL LINKS */}
           <div className="flex flex-wrap justify-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-500">
             <Link href="/privacy" className="hover:text-blue-600 transition">
               Privacy Policy
