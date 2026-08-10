@@ -1,7 +1,0 @@
-User-agent: *
-Allow: /
-Allow: /tool/
-
-# Host & Dynamic Sitemap Integration
-Host: https://ai-vault-frontend-blue.vercel.app
-Sitemap: https://ai-vault-frontend-blue.vercel.app/sitemap.xml
