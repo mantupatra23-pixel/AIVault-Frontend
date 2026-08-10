@@ -11,7 +11,7 @@ export interface ToolLogoInput {
 export function resolveToolLogo(tool: ToolLogoInput): string | null {
   if (!tool) return null;
 
-  // Extract candidate URL from possible database column names
+  // Primary image fields check in order of database priority
   const candidate =
     tool.image_url ||
     tool.logo_url ||
@@ -26,24 +26,22 @@ export function resolveToolLogo(tool: ToolLogoInput): string | null {
 
   const trimmed = candidate.trim();
 
-  // Reject empty, undefined strings, or malformed values
   if (!trimmed || trimmed === "null" || trimmed === "undefined") {
     return null;
   }
 
-  // Allow relative public assets
+  // Handle local assets
   if (trimmed.startsWith("/")) {
     return trimmed;
   }
 
-  // Validate HTTPS/HTTP URLs
+  // Valid URL check
   try {
-    const url = new URL(trimmed);
-    if (url.protocol === "http:" || url.protocol === "https:") {
-      return url.href;
+    const parsed = new URL(trimmed);
+    if (parsed.protocol === "http:" || parsed.protocol === "https:") {
+      return parsed.href;
     }
   } catch {
-    // Malformed URL string
     return null;
   }
 

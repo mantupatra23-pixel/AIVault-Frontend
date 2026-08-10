@@ -117,16 +117,33 @@ export default async function ToolPage({ params }: Props) {
     ? (tool.score / 10).toFixed(1)
     : "8.5";
 
-  const parseList = (input: any) => {
-    if (Array.isArray(input)) return input;
-    if (typeof input === "string") {
-      return input.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
+  // Safe list parser for array or string fields
+  const parseItems = (val: any): string[] => {
+    if (Array.isArray(val)) return val.map((item) => String(item).trim()).filter(Boolean);
+    if (typeof val === "string") {
+      return val
+        .split(/\n|•|\*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
     }
     return [];
   };
 
-  const prosList = parseList(tool.pros || tool.pros_cons);
-  const consList = parseList(tool.cons);
+  // Robust Pros & Cons extraction
+  let prosList: string[] = parseItems(tool.pros);
+  let consList: string[] = parseItems(tool.cons);
+
+  // If separate arrays are empty, extract from pros_cons text string safely
+  if (prosList.length === 0 && consList.length === 0 && tool.pros_cons) {
+    const text = String(tool.pros_cons);
+    if (text.includes("Cons:") || text.includes("CONS:")) {
+      const parts = text.split(/Cons:|CONS:/i);
+      prosList = parseItems(parts[0].replace(/Pros:|PROS:/i, ""));
+      consList = parseItems(parts[1]);
+    } else {
+      prosList = parseItems(text);
+    }
+  }
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -172,11 +189,10 @@ export default async function ToolPage({ params }: Props) {
             <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none" />
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
-              <div className="flex items-center gap-5 sm:gap-6">
-                {/* Global ToolLogo component */}
+              <div className="flex items-center gap-5 sm:gap-6 min-w-0">
                 <ToolLogo tool={tool} size="xl" />
 
-                <div className="space-y-2">
+                <div className="space-y-2 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">
                       {tool.category || "AI Engine"}
@@ -186,13 +202,13 @@ export default async function ToolPage({ params }: Props) {
                     </span>
                   </div>
 
-                  <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 font-serif">
+                  <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 font-serif truncate">
                     {tool.name}
                   </h1>
                 </div>
               </div>
 
-              <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+              <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Neural Score
                 </span>
@@ -222,7 +238,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Specifications & Overview */}
+          {/* Specifications Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
@@ -234,12 +250,14 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {(prosList.length > 0 || consList.length > 0) && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 text-emerald-700 text-xs font-extrabold tracking-widest uppercase">
-                      <span className="text-base">✓</span> Global Edge (Pros)
-                    </div>
+              {/* Corrected Pros & Cons Panel */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {/* Pros */}
+                <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 text-emerald-700 text-xs font-extrabold tracking-widest uppercase">
+                    <span className="text-base">✓</span> Global Edge (Pros)
+                  </div>
+                  {prosList.length > 0 ? (
                     <ul className="space-y-2.5 text-sm text-slate-700">
                       {prosList.map((pro: string, i: number) => (
                         <li key={i} className="flex items-start gap-2">
@@ -248,27 +266,30 @@ export default async function ToolPage({ params }: Props) {
                         </li>
                       ))}
                     </ul>
-                  </div>
-
-                  <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 text-amber-700 text-xs font-extrabold tracking-widest uppercase">
-                      <span className="text-base">×</span> Friction Warning (Cons)
-                    </div>
-                    <ul className="space-y-2.5 text-sm text-slate-700">
-                      {consList.length > 0 ? (
-                        consList.map((con: string, i: number) => (
-                          <li key={i} className="flex items-start gap-2">
-                            <span className="text-amber-500 font-bold">•</span>
-                            <span>{con}</span>
-                          </li>
-                        ))
-                      ) : (
-                        <li className="text-slate-400 italic">No critical operational cons recorded.</li>
-                      )}
-                    </ul>
-                  </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No explicit pros recorded.</p>
+                  )}
                 </div>
-              )}
+
+                {/* Cons */}
+                <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
+                  <div className="flex items-center gap-2 text-amber-700 text-xs font-extrabold tracking-widest uppercase">
+                    <span className="text-base">×</span> Friction Warning (Cons)
+                  </div>
+                  {consList.length > 0 ? (
+                    <ul className="space-y-2.5 text-sm text-slate-700">
+                      {consList.map((con: string, i: number) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="text-amber-500 font-bold">•</span>
+                          <span>{con}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-slate-400 italic">No significant limitations recorded.</p>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div className="space-y-6 lg:sticky lg:top-28">
