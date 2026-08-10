@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "404 — Tool Not Found | AI Vault",
+  title: "404 – Tool Not Found | AI Vault",
   description: "The requested AI tool could not be found in the AI Vault directory.",
   robots: { index: false, follow: true },
 };

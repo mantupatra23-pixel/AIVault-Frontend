@@ -65,7 +65,6 @@ async function getRelatedTools(category: string, currentSlug: string) {
   }
 }
 
-// Map tool categories to explicit Schema.org Application Types
 function mapSchemaCategory(category?: string): string {
   if (!category) return "SoftwareApplication";
   const cat = category.toLowerCase();
@@ -133,11 +132,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name} — Features, Pricing & Alternatives | AI Vault`;
+  const title = tool.meta_title || `${tool.name} – Features, Pricing & Alternatives | AI Vault`;
   const description =
     tool.meta_description ||
     tool.description?.replace(/(<([^>]+)>)/gi, "").slice(0, 155) ||
-    `Explore ${tool.name}'s features, pricing, pros, cons and alternatives. Find the right AI tool for your workflow on AI Vault.`;
+    `Explore ${tool.name}'s features, pricing, use cases, pros, cons and alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -197,7 +196,7 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Grounded JSON-LD structured schemas
+  // Grounded Schemas
   const softwareSchema = {
     "@context": "https://schema.org",
     "@type": mapSchemaCategory(tool.category),
@@ -229,7 +228,7 @@ export default async function ToolPage({ params }: Props) {
         "@type": "ListItem",
         position: 2,
         name: tool.category || "AI Tools",
-        item: `${SITE_URL}/?category=${encodeURIComponent(tool.category || "")}`,
+        item: `${SITE_URL}/?cat=${encodeURIComponent(tool.category || "")}`,
       },
       {
         "@type": "ListItem",
@@ -239,6 +238,32 @@ export default async function ToolPage({ params }: Props) {
       },
     ],
   };
+
+  // FAQ Schema generated ONLY when real FAQ data is present
+  const faqSchema = tool.faq
+    ? {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: [
+          {
+            "@type": "Question",
+            name: `What is ${tool.name}?`,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: tool.description || `${tool.name} is a verified AI software engine in the ${tool.category} category.`,
+            },
+          },
+          {
+            "@type": "Question",
+            name: `Is ${tool.name} free to use?`,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: `${tool.name} operates under a ${tool.pricing || "Freemium"} deployment model.`,
+            },
+          },
+        ],
+      }
+    : null;
 
   return (
     <>
@@ -250,6 +275,12 @@ export default async function ToolPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
@@ -266,13 +297,30 @@ export default async function ToolPage({ params }: Props) {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold tracking-wider uppercase text-white bg-blue-600 hover:bg-blue-700 rounded-full transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95"
             >
-              Visit Portal ↗
+              Visit Official Portal ↗
             </a>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Hero Section with H1 */}
+          {/* Visible Breadcrumbs */}
+          <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
+            <ol className="flex items-center gap-2 flex-wrap">
+              <li>
+                <Link href="/" className="hover:text-blue-600 transition">Home</Link>
+              </li>
+              <li>/</li>
+              <li>
+                <Link href={`/?cat=${encodeURIComponent(tool.category || "")}`} className="hover:text-blue-600 transition">
+                  {tool.category || "AI Tools"}
+                </Link>
+              </li>
+              <li>/</li>
+              <li className="text-slate-900 font-bold">{tool.name}</li>
+            </ol>
+          </nav>
+
+          {/* Hero Section with Semantic H1 */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -288,7 +336,6 @@ export default async function ToolPage({ params }: Props) {
                     </span>
                   </div>
 
-                  {/* Single Page H1 Header */}
                   <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 font-serif truncate">
                     {tool.name}
                   </h1>
@@ -307,37 +354,39 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Strategic Summary */}
-          <section className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
+          {/* Strategic Summary Article */}
+          <article className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
             <div className="space-y-3 relative z-10">
               <div className="flex items-center gap-2 text-blue-400 text-xs font-extrabold tracking-widest uppercase">
                 <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                Strategic Summary
+                Strategic Verification Summary
               </div>
               <p className="text-lg sm:text-2xl font-serif text-slate-100 leading-relaxed">
-                “AI Vault network intelligence identifies{" "}
+                AI Vault network intelligence identifies{" "}
                 <strong className="text-white underline decoration-blue-500 underline-offset-4">
                   {tool.name}
                 </strong>{" "}
-                as a highly optimized verified engine tailored for{" "}
-                <span className="text-blue-300">{tool.category || "Productivity"}</span> operations.”
+                as an active software engine optimized for{" "}
+                <span className="text-blue-300">{tool.category || "Productivity"}</span> workflows.
               </p>
             </div>
-          </section>
+          </article>
 
-          {/* Overview, Features, Pros/Cons (H2 Hierarchy) */}
+          {/* Core Content Layout with H2 Headers */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-                <h2 className="text-xs font-extrabold uppercase tracking-widest text-blue-600">
-                  Overview & Specification Report
+              {/* What is {Tool}? */}
+              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+                <h2 className="text-lg font-bold text-slate-950 font-serif">
+                  What is {tool.name}?
                 </h2>
-                <div className="prose prose-slate max-w-none text-slate-700 text-base sm:text-lg leading-relaxed whitespace-pre-line">
-                  {tool.description || "No full description currently available for this neural asset."}
+                <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
+                  {tool.description || `Explore how ${tool.name} automates operations in the ${tool.category} domain.`}
                 </div>
-              </div>
+              </section>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {/* Pros and Cons */}
+              <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
                     ✓ Key Features & Pros
@@ -381,11 +430,23 @@ export default async function ToolPage({ params }: Props) {
                     <p className="text-xs text-slate-400 italic">No significant limitations recorded.</p>
                   )}
                 </div>
-              </div>
+              </section>
+
+              {/* Who Should Use Section */}
+              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
+                <h2 className="text-lg font-bold text-slate-950 font-serif">
+                  Who Should Use {tool.name}?
+                </h2>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {tool.name} is built for developers, creators, and teams operating within the{" "}
+                  <strong className="text-slate-900">{tool.category || "AI"}</strong> category looking for a{" "}
+                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> solution.
+                </p>
+              </section>
             </div>
 
             {/* Sidebar Specifications */}
-            <div className="space-y-6 lg:sticky lg:top-28">
+            <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
                   System Specification
@@ -425,15 +486,15 @@ export default async function ToolPage({ params }: Props) {
                   Visit Official Portal ↗
                 </a>
               </div>
-            </div>
+            </aside>
           </div>
 
-          {/* Alternatives & Related Tools */}
+          {/* Alternatives & Related Engines */}
           {relatedTools.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Alternatives & Related Engines
+                  Best Alternatives & Related Engines
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Directory ↗

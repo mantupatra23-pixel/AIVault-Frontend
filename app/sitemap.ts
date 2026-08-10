@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const toolRoutes: MetadataRoute.Sitemap = tools
       .filter((t) => t.slug && typeof t.slug === "string" && t.slug.trim() !== "")
       .map((t) => ({
-        url: `${SITE_URL}/tool/${t.slug.trim()}`,
+        url: `${SITE_URL}/tool/${t.slug.trim().toLowerCase()}`,
         lastModified: t.updated_at ? new Date(t.updated_at) : new Date(t.created_at || Date.now()),
         priority: 0.8,
       }));

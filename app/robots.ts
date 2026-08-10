@@ -1,14 +1,20 @@
 import { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site-url";
 
 export default function robots(): MetadataRoute.Robots {
-  const baseUrl = "https://aivault.pp.ua";
-
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/", "/admin/", "/login", "/signup"],
+      disallow: [
+        "/api/",
+        "/admin/",
+        "/_admin/",
+        "/*?cat=*",
+        "/*?q=*",
+        "/search",
+      ],
     },
-    sitemap: `${baseUrl}/sitemap.xml`,
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }
