@@ -112,7 +112,11 @@ export default async function ToolPage({ params }: Props) {
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
   const firstLetter = (tool.name || "A").charAt(0).toUpperCase();
-  const scoreDisplay = tool.neural_score ? Number(tool.neural_score).toFixed(1) : (tool.score ? (tool.score / 10).toFixed(1) : "8.5");
+  const scoreDisplay = tool.neural_score
+    ? Number(tool.neural_score).toFixed(1)
+    : tool.score
+    ? (tool.score / 10).toFixed(1)
+    : "8.5";
 
   // Format Pros & Cons lists cleanly from DB strings or arrays
   const parseList = (input: any) => {
@@ -172,20 +176,17 @@ export default async function ToolPage({ params }: Props) {
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6">
-                {/* Image with Automatic Letter Avatar Fallback */}
+                {/* SSR Safe Image Avatar Wrapper */}
                 <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-3xl sm:text-4xl flex items-center justify-center shadow-md overflow-hidden flex-shrink-0 border border-slate-100">
                   {tool.image_url ? (
                     <img
                       src={tool.image_url}
                       alt={tool.name}
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Safe fallback on image load failure
-                        e.currentTarget.style.display = "none";
-                      }}
                     />
-                  ) : null}
-                  <span className="select-none">{firstLetter}</span>
+                  ) : (
+                    <span className="select-none">{firstLetter}</span>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -364,12 +365,10 @@ export default async function ToolPage({ params }: Props) {
                                 src={rel.image_url}
                                 alt={rel.name}
                                 className="w-full h-full object-cover"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = "none";
-                                }}
                               />
-                            ) : null}
-                            <span className="select-none">{relLetter}</span>
+                            ) : (
+                              <span className="select-none">{relLetter}</span>
+                            )}
                           </div>
 
                           <span className="text-xs font-bold text-blue-600 font-serif">
