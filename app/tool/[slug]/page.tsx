@@ -2,8 +2,8 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
+import { ToolLogo } from "@/components/ToolLogo";
 
-// Force dynamic server-side rendering so newly vaulted DB tools resolve immediately
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -18,7 +18,6 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-// Data Fetcher 1: Fetch Primary Tool Record
 async function getTool(rawSlug: string) {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
@@ -42,7 +41,6 @@ async function getTool(rawSlug: string) {
   }
 }
 
-// Data Fetcher 2: Fetch Related Category Tools
 async function getRelatedTools(category: string, currentSlug: string) {
   const supabase = getSupabaseClient();
   if (!supabase || !category) return [];
@@ -50,7 +48,7 @@ async function getRelatedTools(category: string, currentSlug: string) {
   try {
     const { data } = await supabase
       .from("ai_tools")
-      .select("name, slug, category, pricing, neural_score, image_url, description")
+      .select("name, slug, category, pricing, neural_score, image_url, logo_url, description")
       .eq("category", category)
       .neq("slug", currentSlug)
       .limit(3);
@@ -80,6 +78,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     tool.description?.replace(/(<([^>]+)>)/gi, "").slice(0, 155) ||
     `Explore ${tool.name} features, specifications, and live analysis on VISORA.`;
 
+  const logoUrl = tool.image_url || tool.logo_url || undefined;
+
   return {
     title,
     description,
@@ -90,13 +90,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: canonicalUrl,
       siteName: "VISORA",
       type: "website",
-      images: tool.image_url ? [{ url: tool.image_url }] : [],
+      images: logoUrl ? [{ url: logoUrl }] : [],
     },
     twitter: {
       card: "summary_large_image",
       title: `${tool.name} | VISORA`,
       description,
-      images: tool.image_url ? [tool.image_url] : [],
+      images: logoUrl ? [logoUrl] : [],
     },
     robots: { index: true, follow: true },
   };
@@ -111,14 +111,12 @@ export default async function ToolPage({ params }: Props) {
   }
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-  const firstLetter = (tool.name || "A").charAt(0).toUpperCase();
   const scoreDisplay = tool.neural_score
     ? Number(tool.neural_score).toFixed(1)
     : tool.score
     ? (tool.score / 10).toFixed(1)
     : "8.5";
 
-  // Format Pros & Cons lists cleanly from DB strings or arrays
   const parseList = (input: any) => {
     if (Array.isArray(input)) return input;
     if (typeof input === "string") {
@@ -149,7 +147,6 @@ export default async function ToolPage({ params }: Props) {
       />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-        {/* === HEADER === */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -170,24 +167,14 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* === HERO SECTION === */}
+          {/* Hero Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none" />
 
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6">
-                {/* SSR Safe Image Avatar Wrapper */}
-                <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-3xl sm:text-4xl flex items-center justify-center shadow-md overflow-hidden flex-shrink-0 border border-slate-100">
-                  {tool.image_url ? (
-                    <img
-                      src={tool.image_url}
-                      alt={tool.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <span className="select-none">{firstLetter}</span>
-                  )}
-                </div>
+                {/* Global ToolLogo component */}
+                <ToolLogo tool={tool} size="xl" />
 
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
@@ -205,7 +192,6 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {/* Neural Score Display */}
               <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
                   Neural Score
@@ -218,7 +204,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* === STRATEGIC SUMMARY === */}
+          {/* Strategic Summary */}
           <section className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
             <div className="space-y-3 relative z-10">
               <div className="flex items-center gap-2 text-blue-400 text-xs font-extrabold tracking-widest uppercase">
@@ -236,9 +222,8 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* === MAIN CONTENT & SPECIFICATIONS GRID === */}
+          {/* Specifications & Overview */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
-            {/* Left 2 Columns: Description & Reviews */}
             <div className="lg:col-span-2 space-y-8">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-blue-600">
@@ -249,10 +234,8 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {/* Pros & Cons Section */}
               {(prosList.length > 0 || consList.length > 0) && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Pros */}
                   <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                     <div className="flex items-center gap-2 text-emerald-700 text-xs font-extrabold tracking-widest uppercase">
                       <span className="text-base">✓</span> Global Edge (Pros)
@@ -267,7 +250,6 @@ export default async function ToolPage({ params }: Props) {
                     </ul>
                   </div>
 
-                  {/* Cons */}
                   <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                     <div className="flex items-center gap-2 text-amber-700 text-xs font-extrabold tracking-widest uppercase">
                       <span className="text-base">×</span> Friction Warning (Cons)
@@ -289,7 +271,6 @@ export default async function ToolPage({ params }: Props) {
               )}
             </div>
 
-            {/* Right Column: System Specification Sidebar */}
             <div className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -321,7 +302,6 @@ export default async function ToolPage({ params }: Props) {
                   </div>
                 </dl>
 
-                {/* Primary CTA Button */}
                 <a
                   href={tool.website_url || "#"}
                   target="_blank"
@@ -334,7 +314,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </div>
 
-          {/* === RELATED TOOLS / NEURAL DISCOVERY === */}
+          {/* Related Tools */}
           {relatedTools.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
@@ -348,7 +328,6 @@ export default async function ToolPage({ params }: Props) {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {relatedTools.map((rel: any) => {
-                  const relLetter = (rel.name || "A").charAt(0).toUpperCase();
                   const relScore = rel.neural_score ? Number(rel.neural_score).toFixed(1) : "8.5";
 
                   return (
@@ -359,18 +338,7 @@ export default async function ToolPage({ params }: Props) {
                     >
                       <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white font-bold text-xl flex items-center justify-center shadow-sm overflow-hidden flex-shrink-0">
-                            {rel.image_url ? (
-                              <img
-                                src={rel.image_url}
-                                alt={rel.name}
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <span className="select-none">{relLetter}</span>
-                            )}
-                          </div>
-
+                          <ToolLogo tool={rel} size="md" />
                           <span className="text-xs font-bold text-blue-600 font-serif">
                             ★ {relScore}
                           </span>
