@@ -1,132 +1,267 @@
 "use client";
 
-import { createClient } from '@supabase/supabase-js'
-import Link from 'next/link'
-import { useEffect, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
+import { ToolLogo } from "@/components/ToolLogo";
+import { SITE_URL } from "@/lib/site-url";
 
 const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
 function HomeContent() {
   const searchParams = useSearchParams();
   const [tools, setTools] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [localSearch, setLocalSearch] = useState('');
-  
-  const activeCat = searchParams.get('cat') || 'All';
+  const [localSearch, setLocalSearch] = useState("");
+
+  const activeCat = searchParams.get("cat") || "All";
 
   useEffect(() => {
     async function fetchTools() {
       setLoading(true);
       try {
-        let query = supabase.from('ai_tools').select('*').order('created_at', { ascending: false });
-        if (activeCat !== 'All') query = query.ilike('category', activeCat);
+        let query = supabase.from("ai_tools").select("*");
+        if (activeCat !== "All") {
+          query = query.ilike("category", `%${activeCat}%`);
+        }
         const { data, error } = await query;
         if (error) throw error;
         setTools(data || []);
-      } catch (err) { console.error(err); } finally { setLoading(false); }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchTools();
   }, [activeCat]);
 
-  const filteredTools = tools.filter(t => 
-    t.name.toLowerCase().includes(localSearch.toLowerCase()) || 
-    t.description.toLowerCase().includes(localSearch.toLowerCase())
+  const filteredTools = tools.filter(
+    (t) =>
+      t.name?.toLowerCase().includes(localSearch.toLowerCase()) ||
+      t.description?.toLowerCase().includes(localSearch.toLowerCase())
   );
 
   const categories = [
-    { name: 'All', icon: '⚡' }, { name: 'Chatbot', icon: '💬' },
-    { name: 'Image Gen', icon: '🎨' }, { name: 'Video Gen', icon: '🎥' },
-    { name: 'Coding', icon: '💻' }, { name: 'Marketing', icon: '📈' },
-    { name: 'Productivity', icon: '🚀' }
+    { name: "All", icon: "⚡" },
+    { name: "Chatbot", icon: "🤖" },
+    { name: "Image Gen", icon: "🎨" },
+    { name: "Video Gen", icon: "🎥" },
+    { name: "Coding", icon: "💻" },
+    { name: "Marketing", icon: "📈" },
+    { name: "Productivity", icon: "🚀" },
   ];
 
+  // Schema.org WebSite & Organization Structured Data
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: "AI Vault",
+        description: "Discover, compare and explore 740+ AI tools.",
+        potentialAction: {
+          "@type": "EntryPoint",
+          target: {
+            "@type": "EntryPoint",
+            urlTemplate: `${SITE_URL}/?q={search_term_string}`,
+          },
+          "query-input": "required name=search_term_string",
+        },
+      },
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: "AI Vault",
+        url: SITE_URL,
+        logo: `${SITE_URL}/logo.png`,
+      },
+    ],
+  };
+
   return (
-    <main className="min-h-screen bg-[#fcfcfc] text-gray-900 font-sans selection:bg-blue-600 selection:text-white">
-      
-      {/* 🧭 PREMIUM NAV */}
-      <nav className="fixed top-0 w-full h-20 bg-white/90 backdrop-blur-xl z-[100] border-b border-gray-100 flex items-center justify-between px-6 md:px-12">
-        <Link href="/" className="font-[1000] text-2xl tracking-tighter italic uppercase">VISORA<span className="text-blue-600">.</span></Link>
-        <div className="hidden lg:flex items-center gap-6">
-          {categories.slice(0, 5).map(c => (
-            <Link key={c.name} href={`/?cat=${c.name}`} className={`text-[10px] font-black uppercase tracking-widest transition-all ${activeCat === c.name ? 'text-blue-600' : 'text-gray-400 hover:text-black'}`}>{c.name}</Link>
-          ))}
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="bg-blue-600 text-white text-[9px] px-5 py-2.5 rounded-full font-black animate-pulse uppercase tracking-widest shadow-lg shadow-blue-600/20">Vault Live</div>
-        </div>
-      </nav>
+    <>
+      {/* Schema.org JSON-LD Script Injection */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
 
-      {/* 🏆 HERO */}
-      <header className="max-w-7xl mx-auto px-6 pt-48 pb-20 text-center">
-        <h1 className="text-7xl md:text-[145px] font-[1000] leading-[0.8] tracking-tighter mb-12 italic uppercase text-gray-900">Vault of<br/><span className="text-blue-600">Intelligence.</span></h1>
-        
-        {/* 🔍 SEARCH */}
-        <div className="max-w-2xl mx-auto relative mb-16">
-          <input type="text" placeholder={`Search through ${tools.length} AI engines...`} onChange={(e) => setLocalSearch(e.target.value)} className="w-full px-10 py-7 rounded-[35px] bg-white border border-gray-100 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.05)] outline-none text-xl font-medium focus:ring-4 focus:ring-blue-600/10 transition-all" />
-          <div className="absolute right-5 top-5 bg-black text-white px-8 py-3 rounded-2xl font-black text-[10px] uppercase tracking-widest">Execute</div>
-        </div>
+      <main className="min-h-screen bg-[#fcfcfc] text-slate-900 font-sans">
+        {/* 🧭 PREMIUM NAV */}
+        <nav className="fixed top-0 w-full h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 z-50 px-6 flex items-center justify-between">
+          <Link href="/" className="font-[1000] text-2xl tracking-tight text-slate-950 font-serif">
+            AI Vault<span className="text-blue-600">.</span>
+          </Link>
 
-        {/* 🗂️ CATEGORIES */}
-        <div className="flex flex-wrap justify-center gap-3 max-w-5xl mx-auto">
-          {categories.map((c) => (
-            <Link key={c.name} href={`/?cat=${c.name}`} className={`flex items-center gap-2 px-7 py-3.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${activeCat === c.name ? 'bg-blue-600 text-white border-blue-600 shadow-2xl shadow-blue-600/30 scale-110' : 'bg-white border-gray-100 text-gray-400 hover:border-blue-600 hover:-translate-y-1'}`}>
-              <span>{c.icon}</span> {c.name}
-            </Link>
-          ))}
-        </div>
-      </header>
-
-      {/* 🚀 GRID */}
-      <section className="max-w-7xl mx-auto px-6 pb-48">
-        <div className="flex items-center gap-6 mb-16"><span className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-300 italic">Neural Sync: {filteredTools.length} results</span><div className="h-px flex-1 bg-gray-100"></div></div>
-        {loading ? (
-          <div className="text-center py-40 text-xs font-black uppercase tracking-[0.8em] text-gray-200 animate-pulse">Synchronizing...</div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
-            {filteredTools.map((tool) => (
-              <div key={tool.id} className="group bg-white border border-gray-100 rounded-[50px] p-10 hover:shadow-[0_60px_100px_-30px_rgba(0,0,0,0.12)] transition-all duration-700 relative hover:-translate-y-3">
-                <Link href={`/tool/${tool.slug}`} className="absolute inset-0 z-10"></Link>
-                <div className="flex justify-between items-start mb-10">
-                  <div className="w-18 h-18 bg-blue-600 rounded-[24px] flex items-center justify-center text-white text-4xl font-[1000] italic shadow-xl shadow-blue-600/30 group-hover:rotate-6 transition-transform">
-                    {tool.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div className="bg-gray-900 text-[10px] text-white px-5 py-2 rounded-full font-black uppercase">{tool.pricing || 'FREE'}</div>
-                </div>
-                <h3 className="text-4xl font-[1000] tracking-tighter mb-4 uppercase italic group-hover:text-blue-600 transition-colors leading-none">{tool.name}.</h3>
-                <p className="text-gray-400 text-sm leading-relaxed mb-10 line-clamp-2 italic font-medium">{tool.description}</p>
-                <div className="pt-8 border-t border-gray-50 flex justify-between text-[10px] font-black tracking-widest uppercase italic"><span className="text-blue-600 group-hover:translate-x-3 transition-all">Full Report →</span><span className="text-gray-300">{tool.category}</span></div>
-              </div>
+          <div className="hidden lg:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-500">
+            {categories.slice(0, 5).map((c) => (
+              <Link
+                key={c.name}
+                href={c.name === "All" ? "/" : `/?cat=${encodeURIComponent(c.name)}`}
+                className={`hover:text-blue-600 transition-colors ${
+                  activeCat === c.name ? "text-blue-600 font-extrabold" : ""
+                }`}
+              >
+                {c.name}
+              </Link>
             ))}
           </div>
-        )}
-      </section>
 
-      {/* 🌐 ADSENSE READY FOOTER */}
-      <footer className="bg-white border-t border-gray-100 pt-32 pb-20 text-center">
-        <h2 className="text-6xl font-[1000] tracking-tighter mb-8 italic uppercase">VISORA<span className="text-blue-600">.</span></h2>
-        
-        {/* LEGAL LINKS (Mandatory for Adsense) */}
-        <div className="flex flex-wrap justify-center gap-8 mb-12 text-[10px] font-black uppercase tracking-widest text-gray-400">
-          <Link href="/privacy" className="hover:text-blue-600 transition-all">Privacy Policy</Link>
-          <Link href="/terms" className="hover:text-blue-600 transition-all">Terms of Service</Link>
-          <Link href="/about" className="hover:text-blue-600 transition-all">About Founder</Link>
-          <Link href="/contact" className="hover:text-blue-600 transition-all">Contact Us</Link>
-        </div>
+          <div className="flex items-center gap-4">
+            <div className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-full uppercase tracking-wider shadow-sm">
+              740+ Engines
+            </div>
+          </div>
+        </nav>
 
-        <p className="text-gray-400 text-[11px] font-black uppercase tracking-[0.5em] mb-4">Made in Bharat for the world</p>
-        <p className="text-gray-300 text-[9px] font-medium uppercase tracking-[0.2em] italic">© 2026 Mantu Patra • Founder Core</p>
-      </footer>
-    </main>
+        {/* 🏆 HERO */}
+        <header className="max-w-7xl mx-auto px-6 pt-32 pb-12 text-center space-y-6">
+          <h1 className="text-5xl sm:text-7xl md:text-[90px] font-black tracking-tight text-slate-950 font-serif leading-none">
+            Discover the World's <br />
+            <span className="text-blue-600 italic">Best AI Tools</span>
+          </h1>
+          <p className="max-w-2xl mx-auto text-slate-500 text-sm sm:text-base leading-relaxed font-medium">
+            Discover, compare, and explore 740+ verified AI engines across Productivity, Coding, Image, and Video Generation.
+          </p>
+
+          {/* 🔍 SEARCH */}
+          <div className="max-w-2xl mx-auto relative">
+            <input
+              type="text"
+              placeholder="Search 740+ AI tools by name, features, or niche..."
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
+              className="w-full h-16 pl-6 pr-16 bg-white border border-slate-200 rounded-full text-slate-900 placeholder:text-slate-400 font-medium shadow-sm focus:outline-none focus:border-blue-600 transition"
+            />
+            <div className="absolute right-3 top-3 bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center font-bold">
+              🔍
+            </div>
+          </div>
+
+          {/* 📁 CATEGORIES */}
+          <div className="flex flex-wrap justify-center gap-2 pt-4">
+            {categories.map((c) => (
+              <Link
+                key={c.name}
+                href={c.name === "All" ? "/" : `/?cat=${encodeURIComponent(c.name)}`}
+                className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center gap-2 ${
+                  activeCat === c.name
+                    ? "bg-slate-950 text-white shadow-md"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <span>{c.icon}</span>
+                <span>{c.name}</span>
+              </Link>
+            ))}
+          </div>
+        </header>
+
+        {/* 🚀 GRID */}
+        <section className="max-w-7xl mx-auto px-6 pb-24">
+          <div className="flex items-center justify-between mb-8">
+            <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
+              Verified AI Directory ({filteredTools.length})
+            </h2>
+          </div>
+
+          {loading ? (
+            <div className="text-center py-40 text-xs font-extrabold uppercase tracking-widest text-slate-400">
+              Loading Verified AI Engines...
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {filteredTools.map((tool) => (
+                <div
+                  key={tool.id}
+                  className="group bg-white border border-slate-200/80 hover:border-blue-300 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      {/* Integrated ToolLogo Component */}
+                      <ToolLogo tool={tool} size="lg" />
+
+                      <span className="bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider px-3 py-1 rounded-full">
+                        {tool.pricing || "Freemium"}
+                      </span>
+                    </div>
+
+                    <div>
+                      <h3 className="text-2xl font-bold tracking-tight text-slate-950 group-hover:text-blue-600 transition-colors font-serif">
+                        {tool.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 mt-2 leading-relaxed">
+                        {tool.description || "Verified AI automation tool."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="pt-6 mt-6 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-extrabold uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
+                      {tool.category || "General AI"}
+                    </span>
+
+                    {/* Relative Link for Internal Navigation */}
+                    <Link
+                      href={`/tool/${tool.slug}`}
+                      className="text-xs font-extrabold uppercase tracking-wider text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1"
+                    >
+                      FULL REPORT →
+                    </Link>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* 🌐 ADSENSE READY FOOTER */}
+        <footer className="bg-white border-t border-slate-200 py-16 px-6 text-center space-y-8">
+          <h2 className="text-3xl font-black tracking-tight font-serif text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
+          </h2>
+
+          {/* LEGAL LINKS */}
+          <div className="flex flex-wrap justify-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-500">
+            <Link href="/privacy" className="hover:text-blue-600 transition">
+              Privacy Policy
+            </Link>
+            <Link href="/terms" className="hover:text-blue-600 transition">
+              Terms of Service
+            </Link>
+            <Link href="/about" className="hover:text-blue-600 transition">
+              About Us
+            </Link>
+            <Link href="/contact" className="hover:text-blue-600 transition">
+              Contact Support
+            </Link>
+          </div>
+
+          <p className="text-slate-400 text-xs font-medium">
+            © {new Date().getFullYear()} AI Vault. All rights reserved. Discover and compare top artificial intelligence software.
+          </p>
+        </footer>
+      </main>
+    </>
   );
 }
 
 export default function Home() {
   return (
-    <Suspense fallback={<div className="h-screen flex items-center justify-center font-black uppercase tracking-[0.8em] text-gray-200">Visora Engine...</div>}>
+    <Suspense
+      fallback={
+        <div className="h-screen w-full flex items-center justify-center text-xs font-extrabold uppercase tracking-widest text-slate-400">
+          Loading AI Vault...
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );

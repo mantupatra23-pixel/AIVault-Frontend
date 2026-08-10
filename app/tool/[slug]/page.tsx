@@ -29,7 +29,7 @@ async function getTool(rawSlug: string) {
   if (!supabase) return null;
 
   try {
-    const decodedSlug = decodeURIComponent(rawSlug);
+    const decodedSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
     const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
@@ -65,7 +65,19 @@ async function getRelatedTools(category: string, currentSlug: string) {
   }
 }
 
-// Clean parser for bulleted strings & key-value pros/cons
+// Map tool categories to explicit Schema.org Application Types
+function mapSchemaCategory(category?: string): string {
+  if (!category) return "SoftwareApplication";
+  const cat = category.toLowerCase();
+  if (cat.includes("chat") || cat.includes("bot")) return "AIApplication";
+  if (cat.includes("image")) return "ImageGenerator";
+  if (cat.includes("video")) return "VideoGenerator";
+  if (cat.includes("code") || cat.includes("dev")) return "DeveloperApplication";
+  if (cat.includes("market")) return "MarketingApplication";
+  if (cat.includes("product")) return "ProductivityApplication";
+  return "SoftwareApplication";
+}
+
 function parseStructuredList(input: any): FormattedListItem[] {
   if (!input) return [];
 
@@ -79,10 +91,9 @@ function parseStructuredList(input: any): FormattedListItem[] {
   const items: FormattedListItem[] = [];
 
   for (let i = 0; i < rawLines.length; i++) {
-    let line = rawLines[i].replace(/^\d+\.\s*/, "").trim(); // Remove "1. ", "2. " prefixes
+    let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
-    // Handle Title / Description splits (e.g. "Title - Description" or "Title: Description")
     if (line.includes(":") || line.includes(" - ")) {
       const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
       if (parts.length >= 2) {
@@ -94,13 +105,12 @@ function parseStructuredList(input: any): FormattedListItem[] {
       }
     }
 
-    // Check if current line is a title and next line is its description
     if (line.length < 40 && i + 1 < rawLines.length && rawLines[i + 1].length > 40) {
       items.push({
         title: line,
         description: rawLines[i + 1].replace(/^\d+\.\s*/, "").trim(),
       });
-      i++; // Skip next line
+      i++;
       continue;
     }
 
@@ -116,20 +126,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   if (!tool) {
     return {
-      title: "Tool Not Found | VISORA Intelligence",
-      description: "Explore verified AI tools and neural software in the VISORA directory.",
+      title: "Tool Not Found | AI Vault",
+      description: "Explore verified AI tools and software in the AI Vault directory.",
       robots: { index: false, follow: true },
     };
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name} — AI Features & Neural Analysis | VISORA`;
+  const title = tool.meta_title || `${tool.name} — Features, Pricing & Alternatives | AI Vault`;
   const description =
     tool.meta_description ||
     tool.description?.replace(/(<([^>]+)>)/gi, "").slice(0, 155) ||
-    `Explore ${tool.name} features, specifications, and live analysis on VISORA.`;
+    `Explore ${tool.name}'s features, pricing, pros, cons and alternatives. Find the right AI tool for your workflow on AI Vault.`;
 
-  const logoUrl = tool.image_url || tool.logo_url || undefined;
+  const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
   return {
     title,
@@ -138,18 +148,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       canonical: canonicalUrl,
     },
     openGraph: {
-      title: `${tool.name} | VISORA AI Vault`,
+      title,
       description,
       url: canonicalUrl,
-      siteName: "VISORA",
+      siteName: "AI Vault",
       type: "website",
-      images: logoUrl ? [{ url: logoUrl }] : [],
+      images: [{ url: logoUrl, alt: `${tool.name} AI tool logo` }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `${tool.name} | VISORA`,
+      title,
       description,
-      images: logoUrl ? [logoUrl] : [],
+      images: [logoUrl],
     },
     robots: { index: true, follow: true },
   };
@@ -170,11 +180,9 @@ export default async function ToolPage({ params }: Props) {
     ? (tool.score / 10).toFixed(1)
     : "8.5";
 
-  // Extract Pros & Cons
   let prosItems = parseStructuredList(tool.pros);
   let consItems = parseStructuredList(tool.cons);
 
-  // Fallback extraction if separate arrays are empty but pros_cons string exists
   if (prosItems.length === 0 && consItems.length === 0 && tool.pros_cons) {
     const text = String(tool.pros_cons);
     if (text.includes("Cons:") || text.includes("CONS:")) {
@@ -187,32 +195,68 @@ export default async function ToolPage({ params }: Props) {
   }
 
   const officialUrl = tool.website_url || tool.official_url || "#";
+  const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  const jsonLd = {
+  // Grounded JSON-LD structured schemas
+  const softwareSchema = {
     "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+    "@type": mapSchemaCategory(tool.category),
     name: tool.name,
     description: tool.description,
     applicationCategory: tool.category || "Application",
     operatingSystem: "Web",
-    offers: tool.pricing ? { "@type": "Offer", description: tool.pricing } : undefined,
     url: officialUrl,
+    offers: tool.pricing
+      ? {
+          "@type": "Offer",
+          priceCurrency: "USD",
+          description: tool.pricing,
+        }
+      : undefined,
+  };
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: SITE_URL,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: tool.category || "AI Tools",
+        item: `${SITE_URL}/?category=${encodeURIComponent(tool.category || "")}`,
+      },
+      {
+        "@type": "ListItem",
+        position: 3,
+        name: tool.name,
+        item: canonicalUrl,
+      },
+    ],
   };
 
   return (
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-        {/* Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
               <span className="text-2xl font-black tracking-tight text-slate-950 font-serif">
-                VISORA<span className="text-blue-600">.</span>
+                AI Vault<span className="text-blue-600">.</span>
               </span>
             </Link>
 
@@ -228,10 +272,8 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Hero Section */}
+          {/* Hero Section with H1 */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
-            <div className="absolute top-0 right-0 -mt-12 -mr-12 w-64 h-64 bg-blue-50 rounded-full blur-3xl opacity-50 pointer-events-none" />
-
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
                 <ToolLogo tool={tool} size="xl" />
@@ -246,6 +288,7 @@ export default async function ToolPage({ params }: Props) {
                     </span>
                   </div>
 
+                  {/* Single Page H1 Header */}
                   <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 font-serif truncate">
                     {tool.name}
                   </h1>
@@ -272,7 +315,7 @@ export default async function ToolPage({ params }: Props) {
                 Strategic Summary
               </div>
               <p className="text-lg sm:text-2xl font-serif text-slate-100 leading-relaxed">
-                “Visora network intelligence identifies{" "}
+                “AI Vault network intelligence identifies{" "}
                 <strong className="text-white underline decoration-blue-500 underline-offset-4">
                   {tool.name}
                 </strong>{" "}
@@ -282,25 +325,23 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Core Content & Specs */}
+          {/* Overview, Features, Pros/Cons (H2 Hierarchy) */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-blue-600">
-                  Engine Overview & Verification
+                  Overview & Specification Report
                 </h2>
                 <div className="prose prose-slate max-w-none text-slate-700 text-base sm:text-lg leading-relaxed whitespace-pre-line">
                   {tool.description || "No full description currently available for this neural asset."}
                 </div>
               </div>
 
-              {/* Clean Pros & Cons Panel */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                {/* Pros Panel */}
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 text-emerald-700 text-xs font-extrabold tracking-widest uppercase">
-                    <span className="text-base">✓</span> Global Edge (Pros)
-                  </div>
+                  <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
+                    ✓ Key Features & Pros
+                  </h2>
                   {prosItems.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
                       {prosItems.map((item, i) => (
@@ -319,11 +360,10 @@ export default async function ToolPage({ params }: Props) {
                   )}
                 </div>
 
-                {/* Cons Panel */}
                 <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
-                  <div className="flex items-center gap-2 text-amber-700 text-xs font-extrabold tracking-widest uppercase">
-                    <span className="text-base">×</span> Friction Warning (Cons)
-                  </div>
+                  <h2 className="text-xs font-extrabold uppercase tracking-widest text-amber-700">
+                    × Limitations & Cons
+                  </h2>
                   {consItems.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
                       {consItems.map((item, i) => (
@@ -344,12 +384,12 @@ export default async function ToolPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Sidebar System Specification */}
+            {/* Sidebar Specifications */}
             <div className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
-                <h3 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
+                <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
                   System Specification
-                </h3>
+                </h2>
 
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between items-center">
@@ -388,12 +428,12 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Related Tools */}
+          {/* Alternatives & Related Tools */}
           {relatedTools.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Neural Discovery // Related Engines
+                  Alternatives & Related Engines
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Directory ↗
