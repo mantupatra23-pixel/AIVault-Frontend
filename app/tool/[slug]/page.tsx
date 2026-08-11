@@ -3,61 +3,22 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
+import { AdSlot } from "@/components/AdSlot";
 import { SITE_URL } from "@/lib/site-url";
+import { DatabaseToolRecord, FormattedListItem, FAQItem } from "@/types/tool";
+import {
+  extractYouTubeId,
+  normalizeScore,
+  parseProsConsColumn,
+  generateToolSpecificEnrichment,
+} from "@/lib/tool-normalizer";
 
-// Enforce runtime database lookup — Removes build-time 404 static locks
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
-
-export interface FormattedListItem {
-  title?: string;
-  description: string;
-}
-
-export interface FAQItem {
-  q: string;
-  a: string;
-}
-
-export interface PricingDetailsJSON {
-  model?: string;
-  note?: string;
-  official_link?: string;
-}
-
-export interface DatabaseToolRecord {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricing: string | null;
-  description: string | null;
-  website_url: string | null;
-  official_url: string | null;
-  affiliate_url: string | null;
-  youtube_url: string | null;
-  youtube_id: string | null;
-  score: number | null;
-  neural_score: number | null;
-  rating: number | null;
-  image_url: string | null;
-  logo_url: string | null;
-  features_pros: FormattedListItem[] | null;
-  limitations_cons: FormattedListItem[] | null;
-  who_should_use: string | null;
-  how_to_use: string[] | null;
-  pricing_details: PricingDetailsJSON | null;
-  tags: string[] | null;
-  faqs: FAQItem[] | null;
-  related_tools?: unknown[] | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  pros_cons?: string | null;
-}
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -66,30 +27,6 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
-  if (idStr && idStr.trim().length === 11) return idStr.trim();
-  if (!urlStr) return null;
-
-  try {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = urlStr.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
-  const val = Number(rawScore || rawNeural || rawRating);
-  if (isNaN(val) || val <= 0) return null;
-  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
-  if (val <= 10) return Number(val.toFixed(1));
-  return 8.5;
-}
-
-/**
- * Direct Supabase Lookup Engine
- */
 async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
   const supabase = getSupabaseClient();
   if (!supabase || !rawSlug) return null;
@@ -97,10 +34,10 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
   try {
     const cleanSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
 
-    // 1. Direct query using .from("ai_tools")
+    // 1. Direct PostgREST Lookup via .from("ai_tools")
     let { data, error } = await supabase
       .from("ai_tools")
-      .select("*")
+      .select("id, name, slug, category, pricing, description, website_url, official_url, affiliate_url, youtube_url, youtube_id, score, neural_score, rating, image_url, logo_url, features_pros, limitations_cons, who_should_use, how_to_use, pricing_details, tags, faqs, seo_title, seo_description, pros_cons")
       .eq("slug", cleanSlug)
       .maybeSingle();
 
@@ -108,14 +45,72 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
     if (!data) {
       const res = await supabase
         .from("ai_tools")
-        .select("*")
+        .select("id, name, slug, category, pricing, description, website_url, official_url, affiliate_url, youtube_url, youtube_id, score, neural_score, rating, image_url, logo_url, features_pros, limitations_cons, who_should_use, how_to_use, pricing_details, tags, faqs, seo_title, seo_description, pros_cons")
         .ilike("slug", cleanSlug)
         .maybeSingle();
       data = res.data;
     }
 
     if (error || !data) return null;
-    return data as DatabaseToolRecord;
+
+    let record = data as DatabaseToolRecord;
+
+    // Self-healing write-back: Enrich missing JSONB fields if absent in DB
+    if (!record.who_should_use || !record.features_pros || record.features_pros.length === 0) {
+      const enrichment = generateToolSpecificEnrichment(record);
+
+      const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
+
+      const finalPros = record.features_pros && record.features_pros.length > 0 
+        ? record.features_pros 
+        : parsedFromProsCons.pros.length > 0 
+        ? parsedFromProsCons.pros 
+        : (enrichment.features_pros || []);
+
+      const finalCons = record.limitations_cons && record.limitations_cons.length > 0 
+        ? record.limitations_cons 
+        : parsedFromProsCons.cons.length > 0 
+        ? parsedFromProsCons.cons 
+        : (enrichment.limitations_cons || []);
+
+      record = {
+        ...record,
+        description: record.description || enrichment.description || null,
+        features_pros: finalPros,
+        limitations_cons: finalCons,
+        who_should_use: record.who_should_use || enrichment.who_should_use || null,
+        how_to_use: record.how_to_use || enrichment.how_to_use || null,
+        pricing_details: record.pricing_details || enrichment.pricing_details || null,
+        tags: record.tags || enrichment.tags || null,
+        faqs: record.faqs || enrichment.faqs || null,
+        seo_title: record.seo_title || enrichment.seo_title || null,
+        seo_description: record.seo_description || enrichment.seo_description || null,
+      };
+
+      // Asynchronous server-side database write-back using .from('ai_tools')
+      supabase
+        .from("ai_tools")
+        .update({
+          description: record.description,
+          features_pros: record.features_pros,
+          limitations_cons: record.limitations_cons,
+          who_should_use: record.who_should_use,
+          how_to_use: record.how_to_use,
+          pricing_details: record.pricing_details,
+          tags: record.tags,
+          faqs: record.faqs,
+          seo_title: record.seo_title,
+          seo_description: record.seo_description,
+        })
+        .eq("id", record.id)
+        .then(({ error: writeErr }) => {
+          if (writeErr) {
+            console.error("[DB_WRITE_BACK_ERR] slug=" + cleanSlug, writeErr.message);
+          }
+        });
+    }
+
+    return record;
   } catch {
     return null;
   }
@@ -276,7 +271,7 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
-          {/* Hero Header */}
+          {/* Hero Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -312,7 +307,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Overview */}
+          {/* Overview & Tags */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -331,6 +326,9 @@ export default async function ToolPage({ params }: Props) {
               </div>
             )}
           </section>
+
+          {/* Ad Placement 1 */}
+          <AdSlot slotId="tool-after-overview" />
 
           {/* YouTube Video Section */}
           {youtubeVideoId && (
@@ -352,13 +350,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* Pricing Section */}
+              {/* Pricing & Plans */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check the official website for plans and tier limits."}
+                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check official website for current plans and tier limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -535,6 +533,9 @@ export default async function ToolPage({ params }: Props) {
                   )}
                 </div>
               </div>
+
+              {/* Sidebar Ad Placement */}
+              <AdSlot slotId="tool-sidebar" format="rectangle" />
             </aside>
           </div>
 

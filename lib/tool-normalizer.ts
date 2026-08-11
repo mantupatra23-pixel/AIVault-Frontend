@@ -1,77 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
-
-export interface FormattedListItem {
-  title?: string;
-  description: string;
-}
-
-export interface FAQItem {
-  q: string;
-  a: string;
-}
-
-export interface PricingDetailsJSON {
-  model?: string;
-  note?: string;
-  official_link?: string;
-  plans?: { name: string; price: string }[];
-}
-
-export interface DatabaseToolRecord {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricing: string | null;
-  description: string | null;
-  website_url: string | null;
-  official_url: string | null;
-  affiliate_url: string | null;
-  youtube_url: string | null;
-  youtube_id: string | null;
-  score: number | null;
-  neural_score: number | null;
-  rating: number | null;
-  image_url: string | null;
-  logo_url: string | null;
-  is_sponsored?: boolean | null;
-  created_at?: string | null;
-  features_pros: FormattedListItem[] | null;
-  limitations_cons: FormattedListItem[] | null;
-  who_should_use: string | null;
-  how_to_use: string[] | null;
-  pricing_details: PricingDetailsJSON | null;
-  tags: string[] | null;
-  faqs: FAQItem[] | null;
-  related_tools?: unknown[] | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  pros_cons?: string | null;
-}
-
-export interface NormalizedTool {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricingModel: string;
-  pricingDetails: PricingDetailsJSON | null;
-  description: string;
-  shortDescription: string;
-  pros: FormattedListItem[];
-  cons: FormattedListItem[];
-  whoShouldUse: string | null;
-  howToUse: string[] | null;
-  faqs: FAQItem[];
-  tags: string[];
-  editorialScore: number | null;
-  officialUrl: string;
-  affiliateUrl: string | null;
-  youtubeVideoId: string | null;
-  seoTitle: string;
-  seoDescription: string;
-  dataStatus: "Database Verified" | "Database Enriched" | "Partially Enriched";
-}
+import { DatabaseToolRecord, NormalizedTool, FormattedListItem, FAQItem } from "@/types/tool";
 
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
@@ -164,21 +91,22 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
 }
 
 /**
- * Generates tool-specific factual enrichments when database JSONB fields are NULL
+ * Generates factual, tool-specific fallback data ONLY when database fields are NULL.
  */
 export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial<DatabaseToolRecord> {
   const slug = (raw.slug || "").toLowerCase().trim();
   const name = raw.name || "Tool";
   const category = raw.category || "Software";
 
+  // Factual Override for Ghost
   if (slug === "ghost") {
     return {
       description: "Ghost is an open-source, independent publishing platform built on Node.js designed for professional creators, bloggers, newsletters, and online publications. It provides modern tools for subscription management, native newsletter delivery, custom Handlebars themes, and Stripe membership monetization.",
       features_pros: [
-        { title: "Native Newsletter Delivery", description: "In-house email newsletter broadcasting and subscription management without third-party plugins." },
+        { title: "Native Newsletter Distribution", description: "In-house email newsletter broadcasting and subscription management without third-party plugins." },
         { title: "Membership Monetization", description: "Built-in audience membership support integrated directly with Stripe payments." },
         { title: "Modern Publishing Editor", description: "Clean, card-based rich text and Markdown writing interface." },
-        { title: "Custom Handlebars Themes", description: "Flexible Handlebars theme architecture for full visual control." },
+        { title: "Custom Handlebars Themes", description: "Flexible Handlebars theme architecture for total visual control." },
         { title: "Headless Content APIs", description: "Full REST and GraphQL APIs for custom Jamstack integrations." }
       ],
       limitations_cons: [
@@ -204,10 +132,42 @@ export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial
         { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost includes native email newsletter distribution and audience analytics out of the box." }
       ],
       seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
-      seo_description: "Discover Ghost features, pricing, pros, cons, and use cases on AI Vault."
+      seo_description: "Discover Ghost features, pricing, pros, cons, use cases and alternatives on AI Vault."
     };
   }
 
+  // Factual Override for Cursor
+  if (slug === "cursor") {
+    return {
+      features_pros: [
+        { title: "Codebase Indexing", description: "Deep local repository indexing for project-wide AI context." },
+        { title: "VS Code Compatibility", description: "Native fork of VS Code supporting all existing extensions and keybindings." },
+        { title: "Inline AI Editing", description: "Instant code generation and refactoring via Cmd+K." }
+      ],
+      limitations_cons: [
+        { title: "Account Required", description: "Requires a Cursor account for fast cloud AI queries." }
+      ],
+      who_should_use: "Software engineers, web developers, and technical teams seeking an AI-first IDE fork of VS Code.",
+      how_to_use: [
+        "Download and install Cursor on macOS, Windows, or Linux.",
+        "Import your existing VS Code settings and extensions.",
+        "Index your local codebase repository for AI context.",
+        "Use Cmd+K or Cmd+I for inline code generation and refactoring."
+      ],
+      pricing_details: {
+        model: "Freemium",
+        note: "Offers a free tier with monthly AI query allowances and Pro tiers for unlimited fast usage."
+      },
+      tags: ["IDE", "Developer Tools", "AI Code Assistant", "VS Code Fork"],
+      faqs: [
+        { q: "Is Cursor a plugin or an IDE?", a: "Cursor is a standalone desktop IDE forked directly from Visual Studio Code." }
+      ],
+      seo_title: "Cursor IDE Review, Pricing, Features & Alternatives | AI Vault",
+      seo_description: "Discover Cursor IDE features, pricing, pros, cons, use cases and alternatives on AI Vault."
+    };
+  }
+
+  // Generic Contextual Fallbacks for Unverified Records
   return {
     who_should_use: `${name} is designed for professionals, creators, and technical teams operating in the ${category} space.`,
     how_to_use: [
@@ -218,7 +178,7 @@ export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial
     ],
     pricing_details: {
       model: raw.pricing || "Freemium",
-      note: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official website for current tier details.`
+      note: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check the official website for current plans and tier limits.`
     },
     tags: [category, name, "Software", "AI Tools"].map((t) => t.trim()).filter(Boolean),
     faqs: [
