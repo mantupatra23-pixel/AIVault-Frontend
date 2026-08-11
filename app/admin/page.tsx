@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { DiscoveryQueueTable } from "@/components/admin/DiscoveryQueueTable";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -23,7 +24,8 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState({
     totalTools: 0,
     activeLinks: 0,
-    missingCount: 0,
+    discoveryRequired: 0,
+    noProgramCount: 0,
     totalClicks: 0,
   });
 
@@ -38,7 +40,6 @@ export default function AdminDashboard() {
 
     // Preserve existing admin email authentication check
     if (!user || user.email !== "mantu-patra23@gmail.com") {
-      // Direct load if session exists or fetch data
       fetchData();
     } else {
       fetchData();
@@ -61,13 +62,17 @@ export default function AdminDashboard() {
 
     if (data) {
       setTools(data);
-      const active = data.filter((t) => t.affiliate_url && t.affiliate_url.trim() !== "").length;
+      const active = data.filter(
+        (t) => t.affiliate_status === "ACTIVE" || (t.affiliate_url && t.affiliate_url.trim() !== "")
+      ).length;
+      const noProgram = data.filter((t) => t.affiliate_status === "NO_AFFILIATE_PROGRAM").length;
       const total = count || data.length;
 
       setStats({
         totalTools: total,
         activeLinks: active,
-        missingCount: Math.max(0, total - active),
+        noProgramCount: noProgram,
+        discoveryRequired: Math.max(0, total - active - noProgram),
         totalClicks: clickCount || 0,
       });
     }
@@ -80,6 +85,7 @@ export default function AdminDashboard() {
     setSaving(true);
 
     const isAffiliateActive = Boolean(editingTool.affiliate_url && editingTool.affiliate_url.trim() !== "");
+    const nextStatus = editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
     // Update public.ai_tools record directly in Supabase
     const { error } = await supabase
@@ -87,11 +93,14 @@ export default function AdminDashboard() {
       .update({
         name: editingTool.name,
         affiliate_url: editingTool.affiliate_url || null,
-        affiliate_status: isAffiliateActive ? "ACTIVE" : "NO_LINK",
-        affiliate_network: editingTool.affiliate_network || "Direct",
+        affiliate_status: nextStatus,
+        affiliate_network: editingTool.affiliate_network || "Direct Partner",
+        affiliate_program_name: editingTool.affiliate_program_name || null,
+        affiliate_commission_details: editingTool.affiliate_commission_details || null,
         is_featured: editingTool.is_featured,
         youtube_id: editingTool.youtube_id,
         description: editingTool.description,
+        last_validated_at: isAffiliateActive ? new Date().toISOString() : editingTool.last_validated_at,
       })
       .eq("id", editingTool.id);
 
@@ -155,7 +164,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Affiliate Command Center Overview Cards */}
+        {/* Affiliate Overview Stats */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Directory</span>
@@ -166,27 +175,30 @@ export default function AdminDashboard() {
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">Active Links</span>
             <div className="text-3xl font-black text-emerald-400">{stats.activeLinks}</div>
-            <p className="text-[11px] text-slate-500">Configured & monetized</p>
+            <p className="text-[11px] text-slate-500">Monetized & verified</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">Missing Links</span>
-            <div className="text-3xl font-black text-amber-400">{stats.missingCount}</div>
-            <p className="text-[11px] text-slate-500">Unmonetized tools</p>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">Discovery Required</span>
+            <div className="text-3xl font-black text-amber-400">{stats.discoveryRequired}</div>
+            <p className="text-[11px] text-slate-500">Pending scan or review</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400">Total Clicks</span>
             <div className="text-3xl font-black text-purple-400">{stats.totalClicks}</div>
-            <p className="text-[11px] text-slate-500">Recorded via /go/[slug]</p>
+            <p className="text-[11px] text-slate-500">Logged via /go/[slug]</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">Confirmed Revenue</span>
             <div className="text-3xl font-black text-blue-400">Not reported</div>
-            <p className="text-[11px] text-slate-500">Network sync</p>
+            <p className="text-[11px] text-slate-500">Network report sync</p>
           </div>
         </section>
+
+        {/* Discovery Queue Table Section */}
+        <DiscoveryQueueTable />
 
         {/* Directory Tools Table */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-6">
@@ -213,6 +225,8 @@ export default function AdminDashboard() {
               <tbody className="divide-y divide-slate-800/60 font-medium">
                 {filteredTools.map((t) => {
                   const hasAffiliate = Boolean(t.affiliate_url && t.affiliate_url.trim() !== "");
+                  const currentStatus = t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
+
                   return (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition">
                       <td className="px-6 py-4 font-bold text-white">
@@ -224,12 +238,14 @@ export default function AdminDashboard() {
                       <td className="px-6 py-4">
                         <span
                           className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                            hasAffiliate
+                            currentStatus === "ACTIVE"
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : currentStatus === "NO_AFFILIATE_PROGRAM"
+                              ? "bg-slate-800 text-slate-400 border border-slate-700"
                               : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                           }`}
                         >
-                          {hasAffiliate ? "ACTIVE" : "NO LINK"}
+                          {currentStatus.replace(/_/g, " ")}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -276,6 +292,39 @@ export default function AdminDashboard() {
                     onChange={(e) => setEditingTool({ ...editingTool, name: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
                   />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-300">Affiliate Network</label>
+                    <select
+                      value={editingTool.affiliate_network || "Direct Partner"}
+                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_network: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="Direct Partner">Direct Partner Program</option>
+                      <option value="Impact">Impact Radius</option>
+                      <option value="ShareASale">ShareASale</option>
+                      <option value="PartnerStack">PartnerStack</option>
+                      <option value="CJ Affiliate">CJ Affiliate</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-300">Affiliate Status</label>
+                    <select
+                      value={editingTool.affiliate_status || "DISCOVERY_REQUIRED"}
+                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_status: e.target.value })}
+                      className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="DISCOVERY_REQUIRED">DISCOVERY REQUIRED</option>
+                      <option value="PENDING_REVIEW">PENDING REVIEW</option>
+                      <option value="ACTIVE">ACTIVE</option>
+                      <option value="NO_AFFILIATE_PROGRAM">NO AFFILIATE PROGRAM</option>
+                      <option value="PAUSED">PAUSED</option>
+                      <option value="INVALID">INVALID</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="space-y-1">

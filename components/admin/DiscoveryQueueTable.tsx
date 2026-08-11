@@ -1,0 +1,221 @@
+"use client";
+
+import { useState, useEffect } from "react";
+
+export interface CandidateRow {
+  id: string;
+  tool_id: string;
+  tool_name: string;
+  tool_slug: string;
+  official_url: string | null;
+  affiliate_network: string;
+  program_name: string | null;
+  candidate_url: string;
+  commission_details: string;
+  cookie_duration: number;
+  confidence_score: number;
+  status: string;
+}
+
+export function DiscoveryQueueTable() {
+  const [candidates, setCandidates] = useState<CandidateRow[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
+  const [customUrlInput, setCustomUrlInput] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  const fetchCandidates = async () => {
+    try {
+      const res = await fetch("/api/admin/affiliates/candidates");
+      if (res.ok) {
+        const data = await res.json();
+        setCandidates(data.candidates || []);
+      }
+    } catch {
+      // Non-blocking
+    }
+  };
+
+  useEffect(() => {
+    fetchCandidates();
+  }, []);
+
+  const handleRunScan = async () => {
+    setScanning(true);
+    setScanMessage("Scanning directory tools for verified affiliate programs...");
+
+    try {
+      const res = await fetch("/api/admin/affiliates/scan", { method: "POST" });
+      const data = await res.json();
+
+      if (res.ok) {
+        setScanMessage(`✓ Scan complete! Scanned ${data.scanned} tools. Found ${data.discovered} new affiliate candidates.`);
+        fetchCandidates();
+      } else {
+        setScanMessage(`Scan error: ${data.error || "Execution error"}`);
+      }
+    } catch {
+      setScanMessage("Scan execution error occurred.");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleCandidateAction = async (candidateId: string, action: "APPROVE" | "REJECT", customUrl?: string) => {
+    setActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/affiliates/candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidateId, action, customUrl }),
+      });
+
+      if (res.ok) {
+        setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
+        setEditingCandidate(null);
+      }
+    } catch {
+      // Handle error
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  return (
+    <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+            Discovery Queue ({candidates.length})
+          </span>
+          <h2 className="text-xl font-black text-white font-serif mt-1">
+            Affiliate Discovery Queue
+          </h2>
+        </div>
+
+        <button
+          onClick={handleRunScan}
+          disabled={scanning}
+          className="px-5 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+        >
+          {scanning ? "SCANNING DIRECTORY..." : "AUTO DISCOVER AFFILIATES 🔍"}
+        </button>
+      </div>
+
+      {scanMessage && (
+        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-bold text-blue-300">
+          {scanMessage}
+        </div>
+      )}
+
+      {candidates.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs text-slate-300">
+            <thead className="bg-slate-950 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
+              <tr>
+                <th className="p-4">Tool</th>
+                <th className="p-4">Network / Program</th>
+                <th className="p-4">Candidate URL</th>
+                <th className="p-4 text-center">Confidence</th>
+                <th className="p-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60 font-medium">
+              {candidates.map((c) => (
+                <tr key={c.id} className="hover:bg-slate-800/30 transition">
+                  <td className="p-4 font-bold text-white">
+                    {c.tool_name}
+                    <span className="block text-[10px] text-slate-500 font-mono">/tool/{c.tool_slug}</span>
+                  </td>
+                  <td className="p-4">
+                    <div className="text-white font-bold">{c.affiliate_network}</div>
+                    <div className="text-[10px] text-slate-400">{c.program_name || "Merchant Program"}</div>
+                  </td>
+                  <td className="p-4 font-mono text-[11px] text-blue-400 truncate max-w-xs">
+                    {c.candidate_url}
+                  </td>
+                  <td className="p-4 text-center">
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400">
+                      {c.confidence_score}%
+                    </span>
+                  </td>
+                  <td className="p-4 text-right space-x-2">
+                    <button
+                      onClick={() => handleCandidateAction(c.id, "APPROVE")}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition"
+                    >
+                      APPROVE
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingCandidate(c);
+                        setCustomUrlInput(c.candidate_url);
+                      }}
+                      className="px-3 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition"
+                    >
+                      EDIT
+                    </button>
+                    <button
+                      onClick={() => handleCandidateAction(c.id, "REJECT")}
+                      disabled={actionLoading}
+                      className="px-3 py-1.5 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition"
+                    >
+                      REJECT
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
+          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
+        </div>
+      )}
+
+      {/* Edit Candidate Modal */}
+      {editingCandidate && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl max-w-lg w-full space-y-6 shadow-2xl">
+            <h3 className="text-lg font-black text-white font-serif">
+              Edit & Approve Candidate for {editingCandidate.tool_name}
+            </h3>
+
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-300">Verified Affiliate URL</label>
+                <input
+                  type="url"
+                  value={customUrlInput}
+                  onChange={(e) => setCustomUrlInput(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-white text-xs p-3 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setEditingCandidate(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white"
+                >
+                  CANCEL
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleCandidateAction(editingCandidate.id, "APPROVE", customUrlInput)}
+                  disabled={actionLoading}
+                  className="px-5 py-2.5 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition"
+                >
+                  APPROVE & ACTIVATE →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
