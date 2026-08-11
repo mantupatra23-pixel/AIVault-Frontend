@@ -3,10 +3,10 @@ import { NormalizedTool, FAQItem, generateToolSpecificEnrichment } from "./tool-
 export function enrichMissingToolFields(tool: NormalizedTool): NormalizedTool {
   const generated = generateToolSpecificEnrichment(tool);
 
-  // Database values ALWAYS take priority. Generated data fills missing fields only.
   const name = tool.name || "Tool";
   const category = tool.category || "Software";
 
+  // Verified database values ALWAYS take priority over generated fallbacks
   const whoUse =
     tool.who_should_use ||
     tool.whoShouldUse ||
