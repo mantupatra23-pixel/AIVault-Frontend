@@ -67,7 +67,6 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
     let record = data as DatabaseToolRecord;
 
-    // Self-healing write-back: Enrich missing JSONB fields without destroying existing data
     if (!record.who_should_use || !record.features_pros || !record.limitations_cons) {
       const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
 
@@ -80,7 +79,6 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
       record = enrichMissingToolFields(record);
 
-      // Async write-back
       supabase
         .from("ai_tools")
         .update({
@@ -181,13 +179,11 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  // Ensure full enrichment merging
   const tool = enrichMissingToolFields(rawTool);
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
   const generalRelated = relatedTools.slice(0, 8);
 
-  // Null-safe URL resolution
   const officialUrlClean = typeof tool.website_url === "string" && tool.website_url.trim() !== ""
     ? tool.website_url.trim()
     : null;
@@ -198,12 +194,14 @@ export default async function ToolPage({ params }: Props) {
     officialUrlClean
   );
 
-  const youtubeVideoId = extractYouTubeId(tool.youtube_id || "");
+  const youtubeVideoId = extractYouTubeId(tool.youtube_id || tool.youtube_url || "");
   const normalizedScore = normalizeScore(tool.score || tool.rating || 85);
 
   const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
   const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
   const howToSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
+  const useCasesList: string[] = Array.isArray(tool.use_cases) ? tool.use_cases : [];
+  const integrationsList: string[] = Array.isArray(tool.integrations) ? tool.integrations : [];
   const tagsList: string[] = Array.isArray(tool.tags) ? tool.tags : [];
   const faqsList: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
 
@@ -238,7 +236,7 @@ export default async function ToolPage({ params }: Props) {
     "@type": "SoftwareApplication",
     name: tool.name,
     applicationCategory: tool.category || "Software",
-    operatingSystem: "Web / Cloud",
+    operatingSystem: tool.operating_system || "Web / Cloud",
     url: outboundUrl,
     offers: {
       "@type": "Offer",
@@ -358,7 +356,7 @@ export default async function ToolPage({ params }: Props) {
           {/* YouTube Video Section */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-              <h2 className="text-xl font-black text-slate-900 font-serif">Video Overview</h2>
+              <h2 className="text-xl font-black text-slate-900 font-serif">Video Overview & Demo</h2>
               <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900">
                 <iframe
                   src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}`}
@@ -375,7 +373,19 @@ export default async function ToolPage({ params }: Props) {
             <div className="lg:col-span-2 space-y-8">
               {/* Pricing Section */}
               <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-                <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
+                  {tool.pricing_url && (
+                    <a
+                      href={tool.pricing_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-blue-600 hover:underline"
+                    >
+                      CHECK OFFICIAL PRICING TIERS →
+                    </a>
+                  )}
+                </div>
                 <p className="text-sm text-slate-600 leading-relaxed font-sans">
                   {pricingNote}
                 </p>
@@ -415,6 +425,20 @@ export default async function ToolPage({ params }: Props) {
                   )}
                 </div>
               </section>
+
+              {/* Use Cases */}
+              {useCasesList.length > 0 && (
+                <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+                  <h2 className="text-xl font-black text-slate-900 font-serif">Primary Use Cases</h2>
+                  <div className="flex flex-wrap gap-2">
+                    {useCasesList.map((uc, i) => (
+                      <span key={i} className="px-3 py-1.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200/60">
+                        {uc}
+                      </span>
+                    ))}
+                  </div>
+                </section>
+              )}
 
               {/* How to Get Started */}
               {howToSteps.length > 0 && (
@@ -457,18 +481,31 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.pricing || "Freemium"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing || "Freemium"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Operating System</dt>
-                    <dd className="font-bold text-slate-900 text-right">Web / Cloud / CLI</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.operating_system || "Web / Cloud"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Deployment</dt>
-                    <dd className="font-bold text-slate-900 text-right">SaaS / Hosted</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.deployment || "Hosted SaaS"}</dd>
                   </div>
+
+                  {integrationsList.length > 0 && (
+                    <div className="pt-4 space-y-2">
+                      <dt className="text-slate-500 font-medium">Integrations</dt>
+                      <dd className="flex flex-wrap gap-1 justify-end">
+                        {integrationsList.map((ig, i) => (
+                          <span key={i} className="text-[10px] font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded">
+                            {ig}
+                          </span>
+                        ))}
+                      </dd>
+                    </div>
+                  )}
                 </dl>
 
                 <div className="space-y-2 pt-2">
@@ -480,6 +517,17 @@ export default async function ToolPage({ params }: Props) {
                   >
                     {isAffiliate ? "VISIT PARTNER PORTAL ↗" : buttonLabel}
                   </a>
+
+                  {tool.documentation_url && (
+                    <a
+                      href={tool.documentation_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition"
+                    >
+                      VIEW DOCUMENTATION ↗
+                    </a>
+                  )}
 
                   {isAffiliate && officialUrlClean && (
                     <a
