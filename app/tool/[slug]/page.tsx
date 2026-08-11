@@ -13,6 +13,7 @@ import {
   generateToolSpecificEnrichment,
 } from "@/lib/tool-normalizer";
 
+// Enforce dynamic server-side runtime resolution
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -27,14 +28,17 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
+/**
+ * Direct Supabase Lookup Engine
+ */
 async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
   const supabase = getSupabaseClient();
-  if (!supabase || !rawSlug) return null;
+  if (!supabase || !rawSlug || typeof rawSlug !== "string") return null;
 
   try {
     const cleanSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
 
-    // 1. Direct PostgREST Lookup via .from("ai_tools")
+    // 1. Direct query using .from("ai_tools")
     let { data, error } = await supabase
       .from("ai_tools")
       .select("id, name, slug, category, pricing, description, website_url, official_url, affiliate_url, youtube_url, youtube_id, score, neural_score, rating, image_url, logo_url, features_pros, limitations_cons, who_should_use, how_to_use, pricing_details, tags, faqs, seo_title, seo_description, pros_cons")
@@ -58,7 +62,6 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
     // Self-healing write-back: Enrich missing JSONB fields if absent in DB
     if (!record.who_should_use || !record.features_pros || record.features_pros.length === 0) {
       const enrichment = generateToolSpecificEnrichment(record);
-
       const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
 
       const finalPros = record.features_pros && record.features_pros.length > 0 
@@ -87,7 +90,7 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
         seo_description: record.seo_description || enrichment.seo_description || null,
       };
 
-      // Asynchronous server-side database write-back using .from('ai_tools')
+      // Asynchronous database write-back
       supabase
         .from("ai_tools")
         .update({
@@ -174,8 +177,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ToolPage({ params }: Props) {
+  // Await params Promise explicitly to resolve slug string in Next.js 15+
   const resolvedParams = await params;
-  const tool = await getToolFromDatabase(resolvedParams.slug);
+  const rawSlug = resolvedParams?.slug;
+
+  if (!rawSlug) {
+    notFound();
+  }
+
+  const tool = await getToolFromDatabase(rawSlug);
 
   if (!tool) {
     notFound();
@@ -307,7 +317,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Overview & Tags */}
+          {/* Overview Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -327,10 +337,9 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* Ad Placement 1 */}
           <AdSlot slotId="tool-after-overview" />
 
-          {/* YouTube Video Section */}
+          {/* YouTube Section */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -350,13 +359,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* Pricing & Plans */}
+              {/* Pricing Section */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check official website for current plans and tier limits."}
+                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check the official website for plans and tier limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -534,12 +543,11 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {/* Sidebar Ad Placement */}
               <AdSlot slotId="tool-sidebar" format="rectangle" />
             </aside>
           </div>
 
-          {/* Related Tools Section */}
+          {/* Related Tools */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
