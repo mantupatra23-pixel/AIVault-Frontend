@@ -52,6 +52,7 @@ export interface DatabaseToolRecord {
   pricing_details: PricingDetailsJSON | null;
   tags: string[] | null;
   faqs: FAQItem[] | null;
+  related_tools?: unknown[] | null;
   seo_title: string | null;
   seo_description: string | null;
   pros_cons?: string | null;
@@ -204,7 +205,7 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
       record = {
         ...record,
-        description: enrichment.description || record.description,
+        description: record.description || enrichment.description || null,
         features_pros: record.features_pros && record.features_pros.length > 0 ? record.features_pros : (enrichment.features_pros || []),
         limitations_cons: record.limitations_cons && record.limitations_cons.length > 0 ? record.limitations_cons : (enrichment.limitations_cons || []),
         who_should_use: record.who_should_use || enrichment.who_should_use || null,
@@ -216,21 +217,28 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
         seo_description: record.seo_description || enrichment.seo_description || null
       };
 
-      // Write back enriched data to Supabase database asynchronously
-      supabase.table("ai_tools").update({
-        description: record.description,
-        features_pros: record.features_pros,
-        limitations_cons: record.limitations_cons,
-        who_should_use: record.who_should_use,
-        how_to_use: record.how_to_use,
-        pricing_details: record.pricing_details,
-        tags: record.tags,
-        faqs: record.faqs,
-        seo_title: record.seo_title,
-        seo_description: record.seo_description
-      }).eq("id", record.id).then(({ error: updateErr }) => {
-        if (updateErr) console.error(`[DB_WRITE_FAIL] slug=${decodedSlug}`, updateErr.message);
-      });
+      // Corrected Supabase `.from()` call replacing invalid `.table()`
+      supabase
+        .from("ai_tools")
+        .update({
+          description: record.description,
+          features_pros: record.features_pros,
+          limitations_cons: record.limitations_cons,
+          who_should_use: record.who_should_use,
+          how_to_use: record.how_to_use,
+          pricing_details: record.pricing_details,
+          tags: record.tags,
+          faqs: record.faqs,
+          related_tools: record.related_tools || [],
+          seo_title: record.seo_title,
+          seo_description: record.seo_description
+        })
+        .eq("id", record.id)
+        .then(({ error: writeErr }) => {
+          if (writeErr) {
+            console.error("AI Vault enrichment write-back failed:", writeErr.message);
+          }
+        });
     }
 
     return record;
