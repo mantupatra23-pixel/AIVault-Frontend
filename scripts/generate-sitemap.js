@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const CANONICAL_SITE_URL = "https://aivault.pp.ua";
+const CANONICAL_SITE_URL = "https://www.aivault.pp.ua";
 
 // Static pages
 const staticPages = [
