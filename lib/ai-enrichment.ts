@@ -1,7 +1,25 @@
 import { NormalizedTool, generateToolSpecificEnrichment } from "./tool-normalizer";
 
+// Sanitizes repetitive AI template phrases if present in raw string inputs
+function sanitizeSEOContent(text: string | null | undefined): string | null {
+  if (!text || typeof text !== "string") return null;
+
+  const cleaned = text
+    .replace(/As a Senior SEO & AI Analyst[^.]*\./gi, "")
+    .replace(/In our professional review[^.]*\./gi, "")
+    .replace(/Our analysis shows that[^.]*\./gi, "")
+    .replace(/In conclusion[^.]*\./gi, "")
+    .replace(/Pricing 2026[^.]*\./gi, "")
+    .replace(/Best \d+ Alternatives[^.]*\./gi, "")
+    .trim();
+
+  return cleaned.length > 0 ? cleaned : null;
+}
+
 export function enrichMissingToolFields(tool: NormalizedTool): NormalizedTool {
   const generated = generateToolSpecificEnrichment(tool);
+
+  const cleanDescription = sanitizeSEOContent(tool.description || tool.long_description) || generated.description || null;
 
   const whoUse =
     tool.who_should_use ||
@@ -13,7 +31,7 @@ export function enrichMissingToolFields(tool: NormalizedTool): NormalizedTool {
   return {
     ...generated,
     ...tool,
-    description: tool.description || tool.long_description || generated.description || null,
+    description: cleanDescription,
     features_pros: (Array.isArray(tool.features_pros) && tool.features_pros.length > 0) ? tool.features_pros : (generated.features_pros || null),
     limitations_cons: (Array.isArray(tool.limitations_cons) && tool.limitations_cons.length > 0) ? tool.limitations_cons : (generated.limitations_cons || null),
     who_should_use: whoUse,

@@ -131,7 +131,7 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
         return parseProsConsColumn(parsed);
       }
     } catch {
-      // Non-blocking parse fallback
+      // Non-blocking fallback
     }
   }
 
@@ -152,80 +152,85 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
   };
 }
 
-// Clean enrichment lookup: Returns ONLY tool-specific entries if present in repository knowledge
+// Clean, factual enrichment lookup with NO generic fallback text
 export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>): Partial<DatabaseToolRecord> {
   const slug = (raw.slug || "").toLowerCase().trim();
 
   if (slug === "ghost") {
     return {
-      description: "Ghost is an open-source, independent publishing platform for professional creators, bloggers, and media businesses.",
-      who_should_use: "Independent publishers, bloggers, newsletter creators, and media organizations.",
-      whoShouldUse: "Independent publishers, bloggers, newsletter creators, and media organizations.",
+      description: "Ghost is an open-source, independent publishing platform designed for professional publishers, blogs, memberships, and email newsletters.",
+      who_should_use: "Independent publishers, digital magazines, professional bloggers, newsletter creators, and media organizations.",
+      whoShouldUse: "Independent publishers, digital magazines, professional bloggers, newsletter creators, and media organizations.",
       features_pros: [
-        { title: "Native Newsletter Distribution", description: "Built-in email newsletter delivery directly integrated with content publishing." },
-        { title: "Membership Monetization", description: "Native support for free and paid member subscriptions with zero platform fees." },
-        { title: "Modern Publishing Editor", description: "Distraction-free Markdown and card-based rich media editing experience." },
-        { title: "Custom Handlebars Themes", description: "Full design control with extensible custom theme development engine." },
-        { title: "Headless Content APIs", description: "REST and GraphQL APIs to use Ghost as a headless CMS for any frontend stack." },
+        { title: "Native Newsletter Distribution", description: "Delivers email newsletters directly to member lists upon post publication without third-party email plugins." },
+        { title: "Membership & Subscriptions", description: "Built-in support for free and recurring paid member subscriptions with zero platform transaction fees." },
+        { title: "Modern Publishing Editor", description: "Card-based rich media and Markdown editor designed for distraction-free content creation." },
+        { title: "Custom Handlebars Themes", description: "Extensible theme engine allowing complete front-end design customization." },
+        { title: "Headless Content API", description: "REST and GraphQL Content/Admin APIs to power custom mobile apps or Jamstack frontends." },
       ],
       limitations_cons: [
-        { title: "Technical Self-Hosting", description: "Self-hosted instances require Linux system administration skills." },
-        { title: "Plugin Ecosystem", description: "Fewer marketplace plugins compared to traditional CMS platforms like WordPress." },
+        { title: "Self-Hosting Administration", description: "Self-hosted instances require Linux server management and system administration skills." },
+        { title: "Smaller Plugin Directory", description: "Fewer pre-built marketplace extensions compared to traditional CMS platforms like WordPress." },
       ],
       how_to_use: [
-        "Create a Ghost publication on managed Ghost Pro or setup a self-hosted instance",
-        "Configure custom domain settings, publication design, and branding options",
-        "Draft and format articles or newsletter broadcasts inside the editor",
-        "Establish free and paid subscription membership tiers",
-        "Publish posts directly to the web and send newsletter issues to subscribers"
+        "Sign up for a managed Ghost(Pro) account or deploy the open-source software on a Ubuntu/Debian server",
+        "Configure custom domain settings, publication branding, and member signup rules",
+        "Create subscription access tiers and connect Stripe for membership payment processing",
+        "Draft articles in the editor and select web publishing, email newsletter dispatch, or both",
+        "Track subscriber growth, engagement metrics, and recurring revenue directly from the dashboard"
       ],
       use_cases: ["Subscription Newsletters", "Digital Magazines", "Personal Blogs", "Independent Publications"],
       integrations: ["Stripe", "Zapier", "Unsplash", "Disqus", "Analytics"],
-      pricing_details: "Ghost open-source software is free to self-host. Managed Ghost Pro hosting plans start with scalable tiers based on member size.",
+      pricing_details: "Ghost open-source core software is 100% free to self-host. Ghost(Pro) offers fully managed cloud hosting starting at $9/month billed annually.",
       tags: ["CMS", "Blogging", "Publishing", "Newsletters", "Open Source"],
       faqs: [
-        { q: "What is Ghost used for?", a: "Ghost is a publishing platform designed for modern online blogs, magazines, and subscription newsletters." },
-        { q: "Is Ghost free or paid?", a: "The software is 100% open-source and free to self-host. Ghost Pro offers fully managed paid cloud hosting." },
-        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost natively sends email newsletters directly to member lists without third-party plugins." }
+        { q: "What is Ghost?", a: "Ghost is a dedicated publishing platform built specifically for blogging, online magazines, and subscription email newsletters." },
+        { q: "Is Ghost free or paid?", a: "The core Ghost software is free open-source software for self-hosting. Ghost(Pro) provides paid managed hosting." },
+        { q: "Does Ghost support email newsletters natively?", a: "Yes, Ghost includes built-in email newsletter delivery powered by Mailgun integration without extra plugins." },
+        { q: "Can I self-host Ghost on my own server?", a: "Yes, Ghost can be installed on any Linux server (recommended: Ubuntu with Node.js and MySQL)." },
+        { q: "What is Ghost(Pro)?", a: "Ghost(Pro) is the official fully managed cloud hosting service managed directly by the Ghost foundation." }
       ],
-      seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
-      seo_description: "Discover Ghost features, pricing details, pros/cons, and publishing capabilities on AI Vault.",
+      seo_title: "Ghost Review, Features, Pricing & Guide | AI Vault",
+      seo_description: "Discover Ghost publishing features, native newsletter capabilities, self-hosting details, and pricing on AI Vault.",
     };
   }
 
   if (slug === "nylas-cli") {
     return {
-      description: "Nylas CLI is a developer-first command-line interface for testing, managing, and interacting with Nylas Communications APIs directly from your terminal.",
-      who_should_use: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
-      whoShouldUse: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
+      description: "Nylas CLI is a developer-first command-line interface for testing, managing, and interacting with Nylas Communications APIs directly from terminal sessions.",
+      who_should_use: "Backend developers, API integration engineers, and software engineering teams connecting Email, Calendar, or Contacts APIs.",
+      whoShouldUse: "Backend developers, API integration engineers, and software engineering teams connecting Email, Calendar, or Contacts APIs.",
       features_pros: [
-        { title: "Terminal-Native API Access", description: "Interact with Email, Calendar, and Contacts APIs directly from local CLI sessions." },
-        { title: "Webhook Testing & Tunnels", description: "Local tunnel generation to test incoming API webhooks during development." },
-        { title: "OAuth Authentication Management", description: "Streamlined authentication grants and access token management for test accounts." },
+        { title: "Terminal API Testing", description: "Execute queries and inspect payloads for Email, Calendar, and Contacts APIs directly from local command lines." },
+        { title: "Local Webhook Tunnels", description: "Generate local forwarding tunnels to capture and test incoming API webhook events during active development." },
+        { title: "OAuth Grant Inspection", description: "Manage test account authentication grants, access tokens, and API credentials via terminal commands." },
       ],
       limitations_cons: [
-        { title: "Command Line Only", description: "Requires familiarity with terminal commands and API development." },
-        { title: "Requires Nylas Account", description: "Requires an active Nylas developer account and API credentials." },
+        { title: "Requires Terminal Expertise", description: "Designed purely for command-line workflows and API developers." },
+        { title: "Nylas Developer Account Dependency", description: "Requires an active Nylas developer account and client credentials." },
       ],
       how_to_use: [
-        "Install Nylas CLI via npm or brew in your terminal",
-        "Authenticate with your Nylas developer credentials (`nylas login`)",
-        "Configure local application scopes and API keys",
-        "Test email, calendar, and webhook triggers directly from CLI scripts"
+        "Install the CLI globally via Homebrew (`brew install nylas/nylas-cli/nylas`) or npm",
+        "Authenticate using your Nylas developer credentials (`nylas login`)",
+        "Generate a local webhook tunnel using `nylas tunnels create` to inspect live webhook payloads",
+        "Test email sending, calendar event creation, and grant retrieval from terminal scripts"
       ],
-      use_cases: ["API Debugging", "Webhook Tunneling", "Email Sync Testing", "OAuth Token Management"],
+      use_cases: ["API Debugging", "Local Webhook Tunneling", "OAuth Grant Testing", "Email Sync Inspection"],
       integrations: ["Nylas API", "Node.js", "Terminal", "Webhooks"],
-      pricing_details: "Nylas CLI is free open-source software. Usage of underlying Nylas APIs follows standard Nylas platform developer tiers.",
+      pricing_details: "Nylas CLI is free open-source software. Usage of the underlying Nylas Communications platform follows standard Nylas API developer pricing tiers.",
       tags: ["Developer Tools", "CLI", "Email API", "Calendar API", "Webhooks"],
       faqs: [
-        { q: "What is Nylas CLI?", a: "Nylas CLI is a terminal utility designed to accelerate development and debugging with Nylas Communications APIs." },
-        { q: "Is Nylas CLI free to use?", a: "Yes, the CLI tool is free for developer workflow testing." }
+        { q: "What is Nylas CLI?", a: "Nylas CLI is a terminal utility engineered to accelerate development, local testing, and debugging with Nylas Communications APIs." },
+        { q: "How do I install Nylas CLI?", a: "You can install it using Homebrew on macOS/Linux (`brew install nylas/nylas-cli/nylas`) or via npm." },
+        { q: "Does Nylas CLI support local webhook testing?", a: "Yes, the CLI includes native tunnel commands (`nylas tunnels create`) to forward live webhook events to your local dev server." },
+        { q: "Does Nylas CLI work with all Nylas APIs?", a: "Yes, it supports testing and payload inspection for Email, Calendar, Contacts, and OAuth Grant management APIs." },
+        { q: "Is Nylas CLI free?", a: "Yes, the CLI tool itself is completely free to install and run." }
       ],
-      seo_title: "Nylas CLI Review, Features & Developer Guide | AI Vault",
-      seo_description: "Discover Nylas CLI features, developer usage steps, and API testing capabilities on AI Vault.",
+      seo_title: "Nylas CLI Review, Commands & Developer Setup | AI Vault",
+      seo_description: "Discover Nylas CLI features, terminal commands, webhook tunneling, and developer setup instructions on AI Vault.",
     };
   }
 
-  // NO generic fallback text generated when a tool is unlisted
+  // NO generic fallback text return for unlisted tools
   return {};
 }
