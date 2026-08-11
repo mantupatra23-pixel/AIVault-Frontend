@@ -49,7 +49,7 @@ export interface DatabaseToolRecord {
   createdAt?: string;
 }
 
-// Canonical type alias for DatabaseToolRecord consumed across the application
+// Canonical NormalizedTool interface used across the entire platform
 export type NormalizedTool = DatabaseToolRecord;
 
 export function sanitizeUrl(url: unknown): string | null {
@@ -183,6 +183,40 @@ export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>)
       ],
       seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
       seo_description: "Discover Ghost features, pricing details, pros/cons, and publishing capabilities on AI Vault.",
+    };
+  }
+
+  if (slug === "nylas-cli") {
+    return {
+      description: "Nylas CLI is a developer-first command-line interface for testing, managing, and interacting with Nylas Communications APIs directly from your terminal.",
+      features_pros: [
+        { title: "Terminal-Native API Access", description: "Interact with Email, Calendar, and Contacts APIs directly from local CLI sessions." },
+        { title: "Webhook Testing & Tunnels", description: "Local tunnel generation to test incoming API webhooks during development." },
+        { title: "OAuth Authentication Management", description: "Streamlined authentication grants and access token management for test accounts." },
+      ],
+      limitations_cons: [
+        { title: "Command Line Only", description: "Requires familiarity with terminal commands and API development." },
+        { title: "Requires Nylas Account", description: "Requires an active Nylas developer account and API credentials." },
+      ],
+      who_should_use: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
+      whoShouldUse: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
+      how_to_use: [
+        "Install Nylas CLI via npm or brew in your terminal",
+        "Authenticate with your Nylas developer credentials (`nylas login`)",
+        "Configure local application scopes and API keys",
+        "Test email, calendar, and webhook triggers directly from CLI scripts"
+      ],
+      pricing_details: {
+        model: "Free / Developer Utility",
+        note: "Nylas CLI is free open-source software. Usage of underlying Nylas APIs follows standard Nylas platform developer tiers."
+      },
+      tags: ["Developer Tools", "CLI", "Email API", "Calendar API", "Webhooks"],
+      faqs: [
+        { q: "What is Nylas CLI?", a: "Nylas CLI is a terminal utility designed to accelerate development and debugging with Nylas Communications APIs." },
+        { q: "Is Nylas CLI free to use?", a: "Yes, the CLI tool is free for developer workflow testing." }
+      ],
+      seo_title: "Nylas CLI Review, Features & Developer Guide | AI Vault",
+      seo_description: "Discover Nylas CLI features, developer usage steps, and API testing capabilities on AI Vault.",
     };
   }
 

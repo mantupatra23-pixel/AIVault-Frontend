@@ -6,6 +6,7 @@ import { ToolLogo } from "@/components/ToolLogo";
 import { AdSlot } from "@/components/AdSlot";
 import { SITE_URL } from "@/lib/site-url";
 import { resolveToolOutboundUrl } from "@/lib/affiliate/resolver";
+import { enrichMissingToolFields } from "@/lib/ai-enrichment";
 import {
   DatabaseToolRecord,
   FormattedListItem,
@@ -13,7 +14,6 @@ import {
   extractYouTubeId,
   normalizeScore,
   parseProsConsColumn,
-  generateToolSpecificEnrichment,
 } from "@/lib/tool-normalizer";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +48,6 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
   try {
     const cleanSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
 
-    // Complete Select from public.ai_tools
     let { data, error } = await supabase
       .from("ai_tools")
       .select("*")
@@ -68,38 +67,20 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
     let record = data as DatabaseToolRecord;
 
-    // Self-healing write-back: Enrich missing JSONB fields
+    // Self-healing write-back: Enrich missing JSONB fields without destroying existing data
     if (!record.who_should_use || !record.features_pros || !record.limitations_cons) {
-      const enrichment = generateToolSpecificEnrichment(record);
       const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
 
-      const finalPros = record.features_pros && record.features_pros.length > 0
-        ? record.features_pros
-        : parsedFromProsCons.pros.length > 0
-        ? parsedFromProsCons.pros
-        : (enrichment.features_pros || []);
+      if (parsedFromProsCons.pros.length > 0 && (!record.features_pros || record.features_pros.length === 0)) {
+        record.features_pros = parsedFromProsCons.pros;
+      }
+      if (parsedFromProsCons.cons.length > 0 && (!record.limitations_cons || record.limitations_cons.length === 0)) {
+        record.limitations_cons = parsedFromProsCons.cons;
+      }
 
-      const finalCons = record.limitations_cons && record.limitations_cons.length > 0
-        ? record.limitations_cons
-        : parsedFromProsCons.cons.length > 0
-        ? parsedFromProsCons.cons
-        : (enrichment.limitations_cons || []);
+      record = enrichMissingToolFields(record);
 
-      record = {
-        ...record,
-        description: record.description || enrichment.description,
-        features_pros: finalPros,
-        limitations_cons: finalCons,
-        who_should_use: record.who_should_use || enrichment.who_should_use,
-        how_to_use: record.how_to_use || enrichment.how_to_use,
-        pricing_details: record.pricing_details || enrichment.pricing_details,
-        tags: record.tags || enrichment.tags || null,
-        faqs: record.faqs || enrichment.faqs || null,
-        seo_title: record.seo_title || enrichment.seo_title,
-        seo_description: record.seo_description || enrichment.seo_description,
-      };
-
-      // Asynchronous database write-back using .from("ai_tools")
+      // Async write-back
       supabase
         .from("ai_tools")
         .update({
@@ -194,32 +175,53 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  const tool = await getToolFromDatabase(rawSlug);
+  const rawTool = await getToolFromDatabase(rawSlug);
 
-  if (!tool) {
+  if (!rawTool) {
     notFound();
   }
 
-  const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-  const alternativesList = relatedTools.slice(0, 3);
-  const generalRelated = relatedTools.slice(3, 8);
+  // Ensure full enrichment merging
+  const tool = enrichMissingToolFields(rawTool);
 
-  // Server-side Outbound Link Resolution
+  const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
+  const generalRelated = relatedTools.slice(0, 8);
+
+  // Null-safe URL resolution
+  const officialUrlClean = typeof tool.website_url === "string" && tool.website_url.trim() !== ""
+    ? tool.website_url.trim()
+    : null;
+
   const { outboundUrl, isAffiliate, buttonLabel } = await resolveToolOutboundUrl(
     tool.id,
     tool.slug,
-    tool.website_url ?? null
+    officialUrlClean
   );
 
-  const officialDirectUrl = tool.website_url || "#";
   const youtubeVideoId = extractYouTubeId(tool.youtube_id || "");
-  const normalizedScore = normalizeScore(tool.score || tool.rating || 0);
+  const normalizedScore = normalizeScore(tool.score || tool.rating || 85);
 
   const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
   const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
   const howToSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
   const tagsList: string[] = Array.isArray(tool.tags) ? tool.tags : [];
   const faqsList: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
+
+  const whoShouldUseText = typeof tool.who_should_use === "string"
+    ? tool.who_should_use
+    : Array.isArray(tool.who_should_use)
+    ? tool.who_should_use.join(", ")
+    : typeof tool.whoShouldUse === "string"
+    ? tool.whoShouldUse
+    : Array.isArray(tool.whoShouldUse)
+    ? tool.whoShouldUse.join(", ")
+    : `${tool.name} is designed for developers, creators, and teams seeking efficient ${tool.category || "software"} solutions.`;
+
+  const pricingNote = typeof tool.pricing_details === "string"
+    ? tool.pricing_details
+    : (tool.pricing_details && typeof tool.pricing_details === "object" && "note" in tool.pricing_details)
+    ? String((tool.pricing_details as Record<string, unknown>).note)
+    : `${tool.name} offers flexible pricing structured around ${tool.pricing || "Freemium"} tiers.`;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -236,7 +238,7 @@ export default async function ToolPage({ params }: Props) {
     "@type": "SoftwareApplication",
     name: tool.name,
     applicationCategory: tool.category || "Software",
-    operatingSystem: "Web",
+    operatingSystem: "Web / Cloud",
     url: outboundUrl,
     offers: {
       "@type": "Offer",
@@ -345,6 +347,14 @@ export default async function ToolPage({ params }: Props) {
 
           <AdSlot slotId="tool-after-overview" />
 
+          {/* Who Should Use Section */}
+          <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+            <h2 className="text-xl font-black text-slate-900 font-serif">Who Should Use {tool.name}?</h2>
+            <p className="text-sm text-slate-600 leading-relaxed font-sans">
+              {whoShouldUseText}
+            </p>
+          </section>
+
           {/* YouTube Video Section */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
@@ -367,13 +377,11 @@ export default async function ToolPage({ params }: Props) {
               <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
                 <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
                 <p className="text-sm text-slate-600 leading-relaxed font-sans">
-                  {typeof tool.pricing_details === "string" 
-                    ? tool.pricing_details 
-                    : `${tool.name} offers flexible options structured around ${tool.pricing || "Freemium"} tiers.`}
+                  {pricingNote}
                 </p>
               </section>
 
-              {/* Pros & Cons */}
+              {/* Key Features & Limitations (Pros & Cons) */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-sm">
                   <h2 className="text-xs font-extrabold text-emerald-600 uppercase tracking-widest">KEY FEATURES & PROS</h2>
@@ -408,7 +416,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* How to Use */}
+              {/* How to Get Started */}
               {howToSteps.length > 0 && (
                 <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
                   <h2 className="text-xl font-black text-slate-900 font-serif">How to Get Started with {tool.name}</h2>
@@ -420,7 +428,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* FAQs */}
+              {/* FAQs Section */}
               {faqsList.length > 0 && (
                 <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
                   <h2 className="text-xl font-black text-slate-900 font-serif">Frequently Asked Questions</h2>
@@ -454,7 +462,12 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Operating System</dt>
-                    <dd className="font-bold text-slate-900 text-right">Web / Cloud</dd>
+                    <dd className="font-bold text-slate-900 text-right">Web / Cloud / CLI</dd>
+                  </div>
+
+                  <div className="pt-4 flex justify-between gap-2">
+                    <dt className="text-slate-500 font-medium">Deployment</dt>
+                    <dd className="font-bold text-slate-900 text-right">SaaS / Hosted</dd>
                   </div>
                 </dl>
 
@@ -468,9 +481,9 @@ export default async function ToolPage({ params }: Props) {
                     {isAffiliate ? "VISIT PARTNER PORTAL ↗" : buttonLabel}
                   </a>
 
-                  {isAffiliate && officialDirectUrl !== "#" && (
+                  {isAffiliate && officialUrlClean && (
                     <a
-                      href={officialDirectUrl}
+                      href={officialUrlClean}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="w-full inline-flex items-center justify-center px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl transition"
@@ -491,12 +504,12 @@ export default async function ToolPage({ params }: Props) {
             </aside>
           </div>
 
-          {/* Related Tools */}
+          {/* Related Tools / Alternatives */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-200/80 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest">
-                  Related Tools in {tool.category || "Directory"}
+                  Best Alternatives & Related Tools in {tool.category || "Directory"}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Full Directory ↗
