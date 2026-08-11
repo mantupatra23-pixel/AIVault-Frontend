@@ -182,7 +182,7 @@ export default async function ToolPage({ params }: Props) {
   const tool = enrichMissingToolFields(rawTool);
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-  const generalRelated = relatedTools.slice(0, 8);
+  const generalRelated = relatedTools; // No slicing truncation
 
   const officialUrlClean = typeof tool.website_url === "string" && tool.website_url.trim() !== ""
     ? tool.website_url.trim()
