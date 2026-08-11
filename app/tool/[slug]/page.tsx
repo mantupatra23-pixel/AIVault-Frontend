@@ -4,22 +4,63 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
-import {
-  DatabaseToolRecord,
-  FormattedListItem,
-  FAQItem,
-  extractYouTubeId,
-  normalizeScore,
-  parseProsConsColumn,
-  generateToolSpecificEnrichment,
-} from "@/lib/tool-normalizer";
+import { normalizeSlug } from "@/lib/slug-normalizer";
 
+// Enforce dynamic server-side runtime lookup — Bypasses static build-time 404 locks
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type Props = {
   params: Promise<{ slug: string }>;
 };
+
+export interface FormattedListItem {
+  title?: string;
+  description: string;
+}
+
+export interface FAQItem {
+  q: string;
+  a: string;
+}
+
+export interface PricingDetailsJSON {
+  model?: string;
+  note?: string;
+  official_link?: string;
+}
+
+export interface DatabaseToolRecord {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  pricing: string | null;
+  description: string | null;
+  website_url: string | null;
+  official_url: string | null;
+  affiliate_url: string | null;
+  youtube_url: string | null;
+  youtube_id: string | null;
+  score: number | null;
+  neural_score: number | null;
+  rating: number | null;
+  image_url: string | null;
+  logo_url: string | null;
+  is_sponsored?: boolean | null;
+  created_at?: string | null;
+  features_pros: FormattedListItem[] | null;
+  limitations_cons: FormattedListItem[] | null;
+  who_should_use: string | null;
+  how_to_use: string[] | null;
+  pricing_details: PricingDetailsJSON | null;
+  tags: string[] | null;
+  faqs: FAQItem[] | null;
+  related_tools?: unknown[] | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  pros_cons?: string | null;
+}
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -28,80 +69,68 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
-  const supabase = getSupabaseClient();
-  if (!supabase) return null;
+function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
+  if (idStr && idStr.trim().length === 11) return idStr.trim();
+  if (!urlStr) return null;
 
   try {
-    const decodedSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
-    
-    // Targeted PostgREST column selection with .from('ai_tools')
-    const { data, error } = await supabase
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = urlStr.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
+  const val = Number(rawScore || rawNeural || rawRating);
+  if (isNaN(val) || val <= 0) return null;
+  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
+  if (val <= 10) return Number(val.toFixed(1));
+  return 8.5;
+}
+
+/**
+ * Robust Multi-Tier Lookup: Ensures direct Supabase resolution
+ */
+async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
+  const supabase = getSupabaseClient();
+  if (!supabase || !rawSlug) return null;
+
+  try {
+    const cleanRaw = decodeURIComponent(rawSlug).trim();
+    const normalized = normalizeSlug(cleanRaw);
+
+    // Tier 1: Direct exact match
+    let { data, error } = await supabase
       .from("ai_tools")
-      .select("id, name, slug, category, pricing, description, website_url, official_url, affiliate_url, youtube_url, youtube_id, score, neural_score, rating, image_url, logo_url, features_pros, limitations_cons, who_should_use, how_to_use, pricing_details, tags, faqs, seo_title, seo_description, pros_cons")
-      .eq("slug", decodedSlug)
+      .select("*")
+      .eq("slug", cleanRaw)
       .maybeSingle();
+
+    // Tier 2: Normalized slug match
+    if (!data && normalized !== cleanRaw) {
+      const res = await supabase
+        .from("ai_tools")
+        .select("*")
+        .eq("slug", normalized)
+        .maybeSingle();
+      data = res.data;
+    }
+
+    // Tier 3: Case-insensitive fallback
+    if (!data) {
+      const res = await supabase
+        .from("ai_tools")
+        .select("*")
+        .ilike("slug", normalized)
+        .maybeSingle();
+      data = res.data;
+    }
 
     if (error || !data) return null;
 
-    let record = data as DatabaseToolRecord;
-
-    // Self-healing write-back: Enrich missing JSONB fields if absent in DB
-    if (!record.who_should_use || !record.features_pros || record.features_pros.length === 0) {
-      const enrichment = generateToolSpecificEnrichment(record);
-
-      const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
-
-      const finalPros = record.features_pros && record.features_pros.length > 0 
-        ? record.features_pros 
-        : parsedFromProsCons.pros.length > 0 
-        ? parsedFromProsCons.pros 
-        : (enrichment.features_pros || []);
-
-      const finalCons = record.limitations_cons && record.limitations_cons.length > 0 
-        ? record.limitations_cons 
-        : parsedFromProsCons.cons.length > 0 
-        ? parsedFromProsCons.cons 
-        : (enrichment.limitations_cons || []);
-
-      record = {
-        ...record,
-        description: record.description || enrichment.description || null,
-        features_pros: finalPros,
-        limitations_cons: finalCons,
-        who_should_use: record.who_should_use || enrichment.who_should_use || null,
-        how_to_use: record.how_to_use || enrichment.how_to_use || null,
-        pricing_details: record.pricing_details || enrichment.pricing_details || null,
-        tags: record.tags || enrichment.tags || null,
-        faqs: record.faqs || enrichment.faqs || null,
-        seo_title: record.seo_title || enrichment.seo_title || null,
-        seo_description: record.seo_description || enrichment.seo_description || null,
-      };
-
-      // Asynchronous server-side database write-back using .from('ai_tools')
-      supabase
-        .from("ai_tools")
-        .update({
-          description: record.description,
-          features_pros: record.features_pros,
-          limitations_cons: record.limitations_cons,
-          who_should_use: record.who_should_use,
-          how_to_use: record.how_to_use,
-          pricing_details: record.pricing_details,
-          tags: record.tags,
-          faqs: record.faqs,
-          seo_title: record.seo_title,
-          seo_description: record.seo_description,
-        })
-        .eq("id", record.id)
-        .then(({ error: writeErr }) => {
-          if (writeErr) {
-            console.error("[DB_WRITE_BACK_ERR] slug=" + decodedSlug, writeErr.message);
-          }
-        });
-    }
-
-    return record;
+    return data as DatabaseToolRecord;
   } catch {
     return null;
   }
@@ -132,7 +161,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!tool) {
     return {
       title: "Tool Not Found | AI Vault",
-      description: "Explore verified software tools in the AI Vault directory.",
+      description: "The requested software tool could not be found in our verified database index.",
       robots: { index: false, follow: true },
     };
   }
@@ -251,7 +280,7 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* A. Breadcrumb */}
+          {/* Breadcrumbs */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li><Link href="/" className="hover:text-blue-600 transition">Home</Link></li>
@@ -262,7 +291,7 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
-          {/* B. Tool Header */}
+          {/* Hero Header */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -298,7 +327,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* C & D. Description & Tags */}
+          {/* Overview */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -318,7 +347,7 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* M. YouTube / Video */}
+          {/* YouTube Section */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -338,13 +367,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* E. Pricing & Plans */}
+              {/* Pricing Section */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details?.note || tool.pricing || "Pricing information unavailable — check the official website for current plans and tier limits."}
+                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check the official website for plans and tier limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -358,7 +387,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* F & G. Key Features & Pros / Cons */}
+              {/* Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -397,7 +426,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* N. Best Alternatives */}
+              {/* Alternatives */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -407,7 +436,7 @@ export default async function ToolPage({ params }: Props) {
                     {alternativesList.map((alt) => (
                       <Link
                         key={alt.slug}
-                        href={`/tool/${alt.slug}`}
+                        href={`/tool/${encodeURIComponent(alt.slug)}`}
                         className="p-4 rounded-2xl border border-slate-100 hover:border-blue-300 transition bg-slate-50/50 flex flex-col justify-between"
                       >
                         <div>
@@ -423,7 +452,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* H. Who Should Use */}
+              {/* Who Should Use */}
               {tool.who_should_use && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -435,7 +464,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* I. How to Get Started */}
+              {/* How to Use */}
               {howToSteps.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -449,7 +478,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* J. FAQs */}
+              {/* FAQs */}
               {faqsList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -467,7 +496,7 @@ export default async function ToolPage({ params }: Props) {
               )}
             </div>
 
-            {/* O. System Specifications Sidebar */}
+            {/* Sidebar Specifications */}
             <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -499,7 +528,6 @@ export default async function ToolPage({ params }: Props) {
                   </div>
                 </dl>
 
-                {/* K & L. Official & Partner CTAs */}
                 <div className="space-y-2 pt-2">
                   <a
                     href={destinationUrl}
@@ -541,7 +569,7 @@ export default async function ToolPage({ params }: Props) {
                 {generalRelated.map((rel: any) => (
                   <Link
                     key={rel.slug}
-                    href={`/tool/${rel.slug}`}
+                    href={`/tool/${encodeURIComponent(rel.slug)}`}
                     className="group bg-white border border-slate-100 hover:border-blue-200 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
                   >
                     <div className="space-y-4">
