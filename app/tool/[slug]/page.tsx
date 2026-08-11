@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
 
-// Force runtime execution without caching old DB responses
+// Strictly disable caching for real-time database rendering
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -16,50 +16,6 @@ type Props = {
 interface FormattedListItem {
   title?: string;
   description: string;
-}
-
-const BLACKLIST_PATTERNS = [
-  /Professional Review/i,
-  /I have conducted/i,
-  /I conducted/i,
-  /Our analysis/i,
-  /Our research/i,
-  /Senior SEO/i,
-  /Visora AI/i,
-  /Pricing 2026/i,
-  /empowering users to make informed decisions/i,
-  /expected to remain competitive/i,
-  /provides software functionality for .* workflows/i,
-];
-
-function sanitizeText(rawText: string = "", toolName: string = ""): string {
-  if (!rawText) return "";
-
-  let cleaned = rawText
-    .replace(/As a Senior SEO &? AI Analyst( for Visora AI)?\.*/gi, "")
-    .replace(/Our Professional Review:?\.*/gi, "")
-    .replace(/I have conducted (a|an) (in-depth|thorough) analysis\.*/gi, "")
-    .replace(/I conducted (a|an) (in-depth|thorough) analysis\.*/gi, "")
-    .replace(/Visora AI network intelligence identifies\.*/gi, "")
-    .replace(/AI Vault network intelligence identifies\.*/gi, "")
-    .replace(/Our analysis aims to provide\.*/gi, "")
-    .replace(/Our research shows\.*/gi, "")
-    .replace(/empowering users to make informed decisions\.*/gi, "")
-    .replace(/expected to remain competitive\.*/gi, "")
-    .replace(/Pricing 2026/gi, "Pricing")
-    .replace(new RegExp(`${toolName} Pricing 2026`, "gi"), `${toolName} Pricing`)
-    .replace(/(<([^>]+)>)/gi, "")
-    .trim();
-
-  cleaned = cleaned.replace(/^[\s,.:;—–-]+/, "");
-
-  BLACKLIST_PATTERNS.forEach((pattern) => {
-    if (pattern.test(cleaned)) {
-      cleaned = cleaned.replace(pattern, "").trim();
-    }
-  });
-
-  return cleaned;
 }
 
 function getSupabaseClient() {
@@ -81,8 +37,8 @@ async function getTool(rawSlug: string) {
       .eq("slug", decodedSlug)
       .maybeSingle();
 
-    if (error) {
-      console.error(`[DB_ERROR] slug=${decodedSlug}`, error.message);
+    if (error || !data) {
+      console.error(`[DB_ERROR] slug=${decodedSlug}`, error?.message);
       return null;
     }
     return data;
@@ -126,8 +82,6 @@ function parseStructuredList(input: any): FormattedListItem[] {
     let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
-    if (BLACKLIST_PATTERNS.some((p) => p.test(line))) continue;
-
     if (line.includes(":") || line.includes(" - ")) {
       const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
       if (parts.length >= 2) {
@@ -157,14 +111,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const cleanDesc = sanitizeText(tool.description, tool.name);
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name}: Features, Pricing & Alternatives | AI Vault`;
-  const description =
-    tool.meta_description ||
-    cleanDesc.slice(0, 155) ||
-    `Overview of ${tool.name}: features, pricing model, pros, cons, and alternatives on AI Vault.`;
-
+  const title = tool.meta_title || `${tool.name} — AI Vault`;
+  const description = tool.meta_description || tool.description?.slice(0, 155) || "Content unavailable.";
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
   return {
@@ -177,7 +126,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: canonicalUrl,
       siteName: "AI Vault",
       type: "website",
-      images: [{ url: logoUrl, alt: `${tool.name} software logo` }],
+      images: [{ url: logoUrl, alt: `${tool.name} logo` }],
     },
     twitter: {
       card: "summary_large_image",
@@ -197,31 +146,14 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  const cleanDescription = sanitizeText(tool.description, tool.name);
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-
-  let prosItems = parseStructuredList(tool.pros);
-  let consItems = parseStructuredList(tool.cons);
-
-  if (prosItems.length === 0 && consItems.length === 0 && tool.pros_cons) {
-    const text = String(tool.pros_cons);
-    if (text.includes("Cons:") || text.includes("CONS:")) {
-      const parts = text.split(/Cons:|CONS:/i);
-      prosItems = parseStructuredList(parts[0].replace(/Pros:|PROS:/i, ""));
-      consItems = parseStructuredList(parts[1]);
-    } else {
-      prosItems = parseStructuredList(text);
-    }
-  }
-
+  const prosItems = parseStructuredList(tool.pros);
+  const consItems = parseStructuredList(tool.cons);
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
-
-  // Debug Log (Server Console)
-  console.log(`[PAGE_RENDER_DEBUG] SLUG: ${tool.slug} | NAME: ${tool.name} | DESC_LEN: ${cleanDescription.length} | PROS: ${prosItems.length} | CONS: ${consItems.length}`);
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -233,83 +165,9 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  const faqItems = [
-    {
-      q: `What is ${tool.name} used for?`,
-      a: `${tool.name} provides software capabilities for ${tool.category || "digital operations"} workflows.`,
-    },
-    {
-      q: `Is ${tool.name} free?`,
-      a: tool.pricing
-        ? `${tool.name} is listed under a ${tool.pricing} model. Pricing may change; check official website for active tiers.`
-        : `Pricing may change. Check the official website for current plans, limits and pricing.`,
-    },
-    {
-      q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is intended for developers, technical teams, and creators operating in ${tool.category || "software automation"}.`,
-    },
-    {
-      q: `What are the best alternatives to ${tool.name}?`,
-      a: alternativesList.length > 0
-        ? `Top alternatives include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Check the ${tool.category || "software"} section on AI Vault for similar tools.`,
-    },
-  ];
-
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: faqItems.map((item) => ({
-      "@type": "Question",
-      name: item.q,
-      acceptedAnswer: { "@type": "Answer", text: item.a },
-    })),
-  };
-
-  const getTargetUsers = (category?: string) => {
-    if (!category) return "teams and professionals seeking software automation tools.";
-    const cat = category.toLowerCase();
-    if (cat.includes("code") || cat.includes("dev") || cat.includes("cli")) {
-      return "developers, DevOps engineers, and system administrators looking to streamline CLI and API operations.";
-    }
-    if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
-      return "writers, independent publishers, and media organizations managing subscription blogs or newsletters.";
-    }
-    return `professionals and teams operating in the ${category} space.`;
-  };
-
-  const getHowToSteps = (category?: string, name: string = "this tool") => {
-    const cat = (category || "").toLowerCase();
-    if (cat.includes("code") || cat.includes("cli") || cat.includes("dev")) {
-      return [
-        `Install or access ${name} via package managers or technical terminal interface.`,
-        `Configure environment variables and API authentication keys.`,
-        `Execute CLI commands or integrate libraries into your application workflow.`,
-        `Verify output logs and deploy to runtime.`,
-      ];
-    }
-    if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
-      return [
-        `Set up your ${name} instance via managed hosting or self-hosted deployment.`,
-        `Configure publication domain, theme, and membership payment settings.`,
-        `Draft, format, and publish your content or newsletter issues.`,
-        `Manage subscriber access and analyze publication metrics.`,
-      ];
-    }
-    return [
-      `Visit the official website using the link on this page.`,
-      `Create or sign in to your user account.`,
-      `Set up your project parameters and preferences.`,
-      `Execute your tasks and export generated outputs.`,
-    ];
-  };
-
-  const howToSteps = getHowToSteps(tool.category, tool.name);
-
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
@@ -355,12 +213,16 @@ export default async function ToolPage({ params }: Props) {
 
                 <div className="space-y-2 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">
-                      {tool.category || "Software"}
-                    </span>
-                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700">
-                      {tool.pricing || "Software Tool"}
-                    </span>
+                    {tool.category && (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">
+                        {tool.category}
+                      </span>
+                    )}
+                    {tool.pricing && (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700">
+                        {tool.pricing}
+                      </span>
+                    )}
                   </div>
 
                   <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-slate-950 font-serif truncate">
@@ -371,27 +233,34 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
+          {/* What is [Tool]? strictly from DB */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {cleanDescription || `${tool.name} is a software platform designed for ${tool.category || "digital"} workflows.`}
+              {tool.description ? (
+                tool.description
+              ) : (
+                <p className="text-slate-400 italic">Content unavailable.</p>
+              )}
             </div>
           </section>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
+              {/* Pricing Section strictly from DB */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
-                <p className="text-slate-700 text-sm leading-relaxed">
-                  {tool.pricing ? (
-                    <>{tool.name} is listed under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> tier model.</>
-                  ) : null}{" "}
-                  Pricing may change. Check the official website for current plans, limits and pricing.
-                </p>
+                {tool.pricing ? (
+                  <p className="text-slate-700 text-sm leading-relaxed font-semibold">
+                    {tool.pricing}
+                  </p>
+                ) : (
+                  <p className="text-slate-400 italic text-sm">Pricing content unavailable.</p>
+                )}
                 <div className="pt-2">
                   <a
                     href={officialUrl}
@@ -404,6 +273,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
+              {/* Pros & Cons strictly from DB */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -419,7 +289,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not publicly specified.</p>
+                    <p className="text-xs text-slate-400 italic">Content unavailable.</p>
                   )}
                 </div>
 
@@ -437,11 +307,12 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not publicly specified.</p>
+                    <p className="text-xs text-slate-400 italic">Content unavailable.</p>
                   )}
                 </div>
               </section>
 
+              {/* Alternatives strictly from DB category queries */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -457,7 +328,7 @@ export default async function ToolPage({ params }: Props) {
                         <div>
                           <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {sanitizeText(alt.description, alt.name) || "Alternative software listing."}
+                            {alt.description || "Content unavailable."}
                           </p>
                         </div>
                         <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
@@ -466,40 +337,6 @@ export default async function ToolPage({ params }: Props) {
                   </div>
                 </section>
               )}
-
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  Who Should Use {tool.name}?
-                </h2>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is best suited for {getTargetUsers(tool.category)}
-                </p>
-              </section>
-
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  How to Use {tool.name}
-                </h2>
-                <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  {howToSteps.map((step, idx) => (
-                    <li key={idx}>{step}</li>
-                  ))}
-                </ol>
-              </section>
-
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  Frequently Asked Questions
-                </h2>
-                <div className="space-y-4 divide-y divide-slate-100">
-                  {faqItems.map((faq, index) => (
-                    <div key={index} className={index > 0 ? "pt-4" : ""}>
-                      <h3 className="text-sm font-bold text-slate-900">{faq.q}</h3>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">{faq.a}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </div>
 
             <aside className="space-y-6 lg:sticky lg:top-28">
@@ -516,20 +353,12 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Category</dt>
-                    <dd className="font-bold text-blue-600">{tool.category || "Software"}</dd>
+                    <dd className="font-bold text-blue-600">{tool.category || "Content unavailable"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-emerald-600">{tool.pricing || "Not specified"}</dd>
-                  </div>
-
-                  <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Status</dt>
-                    <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      Information Reviewed
-                    </dd>
+                    <dd className="font-bold text-emerald-600">{tool.pricing || "Content unavailable"}</dd>
                   </div>
                 </dl>
 
@@ -545,11 +374,12 @@ export default async function ToolPage({ params }: Props) {
             </aside>
           </div>
 
+          {/* Related Tools strictly from DB category queries */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Related Tools in {tool.category || "Software"}
+                  Related Tools
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Directory ↗
@@ -573,13 +403,13 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {sanitizeText(rel.description, rel.name) || "Software directory listing."}
+                          {rel.description || "Content unavailable."}
                         </p>
                       </div>
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-50 flex items-center justify-between text-xs font-semibold text-slate-400">
-                      <span>{rel.category || "Software"}</span>
+                      <span>{rel.category || "AI Engine"}</span>
                       <span className="text-blue-600 group-hover:translate-x-1 transition-transform">
                         Inspect →
                       </span>
