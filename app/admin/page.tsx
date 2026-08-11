@@ -59,8 +59,10 @@ export default function AdminDashboard() {
         }
       } catch {
         // Fallback
-      } font-serif {
-        if (isMounted) setIsLoading(false);
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
       }
     }
 
