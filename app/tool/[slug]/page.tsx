@@ -55,7 +55,7 @@ async function getRelatedTools(category: string, currentSlug: string) {
     const { data } = await supabase
       .from("ai_tools")
       .select("name, slug, category, pricing, neural_score, image_url, logo_url, description")
-      .eq("category", category)
+      .ilike("category", `%${category}%`)
       .neq("slug", currentSlug)
       .limit(6);
 
@@ -63,18 +63,6 @@ async function getRelatedTools(category: string, currentSlug: string) {
   } catch {
     return [];
   }
-}
-
-function mapSchemaCategory(category?: string): string {
-  if (!category) return "SoftwareApplication";
-  const cat = category.toLowerCase();
-  if (cat.includes("chat") || cat.includes("bot")) return "AIApplication";
-  if (cat.includes("image")) return "ImageGenerator";
-  if (cat.includes("video")) return "VideoGenerator";
-  if (cat.includes("code") || cat.includes("dev")) return "DeveloperApplication";
-  if (cat.includes("market")) return "MarketingApplication";
-  if (cat.includes("product")) return "ProductivityApplication";
-  return "SoftwareApplication";
 }
 
 function parseStructuredList(input: any): FormattedListItem[] {
@@ -104,15 +92,6 @@ function parseStructuredList(input: any): FormattedListItem[] {
       }
     }
 
-    if (line.length < 40 && i + 1 < rawLines.length && rawLines[i + 1].length > 40) {
-      items.push({
-        title: line,
-        description: rawLines[i + 1].replace(/^\d+\.\s*/, "").trim(),
-      });
-      i++;
-      continue;
-    }
-
     items.push({ description: line });
   }
 
@@ -132,14 +111,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name} — Features, Pricing, Alternatives & Review | AI Vault`;
+  const title = tool.meta_title || `${tool.name} — Features, Pricing & Alternatives | AI Vault`;
   
-  // Clean description stripped of boilerplates
   const cleanDesc = tool.description ? tool.description.replace(/(<([^>]+)>)/gi, "").slice(0, 155) : "";
   const description =
     tool.meta_description ||
     cleanDesc ||
-    `Explore ${tool.name}'s key features, pricing, pros, cons, and top alternatives on AI Vault.`;
+    `Explore ${tool.name}'s features, pricing, pros, cons, and alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -199,24 +177,11 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Grounded Schemas
-  const softwareSchema = {
-    "@context": "https://schema.org",
-    "@type": mapSchemaCategory(tool.category),
-    name: tool.name,
-    description: tool.description,
-    applicationCategory: tool.category || "Application",
-    operatingSystem: "Web",
-    url: officialUrl,
-    offers: tool.pricing
-      ? {
-          "@type": "Offer",
-          priceCurrency: "USD",
-          description: tool.pricing,
-        }
-      : undefined,
-  };
+  // Alternatives & Related splitting
+  const alternativesList = relatedTools.slice(0, 3);
+  const generalRelated = relatedTools.slice(3, 6);
 
+  // Grounded Schemas (No fake rating/review markup)
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -242,19 +207,21 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  // Structured FAQs (Ground truth visible on page)
+  // Concise, Non-Duplicative FAQ Data
   const faqItems = [
     {
-      q: `What is ${tool.name}?`,
-      a: tool.description || `${tool.name} is a software solution designed for workflows in the ${tool.category || "AI"} domain.`,
+      q: `What primary function does ${tool.name} serve?`,
+      a: `${tool.name} operates primarily as a tool in the ${tool.category || "AI"} domain to streamline domain-specific workflows.`,
     },
     {
-      q: `Is ${tool.name} free to use?`,
-      a: `${tool.name} is offered under a ${tool.pricing || "Freemium"} model. Check the official portal for exact plan terms.`,
+      q: `What pricing model does ${tool.name} use?`,
+      a: `${tool.name} is categorized under a ${tool.pricing || "Freemium"} tier. Specific plans are available on their official portal.`,
     },
     {
-      q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is ideal for individuals, developers, and teams working within ${tool.category || "software automation"}.`,
+      q: `Are there alternatives to ${tool.name}?`,
+      a: alternativesList.length > 0
+        ? `Top alternatives include ${alternativesList.map(a => a.name).join(", ")}.`
+        : `Similar tools can be found in the ${tool.category || "General AI"} category.`,
     },
   ];
 
@@ -273,10 +240,6 @@ export default async function ToolPage({ params }: Props) {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
-      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
@@ -301,13 +264,13 @@ export default async function ToolPage({ params }: Props) {
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold tracking-wider uppercase text-white bg-blue-600 hover:bg-blue-700 rounded-full transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95"
             >
-              Visit Official Portal ↗
+              VISIT OFFICIAL PORTAL ↗
             </a>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Visible Breadcrumbs */}
+          {/* Breadcrumbs Navigation */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li>
@@ -348,7 +311,7 @@ export default async function ToolPage({ params }: Props) {
 
               <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
                 <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  Neural Score
+                  Internal Editorial Score
                 </span>
                 <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-tight font-serif">
                   {scoreDisplay}
@@ -358,26 +321,26 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Section 1: What is [Tool]? */}
+          {/* 1. What is [Tool]? */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {tool.description || `${tool.name} is an AI software solution created for ${tool.category || "productivity"} workflows.`}
+              {tool.description || `${tool.name} is a software platform designed to assist users in ${tool.category || "AI-driven"} operations.`}
             </div>
           </section>
 
-          {/* Section 2 & 3: Key Features & Pricing */}
+          {/* Core Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* Pricing Overview */}
+              {/* 2. Key Features & Pricing */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
-                  Pricing & Access
+                  Pricing & Availability
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed">
-                  {tool.name} operates under a <strong className="text-slate-900 font-bold">{tool.pricing || "Freemium"}</strong> tier structure. Pricing information and active subscription plans may change over time.
+                  {tool.name} is categorized under <strong className="text-slate-900 font-bold">{tool.pricing || "Freemium"}</strong> tiering. Pricing and plan options are subject to updates by the vendor.
                 </p>
                 <div className="pt-2">
                   <a
@@ -386,12 +349,12 @@ export default async function ToolPage({ params }: Props) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Latest Pricing on Official Website →
+                    Check Latest Rates on Official Website →
                   </a>
                 </div>
               </section>
 
-              {/* Section 4: Pros & Cons */}
+              {/* 3. Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -411,7 +374,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Feature list available via official portal.</p>
+                    <p className="text-xs text-slate-400 italic">No explicit key features listed.</p>
                   )}
                 </div>
 
@@ -433,37 +396,61 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No explicit limitations recorded.</p>
+                    <p className="text-xs text-slate-400 italic">No explicit limitations listed.</p>
                   )}
                 </div>
               </section>
 
-              {/* Section 6: Who Should Use [Tool]? */}
+              {/* 4. Best Alternatives */}
+              {alternativesList.length > 0 && (
+                <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+                  <h2 className="text-xl font-black text-slate-950 font-serif">
+                    Best Alternatives
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {alternativesList.map((alt) => (
+                      <Link
+                        key={alt.slug}
+                        href={`/tool/${alt.slug}`}
+                        className="p-4 rounded-2xl border border-slate-100 hover:border-blue-300 transition bg-slate-50/50 flex flex-col justify-between"
+                      >
+                        <div>
+                          <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
+                          <p className="text-xs text-slate-500 line-clamp-2 mt-1">{alt.description}</p>
+                        </div>
+                        <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
+                      </Link>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* 5. Who Should Use It? */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is designed for teams, developers, and professionals specializing in{" "}
-                  <strong className="text-slate-900">{tool.category || "AI software"}</strong> looking for an efficient{" "}
-                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> tool.
+                  {tool.name} is suited for individuals, teams, and professionals managing projects in the{" "}
+                  <strong className="text-slate-900">{tool.category || "AI software"}</strong> sector seeking a{" "}
+                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> tool option.
                 </p>
               </section>
 
-              {/* Section 7: How to Use [Tool] */}
+              {/* 6. How to Use [Tool] */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
-                  How to Get Started with {tool.name}
+                  How to Use {tool.name}
                 </h2>
                 <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  <li>Visit the official portal at <a href={officialUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">official site</a>.</li>
-                  <li>Sign up or authenticate an account if required.</li>
-                  <li>Select your operational workflow or configure key parameters.</li>
-                  <li>Run tasks and inspect generated results.</li>
+                  <li>Navigate to the official portal via the link on this page.</li>
+                  <li>Register or sign in to your user dashboard.</li>
+                  <li>Configure settings appropriate for your use case.</li>
+                  <li>Execute tasks and evaluate outputs.</li>
                 </ol>
               </section>
 
-              {/* Section 8: FAQ */}
+              {/* 7. FAQ */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Frequently Asked Questions
@@ -483,35 +470,34 @@ export default async function ToolPage({ params }: Props) {
             <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  System Specification
+                  System Specifications
                 </h2>
 
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Blueprint</dt>
+                    <dt className="text-slate-500 font-medium">Tool Name</dt>
                     <dd className="font-bold text-slate-900 truncate max-w-[150px]">{tool.name}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Operation Niche</dt>
+                    <dt className="text-slate-500 font-medium">Category</dt>
                     <dd className="font-bold text-blue-600">{tool.category || "General AI"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Deployment Cost</dt>
+                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
                     <dd className="font-bold text-emerald-600">{tool.pricing || "Freemium"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Verification Status</dt>
+                    <dt className="text-slate-500 font-medium">Status</dt>
                     <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      VERIFIED
+                      Information Reviewed
                     </dd>
                   </div>
                 </dl>
 
-                {/* Section 10: Official Website CTA */}
                 <a
                   href={officialUrl}
                   target="_blank"
@@ -524,20 +510,20 @@ export default async function ToolPage({ params }: Props) {
             </aside>
           </div>
 
-          {/* Section 5 & 9: Related Tools & Alternatives */}
-          {relatedTools.length > 0 && (
+          {/* 8. Related Tools */}
+          {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Best Alternatives & Related Tools
+                  Related Tools in {tool.category || "AI"}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
-                  View Directory ↗
+                  View Full Directory ↗
                 </Link>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {relatedTools.map((rel: any) => {
+                {generalRelated.map((rel: any) => {
                   const relScore = rel.neural_score ? Number(rel.neural_score).toFixed(1) : "8.5";
 
                   return (
@@ -559,7 +545,7 @@ export default async function ToolPage({ params }: Props) {
                             {rel.name}
                           </h3>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {rel.description || "Verified AI automation asset."}
+                            {rel.description || "Verified AI software listing."}
                           </p>
                         </div>
                       </div>
