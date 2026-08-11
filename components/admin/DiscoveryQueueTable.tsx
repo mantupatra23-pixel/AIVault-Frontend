@@ -12,16 +12,14 @@ export interface CandidateRow {
   program_name: string | null;
   candidate_url: string;
   evidence_url: string | null;
-  commission_rate: string | null;
-  cookie_duration_days: number;
   confidence: number;
   status: string;
 }
 
-export function DiscoveryQueueTable() {
+export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () => void }) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [progressMsg, setProgressMsg] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -44,22 +42,25 @@ export function DiscoveryQueueTable() {
 
   const handleRunScan = async () => {
     setScanning(true);
-    setProgressMsg("Scanning directory tools... Step 1/5: Querying database index...");
+    setFeedback({ type: "info", text: "DISCOVERING AFFILIATES... Scanning tools requiring discovery..." });
 
     try {
-      setTimeout(() => setProgressMsg("Scanning directory tools... Step 3/5: Checking active network credentials..."), 800);
-
       const res = await fetch("/api/admin/affiliates/discover", { method: "POST" });
       const data = await res.json();
 
       if (res.ok) {
-        setProgressMsg(`✓ ${data.message}`);
+        setFeedback({
+          type: "success",
+          text: `DISCOVERY COMPLETE — Scanned ${data.scanned} tools. Found ${data.candidates} pending candidates. ${data.noProgram} marked No Program.`,
+        });
         fetchCandidates();
+        if (onScanComplete) onScanComplete();
       } else {
-        setProgressMsg(`Discovery error: ${data.error || "Failed to execute scan"}`);
+        setFeedback({ type: "error", text: `Affiliate discovery failed: ${data.error || "Server processing error"}` });
       }
-    } catch {
-      setProgressMsg("Discovery API connection error.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Connection error";
+      setFeedback({ type: "error", text: `Affiliate discovery failed: ${msg}` });
     } finally {
       setScanning(false);
     }
@@ -77,6 +78,7 @@ export function DiscoveryQueueTable() {
       if (res.ok) {
         setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
         setEditingCandidate(null);
+        if (onScanComplete) onScanComplete();
       }
     } catch {
       // Non-blocking
@@ -90,27 +92,33 @@ export function DiscoveryQueueTable() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-            Affiliate Discovery Queue ({candidates.length})
+            Pending Opportunities Queue ({candidates.length})
           </span>
           <h2 className="text-xl font-black text-white font-serif mt-1">
-            Pending Opportunities Queue
+            Affiliate Discovery & Candidates
           </h2>
         </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleRunScan}
-            disabled={scanning}
-            className="px-5 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
-          >
-            {scanning ? "DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
-          </button>
-        </div>
+        <button
+          onClick={handleRunScan}
+          disabled={scanning}
+          className="px-6 py-3 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+        >
+          {scanning ? "DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
+        </button>
       </div>
 
-      {progressMsg && (
-        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-bold text-blue-300 font-mono">
-          {progressMsg}
+      {feedback && (
+        <div
+          className={`p-4 rounded-xl text-xs font-bold font-mono ${
+            feedback.type === "success"
+              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : feedback.type === "error"
+              ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
+              : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
+          }`}
+        >
+          {feedback.text}
         </div>
       )}
 
@@ -149,7 +157,7 @@ export function DiscoveryQueueTable() {
                     <button
                       onClick={() => handleCandidateAction(c.id, "APPROVE")}
                       disabled={actionLoading}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition"
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow-sm"
                     >
                       APPROVE
                     </button>
@@ -177,7 +185,7 @@ export function DiscoveryQueueTable() {
         </div>
       ) : (
         <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
-          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan unmonetized tools.
+          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
         </div>
       )}
 
@@ -191,7 +199,7 @@ export function DiscoveryQueueTable() {
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-300">Verified Affiliate URL</label>
+                <label className="text-xs font-bold text-slate-300">Verified Affiliate Destination URL</label>
                 <input
                   type="url"
                   value={customUrlInput}

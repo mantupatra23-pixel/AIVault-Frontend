@@ -20,7 +20,6 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Stats Counters
   const [stats, setStats] = useState({
     totalTools: 0,
     activeLinks: 0,
@@ -87,7 +86,7 @@ export default function AdminDashboard() {
     const isAffiliateActive = Boolean(editingTool.affiliate_url && editingTool.affiliate_url.trim() !== "");
     const nextStatus = editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
-    // Update public.ai_tools record directly in Supabase
+    // Update public.ai_tools record directly in Supabase using sanitized schema fields
     const { error } = await supabase
       .from("ai_tools")
       .update({
@@ -150,6 +149,12 @@ export default function AdminDashboard() {
 
           <div className="flex items-center gap-3">
             <Link
+              href="/admin/affiliates/settings"
+              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition"
+            >
+              Credentials & Settings ⚙️
+            </Link>
+            <Link
               href="/admin/monetization"
               className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition"
             >
@@ -197,8 +202,8 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {/* Discovery Queue Table Section */}
-        <DiscoveryQueueTable />
+        {/* Interactive Discovery Queue Table */}
+        <DiscoveryQueueTable onScanComplete={fetchData} />
 
         {/* Directory Tools Table */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-6">
@@ -267,7 +272,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Retained & Enhanced Edit Modal */}
+        {/* Configure Modal */}
         {isEditOpen && editingTool && (
           <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
             <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl max-w-xl w-full space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
