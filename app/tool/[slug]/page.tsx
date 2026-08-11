@@ -43,49 +43,21 @@ function getSupabaseClient() {
 }
 
 /**
- * Universal Array Parser: Correctly handles Postgres arrays, JSON strings,
- * newline-separated text, and bullet-point strings.
+ * Clean & Format List Items safely
  */
-function parseListItems(input: any): FormattedListItem[] {
-  if (!input) return [];
-
-  let rawLines: string[] = [];
-
-  if (Array.isArray(input)) {
-    rawLines = input.map((item) => String(item));
-  } else if (typeof input === "string") {
-    let trimmed = input.trim();
-
-    // Check if string is a serialized JSON array
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-          rawLines = parsed.map((item) => String(item));
-        }
-      } catch {
-        // Fallback if JSON parse fails
-        rawLines = [trimmed];
-      }
-    }
-
-    if (rawLines.length === 0) {
-      // Split by newlines, bullets, or asterisks
-      rawLines = trimmed
-        .split(/\n|•|\*/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-    }
-  }
-
+function cleanAndFormatItems(lines: string[]): FormattedListItem[] {
   const items: FormattedListItem[] = [];
 
-  for (let i = 0; i < rawLines.length; i++) {
-    let line = rawLines[i].replace(/^\d+\.\s*/, "").replace(/^[•\*\-\s]+/, "").trim();
-    if (!line) continue;
+  for (let line of lines) {
+    let cleanLine = line
+      .replace(/^\d+\.\s*/, "")
+      .replace(/^[•\*\-\s]+/, "")
+      .trim();
 
-    if (line.includes(":") || line.includes(" - ")) {
-      const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
+    if (!cleanLine) continue;
+
+    if (cleanLine.includes(":") || cleanLine.includes(" - ")) {
+      const parts = cleanLine.split(/:(.+)| - (.+)/).filter(Boolean);
       if (parts.length >= 2) {
         items.push({
           title: parts[0].trim(),
@@ -95,10 +67,71 @@ function parseListItems(input: any): FormattedListItem[] {
       }
     }
 
-    items.push({ description: line });
+    items.push({ description: cleanLine });
   }
 
   return items;
+}
+
+/**
+ * Universal Parser for the real `pros_cons` column in Supabase
+ */
+function parseProsConsColumn(input: any): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
+  if (!input) return { pros: [], cons: [] };
+
+  let prosLines: string[] = [];
+  let consLines: string[] = [];
+
+  // Case A: Input is JSON Object or JSON String
+  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
+    if (input.pros) prosLines = Array.isArray(input.pros) ? input.pros : [String(input.pros)];
+    if (input.cons) consLines = Array.isArray(input.cons) ? input.cons : [String(input.cons)];
+    return {
+      pros: cleanAndFormatItems(prosLines),
+      cons: cleanAndFormatItems(consLines),
+    };
+  }
+
+  let textInput = "";
+  if (Array.isArray(input)) {
+    textInput = input.join("\n");
+  } else if (typeof input === "string") {
+    textInput = input.trim();
+  }
+
+  // Case B: Serialized JSON
+  if (textInput.startsWith("{") && textInput.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(textInput);
+      if (parsed.pros || parsed.cons) {
+        return parseProsConsColumn(parsed);
+      }
+    } catch {
+      // Continue to text parsing
+    }
+  }
+
+  // Case C: Plain text containing "Pros:" and "Cons:" split points
+  if (/Cons:|CONS:/i.test(textInput)) {
+    const parts = textInput.split(/Cons:|CONS:/i);
+    const prosText = parts[0].replace(/Pros:|PROS:/i, "").trim();
+    const consText = parts.slice(1).join("\n").trim();
+
+    prosLines = prosText.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
+    consLines = consText.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
+
+    return {
+      pros: cleanAndFormatItems(prosLines),
+      cons: cleanAndFormatItems(consLines),
+    };
+  }
+
+  // Case D: Generic newline/bullet-separated list without explicit "Cons:" header
+  const allLines = textInput.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
+  return {
+    pros: cleanAndFormatItems(allLines),
+    cons: [],
+  };
 }
 
 async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null> {
@@ -115,19 +148,18 @@ async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null
 
     if (error || !raw) return null;
 
-    const pros = parseListItems(raw.pros);
-    const cons = parseListItems(raw.cons);
+    // Parse the single `pros_cons` column
+    const { pros, cons } = parseProsConsColumn(raw.pros_cons);
     const category = raw.category || "Software";
     const name = raw.name || "Tool";
 
-    // Direct mapping to DB columns
     return {
       id: raw.id,
       name: name,
       slug: raw.slug,
       category: category,
       pricing_model: raw.pricing || "Not Specified",
-      description: raw.description || "Content unavailable.",
+      description: raw.description || raw.seo_description || raw.meta_description || "Content unavailable.",
       pricing_details: raw.pricing || null,
       features_pros: pros,
       limitations_cons: cons,
@@ -299,7 +331,7 @@ export default async function ToolPage({ params }: Props) {
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details || "Pricing information is not specified. Check the official website for current plans and limits."}
+                  {tool.pricing_details || "Pricing details are not specified. Check the official portal for current tiers."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -378,7 +410,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 5. Who Should Use It? (Rendered if available) */}
+              {/* 5. Who Should Use It? */}
               {tool.who_should_use && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -390,7 +422,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 6. How to Use (Rendered if available) */}
+              {/* 6. How to Use */}
               {tool.how_to_use && tool.how_to_use.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -404,7 +436,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 7. FAQs (Rendered if available) */}
+              {/* 7. FAQs */}
               {tool.faqs && tool.faqs.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
