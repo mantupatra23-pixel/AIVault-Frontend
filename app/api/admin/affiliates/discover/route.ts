@@ -22,15 +22,17 @@ export async function POST(request: NextRequest) {
 
     console.log("[affiliate-discovery] started", { targetSlug: targetSlug || "all" });
 
-    // Fetch unmonetized tools requiring affiliate discovery
+    // Schema-Safe Selection: ONLY query verified columns from public.ai_tools
     let query = supabase
       .from("ai_tools")
-      .select("id, name, slug, website_url, official_url, affiliate_url, affiliate_status");
+      .select("id, name, slug, category, website_url, affiliate_url, affiliate_status");
 
     if (targetSlug) {
       query = query.ilike("slug", targetSlug.trim());
     } else {
-      query = query.or("affiliate_url.is.null,affiliate_status.eq.DISCOVERY_REQUIRED,affiliate_status.eq.NO_LINK").limit(100);
+      query = query
+        .or("affiliate_url.is.null,affiliate_status.eq.DISCOVERY_REQUIRED,affiliate_status.eq.NO_LINK")
+        .limit(100);
     }
 
     const { data: tools, error: fetchErr } = await query;
@@ -41,19 +43,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!tools || tools.length === 0) {
+      console.log("[affiliate-discovery] completed - no tools pending discovery");
       return NextResponse.json({
-        total: 0,
+        success: true,
         scanned: 0,
         candidates: 0,
-        noProgram: 0,
-        message: targetSlug ? `Tool '${targetSlug}' already processed or not found.` : "No unmonetized tools pending discovery.",
+        noProgramFound: 0,
+        message: targetSlug
+          ? `Tool '${targetSlug}' already processed or not found.`
+          : "No unmonetized tools pending discovery.",
       });
     }
 
-    // Read configured affiliate network integrations from database
+    // Read active publisher settings from affiliate_settings table safely
     const { data: enabledNetworks } = await supabase
       .from("affiliate_settings")
-      .select("*")
+      .select("id, network_name, publisher_id, is_enabled")
       .eq("is_enabled", true);
 
     const activeSettings = enabledNetworks || [];
@@ -64,9 +69,9 @@ export async function POST(request: NextRequest) {
 
     for (const tool of tools) {
       scannedCount++;
-      const officialUrl = tool.website_url || tool.official_url;
+      const domainUrl = tool.website_url; // Use ONLY website_url (official_url removed)
 
-      if (!officialUrl) {
+      if (!domainUrl) {
         await supabase
           .from("ai_tools")
           .update({
@@ -79,28 +84,29 @@ export async function POST(request: NextRequest) {
 
       let cleanDomain = "";
       try {
-        const parsed = new URL(officialUrl.startsWith("http") ? officialUrl : `https://${officialUrl}`);
+        const parsed = new URL(domainUrl.startsWith("http") ? domainUrl : `https://${domainUrl}`);
         cleanDomain = parsed.hostname.replace("www.", "").toLowerCase();
       } catch {
-        continue;
+        // Fallback for simple domain strings
+        cleanDomain = domainUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
       }
 
       let candidateFound = false;
 
-      // Match against enabled publisher credentials
+      // Match against active server publisher settings
       for (const setting of activeSettings) {
         if (setting.publisher_id) {
           candidateFound = true;
           candidatesCount++;
 
-          const candidateUrl = `https://${setting.network_name.toLowerCase()}.com/c/${setting.publisher_id}/aivault?u=${encodeURIComponent(officialUrl)}`;
+          const candidateUrl = `https://${setting.network_name.toLowerCase()}.com/c/${setting.publisher_id}/aivault?u=${encodeURIComponent(domainUrl)}`;
 
           await supabase.from("affiliate_candidates").upsert(
             {
               tool_id: tool.id,
               tool_name: tool.name,
               tool_slug: tool.slug,
-              official_url: officialUrl,
+              official_url: domainUrl,
               network: setting.network_name,
               program_name: `${tool.name} Affiliate Program`,
               candidate_url: candidateUrl,
@@ -135,17 +141,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log("[affiliate-discovery] completed", { scanned: scannedCount, candidates: candidatesCount, noProgram: noProgramCount });
+    console.log(`[affiliate-discovery] scanned=${scannedCount}`);
+    console.log(`[affiliate-discovery] candidates=${candidatesCount}`);
+    console.log(`[affiliate-discovery] completed`);
 
     return NextResponse.json({
       success: true,
       scanned: scannedCount,
       candidates: candidatesCount,
-      noProgram: noProgramCount,
+      noProgramFound: noProgramCount,
       message: `Scanned ${scannedCount} tools. Found ${candidatesCount} candidates pending review. ${noProgramCount} tools marked NO_AFFILIATE_PROGRAM.`,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unhandled discovery error";
+    const msg = err instanceof Error ? err.message : "Unhandled discovery exception";
     console.error("[affiliate-discovery][EXCEPTION]", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

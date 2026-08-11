@@ -42,7 +42,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
 
   const handleRunScan = async () => {
     setScanning(true);
-    setFeedback({ type: "info", text: "DISCOVERING AFFILIATES... Scanning tools requiring discovery..." });
+    setFeedback({ type: "info", text: "AUTO DISCOVERING... Scanning tools requiring discovery..." });
 
     try {
       const res = await fetch("/api/admin/affiliates/discover", { method: "POST" });
@@ -51,7 +51,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       if (res.ok) {
         setFeedback({
           type: "success",
-          text: `DISCOVERY COMPLETE — Scanned ${data.scanned} tools. Found ${data.candidates} pending candidates. ${data.noProgram} marked No Program.`,
+          text: `DISCOVERY COMPLETE — Scanned ${data.scanned} tools. Found ${data.candidates || 0} pending candidates. ${data.noProgramFound || 0} marked No Program.`,
         });
         fetchCandidates();
         if (onScanComplete) onScanComplete();
@@ -104,7 +104,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
           disabled={scanning}
           className="px-6 py-3 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
         >
-          {scanning ? "DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
+          {scanning ? "AUTO DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
         </button>
       </div>
 

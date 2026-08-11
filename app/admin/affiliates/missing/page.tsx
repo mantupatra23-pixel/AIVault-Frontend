@@ -43,10 +43,10 @@ export default async function MissingAffiliatesPage() {
             </h1>
           </div>
           <Link
-            href="/admin/control-hub"
+            href="/admin"
             className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition"
           >
-            ← Back to Control Hub
+            ← Back to Command Center
           </Link>
         </div>
 
@@ -70,7 +70,7 @@ export default async function MissingAffiliatesPage() {
                     </a>
                   )}
                   <Link
-                    href={`/admin/control-hub?configure=${tool.id}`}
+                    href={`/admin?configure=${tool.id}`}
                     className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-lg transition"
                   >
                     CONFIGURE NOW →
