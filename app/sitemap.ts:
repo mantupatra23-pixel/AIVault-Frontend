@@ -1,0 +1,112 @@
+import { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/site-url";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+interface ToolRecord {
+  slug: string;
+  updated_at?: string;
+  created_at?: string;
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const staticRoutes: MetadataRoute.Sitemap = [
+    {
+      url: `${SITE_URL}`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 1.0,
+    },
+    {
+      url: `${SITE_URL}/about`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.5,
+    },
+    {
+      url: `${SITE_URL}/contact`,
+      lastModified: new Date(),
+      changeFrequency: "monthly",
+      priority: 0.3,
+    },
+    {
+      url: `${SITE_URL}/privacy`,
+      lastModified: new Date(),
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
+    {
+      url: `${SITE_URL}/terms`,
+      lastModified: new Date(),
+      changeFrequency: "yearly",
+      priority: 0.2,
+    },
+  ];
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("[SITEMAP_CRITICAL_ENV_MISSING] Supabase URL or Key is not defined in environment variables!");
+    return staticRoutes;
+  }
+
+  try {
+    // Direct REST fetch to bypass client SDK initialization mismatches in Serverless execution
+    const fetchUrl = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_tools?select=slug,updated_at,created_at&slug=not.is.null&limit=2000`;
+
+    const res = await fetch(fetchUrl, {
+      headers: {
+        apikey: supabaseKey,
+        Authorization: `Bearer ${supabaseKey}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[SITEMAP_HTTP_ERROR] Status: ${res.status} - ${errorText}`);
+      return staticRoutes;
+    }
+
+    const tools: ToolRecord[] = await res.json();
+
+    if (!Array.isArray(tools) || tools.length === 0) {
+      console.error("[SITEMAP_EMPTY] Supabase returned 0 tool records.");
+      return staticRoutes;
+    }
+
+    const seenSlugs = new Set<string>();
+    const toolRoutes: MetadataRoute.Sitemap = [];
+
+    for (const t of tools) {
+      if (!t.slug || typeof t.slug !== "string") continue;
+
+      const cleanSlug = t.slug.trim().toLowerCase();
+      if (!cleanSlug || seenSlugs.has(cleanSlug)) continue;
+
+      seenSlugs.add(cleanSlug);
+
+      toolRoutes.push({
+        url: `${SITE_URL}/tool/${cleanSlug}`,
+        lastModified: t.updated_at
+          ? new Date(t.updated_at)
+          : t.created_at
+          ? new Date(t.created_at)
+          : new Date(),
+        changeFrequency: "weekly",
+        priority: 0.8,
+      });
+    }
+
+    console.log(`[SITEMAP_SUCCESS] Loaded ${toolRoutes.length} tools into sitemap.`);
+    return [...staticRoutes, ...toolRoutes];
+  } catch (err) {
+    console.error("[SITEMAP_EXCEPTION] Failed to generate tool sitemap routes:", err);
+    return staticRoutes;
+  }
+}
