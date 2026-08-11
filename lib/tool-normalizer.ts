@@ -59,7 +59,6 @@ export interface DatabaseToolRecord {
   createdAt?: string;
 }
 
-// Canonical NormalizedTool type alias consumed across the application
 export type NormalizedTool = DatabaseToolRecord;
 
 export function sanitizeUrl(url: unknown): string | null {
@@ -90,7 +89,7 @@ export function normalizeScore(rawScore: number | null | undefined): number | nu
   const val = Number(rawScore);
   if (val > 10 && val <= 100) return Math.round(val);
   if (val <= 10 && val > 0) return Math.round(val * 10);
-  return 85;
+  return null;
 }
 
 export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
@@ -132,7 +131,7 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
         return parseProsConsColumn(parsed);
       }
     } catch {
-      // Fallback
+      // Non-blocking parse fallback
     }
   }
 
@@ -153,27 +152,80 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
   };
 }
 
+// Clean enrichment lookup: Returns ONLY tool-specific entries if present in repository knowledge
 export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>): Partial<DatabaseToolRecord> {
-  const name = raw.name || "Tool";
-  const category = raw.category || "Software";
-  const defaultWho = `${name} is designed for professionals, developers, and teams seeking efficient ${category.toLowerCase()} solutions.`;
+  const slug = (raw.slug || "").toLowerCase().trim();
 
-  return {
-    who_should_use: defaultWho,
-    whoShouldUse: defaultWho,
-    how_to_use: [
-      `Visit the official platform portal for ${name}`,
-      "Create or authenticate your account credentials",
-      "Configure project workspace settings for your team",
-      "Execute your workflow and export or integrate results"
-    ],
-    pricing_details: `${name} provides scalable pricing plans tailored for individuals, startups, and enterprise teams.`,
-    tags: [category.toLowerCase(), name.toLowerCase(), "Software", "AI Tools"],
-    faqs: [
-      { q: `What is ${name} used for?`, a: `${name} is a software platform specializing in ${category.toLowerCase()} capabilities.` },
-      { q: `What pricing model does ${name} offer?`, a: `${name} operates under a ${raw.pricing || "Freemium"} plan model.` }
-    ],
-    seo_title: `${name} Review, Pricing, Features & Alternatives | AI Vault`,
-    seo_description: `Discover ${name} features, pricing options, pros/cons, and alternative tools on AI Vault.`,
-  };
+  if (slug === "ghost") {
+    return {
+      description: "Ghost is an open-source, independent publishing platform for professional creators, bloggers, and media businesses.",
+      who_should_use: "Independent publishers, bloggers, newsletter creators, and media organizations.",
+      whoShouldUse: "Independent publishers, bloggers, newsletter creators, and media organizations.",
+      features_pros: [
+        { title: "Native Newsletter Distribution", description: "Built-in email newsletter delivery directly integrated with content publishing." },
+        { title: "Membership Monetization", description: "Native support for free and paid member subscriptions with zero platform fees." },
+        { title: "Modern Publishing Editor", description: "Distraction-free Markdown and card-based rich media editing experience." },
+        { title: "Custom Handlebars Themes", description: "Full design control with extensible custom theme development engine." },
+        { title: "Headless Content APIs", description: "REST and GraphQL APIs to use Ghost as a headless CMS for any frontend stack." },
+      ],
+      limitations_cons: [
+        { title: "Technical Self-Hosting", description: "Self-hosted instances require Linux system administration skills." },
+        { title: "Plugin Ecosystem", description: "Fewer marketplace plugins compared to traditional CMS platforms like WordPress." },
+      ],
+      how_to_use: [
+        "Create a Ghost publication on managed Ghost Pro or setup a self-hosted instance",
+        "Configure custom domain settings, publication design, and branding options",
+        "Draft and format articles or newsletter broadcasts inside the editor",
+        "Establish free and paid subscription membership tiers",
+        "Publish posts directly to the web and send newsletter issues to subscribers"
+      ],
+      use_cases: ["Subscription Newsletters", "Digital Magazines", "Personal Blogs", "Independent Publications"],
+      integrations: ["Stripe", "Zapier", "Unsplash", "Disqus", "Analytics"],
+      pricing_details: "Ghost open-source software is free to self-host. Managed Ghost Pro hosting plans start with scalable tiers based on member size.",
+      tags: ["CMS", "Blogging", "Publishing", "Newsletters", "Open Source"],
+      faqs: [
+        { q: "What is Ghost used for?", a: "Ghost is a publishing platform designed for modern online blogs, magazines, and subscription newsletters." },
+        { q: "Is Ghost free or paid?", a: "The software is 100% open-source and free to self-host. Ghost Pro offers fully managed paid cloud hosting." },
+        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost natively sends email newsletters directly to member lists without third-party plugins." }
+      ],
+      seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
+      seo_description: "Discover Ghost features, pricing details, pros/cons, and publishing capabilities on AI Vault.",
+    };
+  }
+
+  if (slug === "nylas-cli") {
+    return {
+      description: "Nylas CLI is a developer-first command-line interface for testing, managing, and interacting with Nylas Communications APIs directly from your terminal.",
+      who_should_use: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
+      whoShouldUse: "Backend developers, API engineers, and software teams integrating Nylas communication features.",
+      features_pros: [
+        { title: "Terminal-Native API Access", description: "Interact with Email, Calendar, and Contacts APIs directly from local CLI sessions." },
+        { title: "Webhook Testing & Tunnels", description: "Local tunnel generation to test incoming API webhooks during development." },
+        { title: "OAuth Authentication Management", description: "Streamlined authentication grants and access token management for test accounts." },
+      ],
+      limitations_cons: [
+        { title: "Command Line Only", description: "Requires familiarity with terminal commands and API development." },
+        { title: "Requires Nylas Account", description: "Requires an active Nylas developer account and API credentials." },
+      ],
+      how_to_use: [
+        "Install Nylas CLI via npm or brew in your terminal",
+        "Authenticate with your Nylas developer credentials (`nylas login`)",
+        "Configure local application scopes and API keys",
+        "Test email, calendar, and webhook triggers directly from CLI scripts"
+      ],
+      use_cases: ["API Debugging", "Webhook Tunneling", "Email Sync Testing", "OAuth Token Management"],
+      integrations: ["Nylas API", "Node.js", "Terminal", "Webhooks"],
+      pricing_details: "Nylas CLI is free open-source software. Usage of underlying Nylas APIs follows standard Nylas platform developer tiers.",
+      tags: ["Developer Tools", "CLI", "Email API", "Calendar API", "Webhooks"],
+      faqs: [
+        { q: "What is Nylas CLI?", a: "Nylas CLI is a terminal utility designed to accelerate development and debugging with Nylas Communications APIs." },
+        { q: "Is Nylas CLI free to use?", a: "Yes, the CLI tool is free for developer workflow testing." }
+      ],
+      seo_title: "Nylas CLI Review, Features & Developer Guide | AI Vault",
+      seo_description: "Discover Nylas CLI features, developer usage steps, and API testing capabilities on AI Vault.",
+    };
+  }
+
+  // NO generic fallback text generated when a tool is unlisted
+  return {};
 }

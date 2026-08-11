@@ -78,27 +78,6 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
       }
 
       record = enrichMissingToolFields(record);
-
-      supabase
-        .from("ai_tools")
-        .update({
-          description: record.description,
-          features_pros: record.features_pros,
-          limitations_cons: record.limitations_cons,
-          who_should_use: record.who_should_use,
-          how_to_use: record.how_to_use,
-          pricing_details: record.pricing_details,
-          tags: record.tags,
-          faqs: record.faqs,
-          seo_title: record.seo_title,
-          seo_description: record.seo_description,
-        })
-        .eq("id", record.id)
-        .then(({ error: writeErr }) => {
-          if (writeErr) {
-            console.error(`[DB_WRITE_BACK_ERR] slug=${record.slug}`, writeErr.message);
-          }
-        });
     }
 
     return record;
@@ -140,7 +119,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
   const title = tool.seo_title || `${tool.name} Review, Features & Pricing | AI Vault`;
-  const description = tool.seo_description || `Discover ${tool.name} features, pros/cons, and pricing on AI Vault.`;
+  const description = tool.seo_description || `${tool.name} features, pros/cons, and specifications on AI Vault.`;
   const logoUrl = tool.image_url || tool.logo_url || "";
 
   return {
@@ -182,7 +161,7 @@ export default async function ToolPage({ params }: Props) {
   const tool = enrichMissingToolFields(rawTool);
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-  const generalRelated = relatedTools; // No slicing truncation
+  const generalRelated = relatedTools;
 
   const officialUrlClean = typeof tool.website_url === "string" && tool.website_url.trim() !== ""
     ? tool.website_url.trim()
@@ -195,7 +174,7 @@ export default async function ToolPage({ params }: Props) {
   );
 
   const youtubeVideoId = extractYouTubeId(tool.youtube_id || tool.youtube_url || "");
-  const normalizedScore = normalizeScore(tool.score || tool.rating || 85);
+  const normalizedScore = normalizeScore(tool.score || tool.rating);
 
   const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
   const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
@@ -213,13 +192,13 @@ export default async function ToolPage({ params }: Props) {
     ? tool.whoShouldUse
     : Array.isArray(tool.whoShouldUse)
     ? tool.whoShouldUse.join(", ")
-    : `${tool.name} is designed for developers, creators, and teams seeking efficient ${tool.category || "software"} solutions.`;
+    : null;
 
   const pricingNote = typeof tool.pricing_details === "string"
     ? tool.pricing_details
     : (tool.pricing_details && typeof tool.pricing_details === "object" && "note" in tool.pricing_details)
     ? String((tool.pricing_details as Record<string, unknown>).note)
-    : `${tool.name} offers flexible pricing structured around ${tool.pricing || "Freemium"} tiers.`;
+    : null;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -304,9 +283,11 @@ export default async function ToolPage({ params }: Props) {
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-50 text-blue-600 border border-blue-200">
                       {tool.category || "Software"}
                     </span>
-                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                      {tool.pricing || "Freemium"}
-                    </span>
+                    {tool.pricing && (
+                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                        {tool.pricing}
+                      </span>
+                    )}
                   </div>
                   <h1 className="text-3xl sm:text-5xl font-black text-slate-900 font-serif tracking-tight">
                     {tool.name}
@@ -326,32 +307,36 @@ export default async function ToolPage({ params }: Props) {
           </section>
 
           {/* Overview Section */}
-          <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-            <h2 className="text-xl font-black text-slate-900 font-serif">What is {tool.name}?</h2>
-            <div className="prose prose-slate max-w-none text-sm text-slate-600 leading-relaxed font-sans">
-              {tool.description || `${tool.name} is an advanced software solution.`}
-            </div>
-
-            {tagsList.length > 0 && (
-              <div className="pt-4 flex flex-wrap gap-2">
-                {tagsList.map((tag, i) => (
-                  <span key={i} className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl">
-                    #{tag}
-                  </span>
-                ))}
+          {tool.description && (
+            <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+              <h2 className="text-xl font-black text-slate-900 font-serif">What is {tool.name}?</h2>
+              <div className="prose prose-slate max-w-none text-sm text-slate-600 leading-relaxed font-sans">
+                {tool.description}
               </div>
-            )}
-          </section>
+
+              {tagsList.length > 0 && (
+                <div className="pt-4 flex flex-wrap gap-2">
+                  {tagsList.map((tag, i) => (
+                    <span key={i} className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-xl">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           <AdSlot slotId="tool-after-overview" />
 
           {/* Who Should Use Section */}
-          <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-            <h2 className="text-xl font-black text-slate-900 font-serif">Who Should Use {tool.name}?</h2>
-            <p className="text-sm text-slate-600 leading-relaxed font-sans">
-              {whoShouldUseText}
-            </p>
-          </section>
+          {whoShouldUseText && (
+            <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+              <h2 className="text-xl font-black text-slate-900 font-serif">Who Should Use {tool.name}?</h2>
+              <p className="text-sm text-slate-600 leading-relaxed font-sans">
+                {whoShouldUseText}
+              </p>
+            </section>
+          )}
 
           {/* YouTube Video Section */}
           {youtubeVideoId && (
@@ -372,59 +357,59 @@ export default async function ToolPage({ params }: Props) {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               {/* Pricing Section */}
-              <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
-                  {tool.pricing_url && (
-                    <a
-                      href={tool.pricing_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-bold text-blue-600 hover:underline"
-                    >
-                      CHECK OFFICIAL PRICING TIERS →
-                    </a>
-                  )}
-                </div>
-                <p className="text-sm text-slate-600 leading-relaxed font-sans">
-                  {pricingNote}
-                </p>
-              </section>
+              {pricingNote && (
+                <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
+                    {tool.pricing_url && (
+                      <a
+                        href={tool.pricing_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-bold text-blue-600 hover:underline"
+                      >
+                        CHECK OFFICIAL PRICING TIERS →
+                      </a>
+                    )}
+                  </div>
+                  <p className="text-sm text-slate-600 leading-relaxed font-sans">
+                    {pricingNote}
+                  </p>
+                </section>
+              )}
 
               {/* Key Features & Limitations (Pros & Cons) */}
-              <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-sm">
-                  <h2 className="text-xs font-extrabold text-emerald-600 uppercase tracking-widest">KEY FEATURES & PROS</h2>
-                  {prosList.length > 0 ? (
-                    <ol className="space-y-3 text-sm text-slate-600 font-sans">
-                      {prosList.map((item, i) => (
-                        <li key={i} className="leading-snug">
-                          {item.title && <strong className="font-bold text-slate-900 block">{item.title}</strong>}
-                          <span>{item.description}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No specific pros listed.</p>
+              {(prosList.length > 0 || consList.length > 0) && (
+                <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {prosList.length > 0 && (
+                    <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-sm">
+                      <h2 className="text-xs font-extrabold text-emerald-600 uppercase tracking-widest">KEY FEATURES & PROS</h2>
+                      <ol className="space-y-3 text-sm text-slate-600 font-sans">
+                        {prosList.map((item, i) => (
+                          <li key={i} className="leading-snug">
+                            {item.title && <strong className="font-bold text-slate-900 block">{item.title}</strong>}
+                            <span>{item.description}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   )}
-                </div>
 
-                <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-sm">
-                  <h2 className="text-xs font-extrabold text-rose-600 uppercase tracking-widest">LIMITATIONS & CONS</h2>
-                  {consList.length > 0 ? (
-                    <ol className="space-y-3 text-sm text-slate-600 font-sans">
-                      {consList.map((item, i) => (
-                        <li key={i} className="leading-snug">
-                          {item.title && <strong className="font-bold text-slate-900 block">{item.title}</strong>}
-                          <span>{item.description}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No specific limitations listed.</p>
+                  {consList.length > 0 && (
+                    <div className="bg-white border border-slate-200/80 rounded-3xl p-6 space-y-4 shadow-sm">
+                      <h2 className="text-xs font-extrabold text-rose-600 uppercase tracking-widest">LIMITATIONS & CONS</h2>
+                      <ol className="space-y-3 text-sm text-slate-600 font-sans">
+                        {consList.map((item, i) => (
+                          <li key={i} className="leading-snug">
+                            {item.title && <strong className="font-bold text-slate-900 block">{item.title}</strong>}
+                            <span>{item.description}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
                   )}
-                </div>
-              </section>
+                </section>
+              )}
 
               {/* Use Cases */}
               {useCasesList.length > 0 && (
@@ -479,20 +464,26 @@ export default async function ToolPage({ params }: Props) {
                     <dd className="font-bold text-slate-900 text-right">{tool.category || "Software"}</dd>
                   </div>
 
-                  <div className="pt-4 flex justify-between gap-2">
-                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing || "Freemium"}</dd>
-                  </div>
+                  {tool.pricing_model || tool.pricing ? (
+                    <div className="pt-4 flex justify-between gap-2">
+                      <dt className="text-slate-500 font-medium">Pricing Model</dt>
+                      <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing}</dd>
+                    </div>
+                  ) : null}
 
-                  <div className="pt-4 flex justify-between gap-2">
-                    <dt className="text-slate-500 font-medium">Operating System</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.operating_system || "Web / Cloud"}</dd>
-                  </div>
+                  {tool.operating_system && (
+                    <div className="pt-4 flex justify-between gap-2">
+                      <dt className="text-slate-500 font-medium">Operating System</dt>
+                      <dd className="font-bold text-slate-900 text-right">{tool.operating_system}</dd>
+                    </div>
+                  )}
 
-                  <div className="pt-4 flex justify-between gap-2">
-                    <dt className="text-slate-500 font-medium">Deployment</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.deployment || "Hosted SaaS"}</dd>
-                  </div>
+                  {tool.deployment && (
+                    <div className="pt-4 flex justify-between gap-2">
+                      <dt className="text-slate-500 font-medium">Deployment</dt>
+                      <dd className="font-bold text-slate-900 text-right">{tool.deployment}</dd>
+                    </div>
+                  )}
 
                   {integrationsList.length > 0 && (
                     <div className="pt-4 space-y-2">
