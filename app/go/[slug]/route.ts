@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import crypto from "crypto";
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
   if (!supabaseUrl || !supabaseAnonKey) return null;
   return createClient(supabaseUrl, supabaseAnonKey);
+}
+
+function generateVisitorHash(ip: string, userAgent: string): string {
+  const dateStr = new Date().toISOString().slice(0, 10);
+  return crypto.createHash("sha256").update(`${ip}-${userAgent}-${dateStr}`).digest("hex").slice(0, 16);
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
@@ -24,10 +30,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   try {
-    // 1. Fetch destination URL from database
+    // 1. Fetch record from ai_tools and affiliate_links
     const { data: tool } = await supabase
       .from("ai_tools")
-      .select("id, slug, website_url, official_url, affiliate_url")
+      .select("id, slug, website_url, official_url, affiliate_url, affiliate_status")
       .ilike("slug", cleanSlug)
       .maybeSingle();
 
@@ -35,40 +41,62 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(new URL("/", request.url));
     }
 
-    const rawTarget = tool.affiliate_url || tool.website_url || tool.official_url;
+    const { data: affLink } = await supabase
+      .from("affiliate_links")
+      .select("id, affiliate_url, status")
+      .eq("tool_id", tool.id)
+      .maybeSingle();
+
+    // 2. Determine target URL
+    const activeAffUrl = (affLink?.status === "ACTIVE" && affLink.affiliate_url) 
+      ? affLink.affiliate_url 
+      : tool.affiliate_url;
+
+    const rawTarget = activeAffUrl || tool.website_url || tool.official_url;
+
     if (!rawTarget) {
       return NextResponse.redirect(new URL(`/tool/${tool.slug}`, request.url));
     }
 
-    // 2. Validate URL to prevent open redirect vulnerabilities
+    // 3. Strict URL Security Validation
     let targetUrl: URL;
     try {
-      targetUrl = new URL(rawTarget.startsWith("http") ? rawTarget : `https://${rawTarget}`);
+      const formatted = rawTarget.startsWith("http") ? rawTarget : `https://${rawTarget}`;
+      targetUrl = new URL(formatted);
+      if (targetUrl.protocol !== "http:" && targetUrl.protocol !== "https:") {
+        return NextResponse.redirect(new URL(`/tool/${tool.slug}`, request.url));
+      }
     } catch {
       return NextResponse.redirect(new URL(`/tool/${tool.slug}`, request.url));
     }
 
-    // 3. Asynchronously record click analytics (non-blocking)
-    const destinationType = tool.affiliate_url ? "affiliate" : "official";
-    const referrer = request.headers.get("referer") || "direct";
+    // 4. Asynchronous Click Telemetry Logging
+    const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
     const userAgent = request.headers.get("user-agent") || "unknown";
+    const referrer = request.headers.get("referer") || "direct";
+    const visitorHash = generateVisitorHash(ip, userAgent);
 
     supabase
       .from("affiliate_clicks")
       .insert({
         tool_id: tool.id,
-        slug: tool.slug,
-        destination_type: destinationType,
-        destination_url: targetUrl.toString(),
+        affiliate_link_id: affLink?.id || null,
+        visitor_hash: visitorHash,
         referrer,
-        user_agent: userAgent,
+        landing_page: `/tool/${tool.slug}`,
+        device_type: userAgent.includes("Mobile") ? "mobile" : "desktop",
       })
       .then(({ error }) => {
-        if (error) console.error("[CLICK_TRACKING_ERR]", error.message);
+        if (error) console.error("[CLICK_LOG_ERR]", error.message);
       });
 
-    // 4. Return 307 temporary redirect
-    return NextResponse.redirect(targetUrl.toString(), { status: 307 });
+    // 5. Non-indexable 307 temporary redirect
+    return NextResponse.redirect(targetUrl.toString(), {
+      status: 307,
+      headers: {
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    });
   } catch (err) {
     console.error("[GO_REDIRECT_EXCEPTION]", err);
     return NextResponse.redirect(new URL("/", request.url));
