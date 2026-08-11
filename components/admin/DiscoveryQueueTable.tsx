@@ -11,7 +11,6 @@ export interface CandidateRow {
   network: string;
   program_name: string | null;
   candidate_url: string;
-  evidence_url: string | null;
   confidence: number;
   status: string;
 }
@@ -19,7 +18,7 @@ export interface CandidateRow {
 export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () => void }) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error" | "warning"; text: string } | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -32,7 +31,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         setCandidates(data.candidates || []);
       }
     } catch {
-      // Non-blocking background fetch
+      // Non-blocking
     }
   };
 
@@ -41,54 +40,63 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
   }, []);
 
   const handleRunScan = async () => {
-    if (isDiscovering) return; // Prevent double clicks
+    if (isDiscovering) return;
 
     setIsDiscovering(true);
     setFeedback({
       type: "info",
-      text: "AUTO DISCOVERING... Scanning tools requiring discovery...",
+      text: "AUTO DISCOVERING... Initiating batch scan across index...",
     });
 
     try {
-      const res = await fetch("/api/admin/affiliates/discover", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetSlug: "all" }),
-      });
+      let offset = 0;
+      const batchSize = 100;
+      let hasMore = true;
+      let totalScanned = 0;
+      let totalDiscovered = 0;
 
-      const data = await res.json();
+      while (hasMore) {
+        setFeedback({
+          type: "info",
+          text: `Scanning batch ${offset + 1}–${offset + batchSize}...`,
+        });
 
-      if (res.ok && data.success) {
-        const foundCount = data.candidatesFound ?? data.candidates ?? 0;
-        const scannedCount = data.scanned ?? 0;
-        const noProgCount = data.noProgramFound ?? data.noProgram ?? 0;
+        const res = await fetch("/api/admin/affiliates/discover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ batchSize, offset }),
+        });
 
+        const data = await res.json();
+
+        if (!res.ok || data.requiresCredentials) {
+          setFeedback({
+            type: "warning",
+            text: data.message || "Affiliate discovery requires network credentials. Configure Impact / PartnerStack / CJ / ShareASale credentials in Credentials & Settings.",
+          });
+          break;
+        }
+
+        totalScanned += data.scanned || 0;
+        totalDiscovered += data.candidatesFound || 0;
+        hasMore = Boolean(data.hasMore && (data.scanned || 0) > 0);
+        offset += batchSize;
+      }
+
+      if (totalScanned > 0) {
         setFeedback({
           type: "success",
-          text: `DISCOVERY COMPLETE — Scanned ${scannedCount} tools. Found ${foundCount} pending candidates. ${noProgCount} marked No Program.`,
-        });
-
-        // In-place update of queue table
-        await fetchCandidates();
-
-        // In-place refresh of parent dashboard state without full-page navigation
-        if (onScanComplete) {
-          onScanComplete();
-        }
-      } else {
-        setFeedback({
-          type: "error",
-          text: `Affiliate discovery failed: ${data.error || data.message || "Server processing error"}`,
+          text: `DISCOVERY COMPLETE — Scanned ${totalScanned} tools. Found ${totalDiscovered} pending candidate opportunities.`,
         });
       }
+
+      fetchCandidates();
+      if (onScanComplete) onScanComplete();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Network error during discovery";
-      setFeedback({
-        type: "error",
-        text: `Affiliate discovery failed: ${msg}`,
-      });
+      setFeedback({ type: "error", text: `Affiliate discovery failed: ${msg}` });
     } finally {
-      setIsDiscovering(false); // ALWAYS end the discovering state
+      setIsDiscovering(false);
     }
   };
 
@@ -106,9 +114,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       if (res.ok) {
         setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
         setEditingCandidate(null);
-        if (onScanComplete) {
-          onScanComplete();
-        }
+        if (onScanComplete) onScanComplete();
       }
     } catch {
       // Non-blocking
@@ -118,7 +124,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
   };
 
   return (
-    <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6">
+    <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 font-sans">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/20">
@@ -143,6 +149,8 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
           className={`p-4 rounded-xl text-xs font-bold font-mono ${
             feedback.type === "success"
               ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+              : feedback.type === "warning"
+              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
               : feedback.type === "error"
               ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
               : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
@@ -215,7 +223,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         </div>
       ) : (
         <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
-          Discovery completed. No new affiliate candidates were found. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
+          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
         </div>
       )}
 

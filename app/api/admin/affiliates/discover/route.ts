@@ -17,69 +17,80 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { searchParams } = new URL(request.url);
-    const targetSlug = searchParams.get("slug");
+    let batchSize = 100;
+    let offset = 0;
 
-    console.log("[affiliate-discovery] started", { targetSlug: targetSlug || "all" });
+    try {
+      const body = await request.json();
+      if (body.batchSize) batchSize = parseInt(body.batchSize, 10);
+      if (body.offset) offset = parseInt(body.offset, 10);
+    } catch {
+      // Use defaults if empty body
+    }
 
-    // Schema-Safe Selection: Select ONLY verified columns from public.ai_tools
-    let query = supabase
+    console.log(`[affiliate-discovery] started batchSize=${batchSize} offset=${offset}`);
+
+    // 1. Fetch enabled network credentials
+    const { data: enabledNetworks } = await supabase
+      .from("affiliate_settings")
+      .select("network_name, publisher_id, is_enabled")
+      .eq("is_enabled", true);
+
+    const activeNetworks = (enabledNetworks || []).filter((n) => n.publisher_id && n.publisher_id.trim() !== "");
+
+    if (activeNetworks.length === 0) {
+      // Credentials not configured - return helpful administrative alert
+      const { count: unmonetizedCount } = await supabase
+        .from("ai_tools")
+        .select("id", { count: "exact", head: true });
+
+      return NextResponse.json({
+        success: false,
+        requiresCredentials: true,
+        scanned: 0,
+        candidatesFound: 0,
+        noProgramFound: 0,
+        message: "Affiliate discovery requires network credentials. Configure Impact / PartnerStack / CJ / ShareASale credentials in Credentials & Settings.",
+      });
+    }
+
+    // 2. Fetch schema-safe tool index batch from public.ai_tools
+    const { data: tools, count: totalTools } = await supabase
       .from("ai_tools")
-      .select("id, name, slug, category, website_url");
-
-    if (targetSlug) {
-      query = query.ilike("slug", targetSlug.trim());
-    } else {
-      query = query.limit(100);
-    }
-
-    const { data: tools, error: fetchErr } = await query;
-
-    if (fetchErr) {
-      console.error("[affiliate-discovery][DB_ERROR]", fetchErr.message);
-      return NextResponse.json({ error: fetchErr.message }, { status: 500 });
-    }
+      .select("id, name, slug, category, website_url", { count: "exact" })
+      .range(offset, offset + batchSize - 1)
+      .order("created_at", { ascending: false });
 
     if (!tools || tools.length === 0) {
-      console.log("[affiliate-discovery] completed - 0 tools loaded");
       return NextResponse.json({
         success: true,
         scanned: 0,
         candidatesFound: 0,
-        pendingReview: 0,
-        active: 0,
         noProgramFound: 0,
-        errors: 0,
-        message: "No unmonetized tools pending discovery.",
+        offset,
+        total: totalTools || 0,
+        message: "All eligible tool batches processed.",
       });
     }
 
-    // Load existing affiliate records from public.affiliate_links
+    // Load existing active links to skip
     const { data: existingLinks } = await supabase
       .from("affiliate_links")
-      .select("tool_id, affiliate_url, status");
+      .select("tool_id, status");
 
     const activeToolIds = new Set(
       (existingLinks || [])
-        .filter((l) => l.status === "ACTIVE" && l.affiliate_url)
+        .filter((l) => l.status === "ACTIVE")
         .map((l) => l.tool_id)
     );
 
-    // Load publisher settings
-    const { data: enabledNetworks } = await supabase
-      .from("affiliate_settings")
-      .select("network_name, publisher_id")
-      .eq("is_enabled", true);
-
-    const activeSettings = enabledNetworks || [];
-
-    let scanned = 0;
+    let scannedCount = 0;
     let candidatesFound = 0;
-    let noProgramFound = 0;
+    let noProgramCount = 0;
 
     for (const tool of tools) {
-      if (activeToolIds.has(tool.id)) continue; // Skip already verified active links
-      scanned++;
+      if (activeToolIds.has(tool.id)) continue;
+      scannedCount++;
 
       const websiteUrl = tool.website_url;
       if (!websiteUrl) {
@@ -102,14 +113,15 @@ export async function POST(request: NextRequest) {
         cleanDomain = websiteUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
       }
 
-      let candidateMatched = false;
+      let candidateFound = false;
 
-      for (const setting of activeSettings) {
-        if (setting.publisher_id) {
-          candidateMatched = true;
+      // Match against configured publisher settings
+      for (const net of activeNetworks) {
+        if (net.publisher_id) {
+          candidateFound = true;
           candidatesFound++;
 
-          const candidateUrl = `https://${setting.network_name.toLowerCase()}.com/c/${setting.publisher_id}/aivault?u=${encodeURIComponent(websiteUrl)}`;
+          const candidateUrl = `https://${net.network_name.toLowerCase().replace(/\s+/g, "")}.com/c/${net.publisher_id}/aivault?u=${encodeURIComponent(websiteUrl)}`;
 
           await supabase.from("affiliate_candidates").upsert(
             {
@@ -117,11 +129,14 @@ export async function POST(request: NextRequest) {
               tool_name: tool.name,
               tool_slug: tool.slug,
               official_url: websiteUrl,
-              network: setting.network_name,
-              program_name: `${tool.name} Affiliate Program`,
+              network: net.network_name,
+              program_name: `${tool.name} Partner Program`,
+              destination_url: websiteUrl,
               candidate_url: candidateUrl,
-              confidence: 85,
+              source: `Configured ${net.network_name} Network`,
+              confidence: 90,
               status: "PENDING_REVIEW",
+              discovered_at: new Date().toISOString(),
             },
             { onConflict: "tool_id,candidate_url" }
           );
@@ -129,7 +144,8 @@ export async function POST(request: NextRequest) {
           await supabase.from("affiliate_links").upsert(
             {
               tool_id: tool.id,
-              network_name: setting.network_name,
+              network_name: net.network_name,
+              program_name: `${tool.name} Partner Program`,
               status: "PENDING_REVIEW",
               last_checked_at: new Date().toISOString(),
             },
@@ -140,12 +156,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (!candidateMatched) {
-        noProgramFound++;
+      if (!candidateFound) {
+        noProgramCount++;
         await supabase.from("affiliate_links").upsert(
           {
             tool_id: tool.id,
-            status: "NO_AFFILIATE_PROGRAM",
+            status: "NO_PROGRAM",
             last_checked_at: new Date().toISOString(),
           },
           { onConflict: "tool_id" }
@@ -153,20 +169,18 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    console.log(`[affiliate-discovery] tools_loaded=${tools.length}`);
-    console.log(`[affiliate-discovery] scanned=${scanned}`);
-    console.log(`[affiliate-discovery] candidates_found=${candidatesFound}`);
-    console.log(`[affiliate-discovery] completed`);
+    console.log(`[affiliate-discovery] scanned=${scannedCount} candidates=${candidatesFound} noProgram=${noProgramCount}`);
 
     return NextResponse.json({
       success: true,
-      scanned,
+      scanned: scannedCount,
       candidatesFound,
-      pendingReview: candidatesFound,
-      active: activeToolIds.size,
       noProgramFound,
-      errors: 0,
-      message: `Scanned ${scanned} tools. Discovered ${candidatesFound} candidates. ${noProgramFound} marked No Program.`,
+      offset,
+      batchSize,
+      total: totalTools || 0,
+      hasMore: offset + batchSize < (totalTools || 0),
+      message: `Batch scan complete (${offset + 1}–${offset + scannedCount} of ${totalTools}). Discovered ${candidatesFound} candidates.`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unhandled discovery exception";

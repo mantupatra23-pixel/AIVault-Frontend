@@ -1,18 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
 import { DiscoveryQueueTable } from "@/components/admin/DiscoveryQueueTable";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+import { AffiliateOpportunityPopup } from "@/components/admin/AffiliateOpportunityPopup";
 
 export default function AdminDashboard() {
   const [tools, setTools] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Initial Page Load state ONLY
+  const [isLoading, setIsLoading] = useState(true);
   const [editingTool, setEditingTool] = useState<any>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,7 +21,6 @@ export default function AdminDashboard() {
     totalClicks: 0,
   });
 
-  // In-place refresh method: Fetches data via API without unmounting page or setting isLoading = true
   const refreshDashboardData = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/affiliates/overview");
@@ -39,16 +33,13 @@ export default function AdminDashboard() {
           noProgramCount: data.noProgramCount || 0,
           totalClicks: data.totalClicks || 0,
         });
-        if (data.tools) {
-          setTools(data.tools);
-        }
+        if (data.tools) setTools(data.tools);
       }
     } catch {
-      // Non-blocking background sync failure
+      // Non-blocking background sync
     }
   }, []);
 
-  // Initial load runs EXACTLY ONCE on component mount
   useEffect(() => {
     let isMounted = true;
 
@@ -64,16 +55,12 @@ export default function AdminDashboard() {
             noProgramCount: data.noProgramCount || 0,
             totalClicks: data.totalClicks || 0,
           });
-          if (data.tools) {
-            setTools(data.tools);
-          }
+          if (data.tools) setTools(data.tools);
         }
       } catch {
         // Fallback
-      } finally {
-        if (isMounted) {
-          setIsLoading(false); // ALWAYS terminate initial load
-        }
+      } font-serif {
+        if (isMounted) setIsLoading(false);
       }
     }
 
@@ -88,11 +75,8 @@ export default function AdminDashboard() {
     if (!editingTool) return;
     setSaving(true);
 
-    const isAffiliateActive = Boolean(
-      editingTool.affiliate_url && editingTool.affiliate_url.trim() !== ""
-    );
-    const nextStatus =
-      editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
+    const isAffiliateActive = Boolean(editingTool.affiliate_url && editingTool.affiliate_url.trim() !== "");
+    const nextStatus = editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
     try {
       const res = await fetch("/api/admin/affiliates", {
@@ -108,7 +92,7 @@ export default function AdminDashboard() {
 
       if (res.ok) {
         setIsEditOpen(false);
-        await refreshDashboardData(); // Update in-place
+        await refreshDashboardData();
       } else {
         const errData = await res.json();
         alert("❌ Save Failed: " + (errData.error || "Server error"));
@@ -130,7 +114,7 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-20">
+      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-20 font-sans">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -143,6 +127,9 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
+      {/* Dynamic Candidate Opportunity Alert Popup */}
+      <AffiliateOpportunityPopup onActionComplete={refreshDashboardData} />
+
       <main className="max-w-7xl mx-auto space-y-8">
         {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
@@ -177,7 +164,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Affiliate Overview Stats Cards */}
+        {/* Affiliate Overview Stats */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
@@ -215,12 +202,12 @@ export default function AdminDashboard() {
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">
               Confirmed Revenue
             </span>
-            <div className="text-3xl font-black text-blue-400">Not reported</div>
+            <div className="text-3xl font-black text-blue-400">Revenue not synced</div>
             <p className="text-[11px] text-slate-500">Network report sync</p>
           </div>
         </section>
 
-        {/* Interactive Discovery Queue Table */}
+        {/* Discovery Queue Table */}
         <DiscoveryQueueTable onScanComplete={refreshDashboardData} />
 
         {/* Directory Tools Table */}
@@ -249,11 +236,8 @@ export default function AdminDashboard() {
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-medium">
                 {filteredTools.map((t) => {
-                  const hasAffiliate = Boolean(
-                    t.affiliate_url && t.affiliate_url.trim() !== ""
-                  );
-                  const currentStatus =
-                    t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
+                  const hasAffiliate = Boolean(t.affiliate_url && t.affiliate_url.trim() !== "");
+                  const currentStatus = t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
                   return (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition">
@@ -269,7 +253,7 @@ export default function AdminDashboard() {
                           className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
                             currentStatus === "ACTIVE"
                               ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              : currentStatus === "NO_AFFILIATE_PROGRAM"
+                              : currentStatus === "NO_PROGRAM" || currentStatus === "NO_AFFILIATE_PROGRAM"
                               ? "bg-slate-800 text-slate-400 border border-slate-700"
                               : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                           }`}
@@ -329,9 +313,7 @@ export default function AdminDashboard() {
                     <label className="font-bold text-slate-300">Affiliate Network</label>
                     <select
                       value={editingTool.affiliate_network || "Direct Partner"}
-                      onChange={(e) =>
-                        setEditingTool({ ...editingTool, affiliate_network: e.target.value })
-                      }
+                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_network: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
                     >
                       <option value="Direct Partner">Direct Partner Program</option>
@@ -346,17 +328,15 @@ export default function AdminDashboard() {
                     <label className="font-bold text-slate-300">Affiliate Status</label>
                     <select
                       value={editingTool.affiliate_status || "DISCOVERY_REQUIRED"}
-                      onChange={(e) =>
-                        setEditingTool({ ...editingTool, affiliate_status: e.target.value })
-                      }
+                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_status: e.target.value })}
                       className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
                     >
                       <option value="DISCOVERY_REQUIRED">DISCOVERY REQUIRED</option>
                       <option value="PENDING_REVIEW">PENDING REVIEW</option>
                       <option value="ACTIVE">ACTIVE</option>
-                      <option value="NO_AFFILIATE_PROGRAM">NO AFFILIATE PROGRAM</option>
+                      <option value="NO_PROGRAM">NO PROGRAM</option>
                       <option value="PAUSED">PAUSED</option>
-                      <option value="INVALID">INVALID</option>
+                      <option value="REJECTED">REJECTED</option>
                     </select>
                   </div>
                 </div>
@@ -367,14 +347,9 @@ export default function AdminDashboard() {
                     type="url"
                     placeholder="https://partner.com/link?aff=real_id"
                     value={editingTool.affiliate_url || ""}
-                    onChange={(e) =>
-                      setEditingTool({ ...editingTool, affiliate_url: e.target.value })
-                    }
+                    onChange={(e) => setEditingTool({ ...editingTool, affiliate_url: e.target.value })}
                     className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
                   />
-                  <p className="text-[10px] text-slate-500">
-                    Saves directly to Supabase and routes public traffic via /go/{editingTool.slug}.
-                  </p>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
