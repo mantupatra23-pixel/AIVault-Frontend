@@ -13,7 +13,6 @@ import {
   generateToolSpecificEnrichment,
 } from "@/lib/tool-normalizer";
 
-// Enforce dynamic server-side runtime resolution
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -22,9 +21,13 @@ type Props = {
 };
 
 function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-  if (!supabaseUrl || !supabaseAnonKey) return null;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+  
+  if (!supabaseUrl || !supabaseAnonKey) {
+    console.error("[SUPABASE_INIT_ERR] Missing Supabase URL or Anon Key");
+    return null;
+  }
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
@@ -33,7 +36,10 @@ function getSupabaseClient() {
  */
 async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
   const supabase = getSupabaseClient();
-  if (!supabase || !rawSlug || typeof rawSlug !== "string") return null;
+  if (!supabase || !rawSlug || typeof rawSlug !== "string") {
+    console.error("[LOOKUP_CANCELLED] Invalid client or rawSlug:", rawSlug);
+    return null;
+  }
 
   try {
     const cleanSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
@@ -45,6 +51,10 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
       .eq("slug", cleanSlug)
       .maybeSingle();
 
+    if (error) {
+      console.error(`[SUPABASE_QUERY_ERR] Exact match query failed for slug=${cleanSlug}:`, error.message);
+    }
+
     // 2. Case-insensitive fallback lookup
     if (!data) {
       const res = await supabase
@@ -53,9 +63,16 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
         .ilike("slug", cleanSlug)
         .maybeSingle();
       data = res.data;
+      
+      if (res.error) {
+        console.error(`[SUPABASE_QUERY_ERR] ilike query failed for slug=${cleanSlug}:`, res.error.message);
+      }
     }
 
-    if (error || !data) return null;
+    if (!data) {
+      console.warn(`[TOOL_NOT_FOUND_IN_DB] No record in ai_tools for slug=${cleanSlug}`);
+      return null;
+    }
 
     let record = data as DatabaseToolRecord;
 
@@ -114,7 +131,8 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
     }
 
     return record;
-  } catch {
+  } catch (err) {
+    console.error("[UNHANDLED_LOOKUP_EXCEPT]", err);
     return null;
   }
 }
@@ -139,7 +157,7 @@ async function getRelatedTools(category: string, currentSlug: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
-  const tool = await getToolFromDatabase(resolvedParams.slug);
+  const tool = await getToolFromDatabase(resolvedParams?.slug);
 
   if (!tool) {
     return {
@@ -177,7 +195,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ToolPage({ params }: Props) {
-  // Await params Promise explicitly to resolve slug string in Next.js 15+
   const resolvedParams = await params;
   const rawSlug = resolvedParams?.slug;
 
