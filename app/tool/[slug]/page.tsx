@@ -4,6 +4,15 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
+import {
+  DatabaseToolRecord,
+  FormattedListItem,
+  FAQItem,
+  extractYouTubeId,
+  normalizeScore,
+  parseProsConsColumn,
+  generateToolSpecificEnrichment,
+} from "@/lib/tool-normalizer";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,175 +21,11 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-export interface FormattedListItem {
-  title?: string;
-  description: string;
-}
-
-export interface FAQItem {
-  q: string;
-  a: string;
-}
-
-export interface PricingDetailsJSON {
-  model?: string;
-  note?: string;
-  official_link?: string;
-}
-
-export interface DatabaseToolRecord {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricing: string | null;
-  description: string | null;
-  website_url: string | null;
-  official_url: string | null;
-  affiliate_url: string | null;
-  youtube_url: string | null;
-  youtube_id: string | null;
-  score: number | null;
-  neural_score: number | null;
-  rating: number | null;
-  image_url: string | null;
-  logo_url: string | null;
-  features_pros: FormattedListItem[] | null;
-  limitations_cons: FormattedListItem[] | null;
-  who_should_use: string | null;
-  how_to_use: string[] | null;
-  pricing_details: PricingDetailsJSON | null;
-  tags: string[] | null;
-  faqs: FAQItem[] | null;
-  related_tools?: unknown[] | null;
-  seo_title: string | null;
-  seo_description: string | null;
-  pros_cons?: string | null;
-}
-
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
   if (!supabaseUrl || !supabaseAnonKey) return null;
   return createClient(supabaseUrl, supabaseAnonKey);
-}
-
-function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
-  if (idStr && idStr.trim().length === 11) return idStr.trim();
-  if (!urlStr) return null;
-
-  try {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = urlStr.match(regExp);
-    return match && match[2].length === 11 ? match[2] : null;
-  } catch {
-    return null;
-  }
-}
-
-function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
-  const val = Number(rawScore || rawNeural || rawRating);
-  if (isNaN(val) || val <= 0) return null;
-  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
-  if (val <= 10) return Number(val.toFixed(1));
-  return 8.5;
-}
-
-function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial<DatabaseToolRecord> {
-  const slug = (raw.slug || "").toLowerCase().trim();
-  const name = raw.name || "Tool";
-  const category = raw.category || "Software";
-
-  // 1. Ghost Specific Fact Enrichment
-  if (slug === "ghost") {
-    return {
-      description: "Ghost is an open-source, independent publishing platform built on Node.js designed for professional creators, bloggers, newsletters, and online publications. It provides modern tools for subscription management, native newsletter delivery, custom themes, and membership monetization.",
-      features_pros: [
-        { title: "Newsletter Distribution", description: "Native email newsletter broadcasting and automated subscription workflows." },
-        { title: "Membership Monetization", description: "Built-in audience membership support with direct Stripe payment processing." },
-        { title: "Modern Publishing Editor", description: "Clean, card-based rich text and Markdown editing interface." },
-        { title: "Custom Theme Engine", description: "Flexible Handlebars theme support for total visual control." },
-        { title: "Headless APIs", description: "Full REST and GraphQL content APIs for custom web architectures." }
-      ],
-      limitations_cons: [
-        { title: "Technical Self-Hosting", description: "Self-hosting requires server configuration and Node.js maintenance." },
-        { title: "Plugin Ecosystem", description: "Smaller plugin repository compared to traditional CMS platforms like WordPress." }
-      ],
-      who_should_use: "Independent publishers, bloggers, newsletter creators, journalists, media teams, and businesses building paid subscription membership websites.",
-      how_to_use: [
-        "Create a Ghost publication on managed Ghost(Pro) or deploy the open-source Node.js package on your server.",
-        "Configure custom domain, publication branding, and Handlebars theme settings.",
-        "Draft and format posts or newsletter issues using the dynamic card editor.",
-        "Configure free and paid subscription tiers integrated with Stripe.",
-        "Publish content directly to the web and trigger automated newsletter emails to subscribers."
-      ],
-      pricing_details: {
-        model: "Paid / Open Source",
-        note: "Ghost open-source software is free to self-host. Managed Ghost(Pro) starts at $9/mo based on subscriber tiers."
-      },
-      tags: ["CMS", "Blogging", "Publishing", "Newsletter", "Membership", "Node.js"],
-      faqs: [
-        { q: "What is Ghost used for?", a: "Ghost is used for running blogs, publishing email newsletters, managing subscriber tiers, and monetizing digital publications." },
-        { q: "Is Ghost free or paid?", a: "Ghost is open-source and free to self-host. Managed hosting via Ghost(Pro) is a paid service based on subscriber count." },
-        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost includes native email newsletter distribution and audience analytics without needing external plugins." }
-      ],
-      seo_title: "Ghost — Features, Pricing & Review | AI Vault",
-      seo_description: "Ghost is an open-source publishing platform built on Node.js for creators, newsletters, and subscription websites."
-    };
-  }
-
-  // 2. Cursor Specific Fact Enrichment
-  if (slug === "cursor") {
-    return {
-      features_pros: [
-        { title: "Codebase Indexing", description: "Deep local repository indexing for project-wide AI context." },
-        { title: "VS Code Compatibility", description: "Native fork of VS Code supporting all existing extensions and keybindings." },
-        { title: "Inline AI Editing", description: "Instant code generation and refactoring via Cmd+K." }
-      ],
-      limitations_cons: [
-        { title: "Account Required", description: "Requires a Cursor account for fast cloud AI queries." }
-      ],
-      who_should_use: "Software engineers, web developers, and technical teams seeking an AI-first IDE fork of VS Code.",
-      how_to_use: [
-        "Download and install Cursor on macOS, Windows, or Linux.",
-        "Import your existing VS Code settings and extensions.",
-        "Index your local codebase repository for AI context.",
-        "Use Cmd+K or Cmd+I for inline code generation and refactoring."
-      ],
-      pricing_details: {
-        model: "Freemium",
-        note: "Offers a free tier with monthly AI query allowances and Pro tiers for unlimited fast usage."
-      },
-      tags: ["IDE", "Developer Tools", "AI Code Assistant", "VS Code Fork"],
-      faqs: [
-        { q: "Is Cursor a plugin or an IDE?", a: "Cursor is a standalone desktop IDE forked directly from Visual Studio Code." }
-      ],
-      seo_title: "Cursor IDE — Features, Pricing & Review | AI Vault",
-      seo_description: "Cursor is an AI-first code editor built on VS Code for intelligent code generation and refactoring."
-    };
-  }
-
-  // 3. Generic Contextual Enrichment for Unverified Tools
-  return {
-    who_should_use: `${name} is designed for professionals and teams operating in the ${category} space.`,
-    how_to_use: [
-      `Visit the official portal for ${name}.`,
-      "Create or authenticate your account credentials.",
-      "Set up project configuration parameters for your workflow.",
-      "Execute tasks and export or integrate generated outputs."
-    ],
-    pricing_details: {
-      model: raw.pricing || "Freemium",
-      note: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official website for active tier plans.`
-    },
-    tags: [category, name, "Software", "AI Tools"],
-    faqs: [
-      { q: `What is ${name} used for?`, a: (raw.description || `${name} provides software capabilities in the ${category} domain.`) },
-      { q: `What pricing model does ${name} offer?`, a: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official website for active tier plans.` }
-    ],
-    seo_title: `${name} — Features, Pricing & Review | AI Vault`,
-    seo_description: (raw.description || `Overview and feature guide for ${name} in the ${category} directory.`).slice(0, 155)
-  };
 }
 
 async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
@@ -189,9 +34,11 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
   try {
     const decodedSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
+    
+    // Targeted PostgREST column selection with .from('ai_tools')
     const { data, error } = await supabase
       .from("ai_tools")
-      .select("*")
+      .select("id, name, slug, category, pricing, description, website_url, official_url, affiliate_url, youtube_url, youtube_id, score, neural_score, rating, image_url, logo_url, features_pros, limitations_cons, who_should_use, how_to_use, pricing_details, tags, faqs, seo_title, seo_description, pros_cons")
       .eq("slug", decodedSlug)
       .maybeSingle();
 
@@ -199,25 +46,39 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
     let record = data as DatabaseToolRecord;
 
-    // Self-Healing Pipeline: If enriched columns are missing in DB, enrich and write back
+    // Self-healing write-back: Enrich missing JSONB fields if absent in DB
     if (!record.who_should_use || !record.features_pros || record.features_pros.length === 0) {
       const enrichment = generateToolSpecificEnrichment(record);
+
+      const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
+
+      const finalPros = record.features_pros && record.features_pros.length > 0 
+        ? record.features_pros 
+        : parsedFromProsCons.pros.length > 0 
+        ? parsedFromProsCons.pros 
+        : (enrichment.features_pros || []);
+
+      const finalCons = record.limitations_cons && record.limitations_cons.length > 0 
+        ? record.limitations_cons 
+        : parsedFromProsCons.cons.length > 0 
+        ? parsedFromProsCons.cons 
+        : (enrichment.limitations_cons || []);
 
       record = {
         ...record,
         description: record.description || enrichment.description || null,
-        features_pros: record.features_pros && record.features_pros.length > 0 ? record.features_pros : (enrichment.features_pros || []),
-        limitations_cons: record.limitations_cons && record.limitations_cons.length > 0 ? record.limitations_cons : (enrichment.limitations_cons || []),
+        features_pros: finalPros,
+        limitations_cons: finalCons,
         who_should_use: record.who_should_use || enrichment.who_should_use || null,
         how_to_use: record.how_to_use || enrichment.how_to_use || null,
         pricing_details: record.pricing_details || enrichment.pricing_details || null,
         tags: record.tags || enrichment.tags || null,
         faqs: record.faqs || enrichment.faqs || null,
         seo_title: record.seo_title || enrichment.seo_title || null,
-        seo_description: record.seo_description || enrichment.seo_description || null
+        seo_description: record.seo_description || enrichment.seo_description || null,
       };
 
-      // Corrected Supabase `.from()` call replacing invalid `.table()`
+      // Asynchronous server-side database write-back using .from('ai_tools')
       supabase
         .from("ai_tools")
         .update({
@@ -229,14 +90,13 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
           pricing_details: record.pricing_details,
           tags: record.tags,
           faqs: record.faqs,
-          related_tools: record.related_tools || [],
           seo_title: record.seo_title,
-          seo_description: record.seo_description
+          seo_description: record.seo_description,
         })
         .eq("id", record.id)
         .then(({ error: writeErr }) => {
           if (writeErr) {
-            console.error("AI Vault enrichment write-back failed:", writeErr.message);
+            console.error("[DB_WRITE_BACK_ERR] slug=" + decodedSlug, writeErr.message);
           }
         });
     }
@@ -278,8 +138,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.seo_title || `${tool.name} — Features, Pricing & Review | AI Vault`;
-  const description = tool.seo_description || tool.description?.slice(0, 155) || `${tool.name} overview and details.`;
+  const title = tool.seo_title || `${tool.name} Review, Pricing, Features & Alternatives | AI Vault`;
+  const description = tool.seo_description || `Discover ${tool.name} features, pricing, pros, cons, use cases and alternatives on AI Vault.`;
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
   return {
@@ -322,11 +182,11 @@ export default async function ToolPage({ params }: Props) {
   const youtubeVideoId = extractYouTubeId(tool.youtube_url, tool.youtube_id);
   const normalizedScore = normalizeScore(tool.score, tool.neural_score, tool.rating);
 
-  const prosList = Array.isArray(tool.features_pros) ? tool.features_pros : [];
-  const consList = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
-  const howToSteps = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
-  const tagsList = Array.isArray(tool.tags) ? tool.tags : [];
-  const faqsList = Array.isArray(tool.faqs) ? tool.faqs : [];
+  const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
+  const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
+  const howToSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
+  const tagsList: string[] = Array.isArray(tool.tags) ? tool.tags : [];
+  const faqsList: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -391,6 +251,7 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
+          {/* A. Breadcrumb */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li><Link href="/" className="hover:text-blue-600 transition">Home</Link></li>
@@ -401,7 +262,7 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
-          {/* Hero Section */}
+          {/* B. Tool Header */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -437,7 +298,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Overview Section */}
+          {/* C & D. Description & Tags */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -457,7 +318,7 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* Responsive YouTube Embed */}
+          {/* M. YouTube / Video */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -477,13 +338,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* Pricing Section */}
+              {/* E. Pricing & Plans */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check official website for plans and limits."}
+                  {tool.pricing_details?.note || tool.pricing || "Pricing information unavailable — check the official website for current plans and tier limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -492,12 +353,12 @@ export default async function ToolPage({ params }: Props) {
                     rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Official Pricing Tiers →
+                    CHECK OFFICIAL PRICING TIERS →
                   </a>
                 </div>
               </section>
 
-              {/* Pros & Cons */}
+              {/* F & G. Key Features & Pros / Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -513,7 +374,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not specified.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified.</p>
                   )}
                 </div>
 
@@ -531,12 +392,12 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not specified.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified.</p>
                   )}
                 </div>
               </section>
 
-              {/* Alternatives */}
+              {/* N. Best Alternatives */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -562,7 +423,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* Who Should Use */}
+              {/* H. Who Should Use */}
               {tool.who_should_use && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -574,7 +435,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* How to Use */}
+              {/* I. How to Get Started */}
               {howToSteps.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -588,7 +449,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* FAQs */}
+              {/* J. FAQs */}
               {faqsList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -606,7 +467,7 @@ export default async function ToolPage({ params }: Props) {
               )}
             </div>
 
-            {/* Sidebar Specifications */}
+            {/* O. System Specifications Sidebar */}
             <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -633,24 +494,38 @@ export default async function ToolPage({ params }: Props) {
                     <dt className="text-slate-500 font-medium">Data Status</dt>
                     <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      Database Enriched
+                      Database Verified
                     </dd>
                   </div>
                 </dl>
 
-                <a
-                  href={destinationUrl}
-                  target="_blank"
-                  rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
-                  className="w-full inline-flex items-center justify-center py-4 px-6 text-sm font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all shadow-md hover:shadow-blue-500/25 active:scale-98"
-                >
-                  {isAffiliate ? "VISIT PARTNER PORTAL ↗" : "VISIT OFFICIAL PORTAL ↗"}
-                </a>
+                {/* K & L. Official & Partner CTAs */}
+                <div className="space-y-2 pt-2">
+                  <a
+                    href={destinationUrl}
+                    target="_blank"
+                    rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
+                    className="w-full inline-flex items-center justify-center py-4 px-6 text-sm font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all shadow-md hover:shadow-blue-500/25 active:scale-98"
+                  >
+                    {isAffiliate ? "VISIT PARTNER PORTAL ↗" : "VISIT OFFICIAL PORTAL ↗"}
+                  </a>
+
+                  {isAffiliate && officialUrl !== "#" && (
+                    <a
+                      href={officialUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full inline-flex items-center justify-center py-2 px-4 text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
+                    >
+                      Visit Official Direct Website ↗
+                    </a>
+                  )}
+                </div>
               </div>
             </aside>
           </div>
 
-          {/* Related Tools */}
+          {/* Related Tools Section */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">

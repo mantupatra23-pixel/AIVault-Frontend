@@ -1,4 +1,4 @@
-import { SITE_URL } from "@/lib/site-url";
+import { createClient } from "@supabase/supabase-js";
 
 export interface FormattedListItem {
   title?: string;
@@ -10,20 +10,59 @@ export interface FAQItem {
   a: string;
 }
 
+export interface PricingDetailsJSON {
+  model?: string;
+  note?: string;
+  official_link?: string;
+  plans?: { name: string; price: string }[];
+}
+
+export interface DatabaseToolRecord {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  pricing: string | null;
+  description: string | null;
+  website_url: string | null;
+  official_url: string | null;
+  affiliate_url: string | null;
+  youtube_url: string | null;
+  youtube_id: string | null;
+  score: number | null;
+  neural_score: number | null;
+  rating: number | null;
+  image_url: string | null;
+  logo_url: string | null;
+  is_sponsored?: boolean | null;
+  created_at?: string | null;
+  features_pros: FormattedListItem[] | null;
+  limitations_cons: FormattedListItem[] | null;
+  who_should_use: string | null;
+  how_to_use: string[] | null;
+  pricing_details: PricingDetailsJSON | null;
+  tags: string[] | null;
+  faqs: FAQItem[] | null;
+  related_tools?: unknown[] | null;
+  seo_title: string | null;
+  seo_description: string | null;
+  pros_cons?: string | null;
+}
+
 export interface NormalizedTool {
   id: string;
   name: string;
   slug: string;
   category: string;
-  pricingModel: "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales";
-  pricingDetails: string | null;
+  pricingModel: string;
+  pricingDetails: PricingDetailsJSON | null;
   description: string;
   shortDescription: string;
   pros: FormattedListItem[];
   cons: FormattedListItem[];
   whoShouldUse: string | null;
   howToUse: string[] | null;
-  faqs: FAQItem[] | null;
+  faqs: FAQItem[];
   tags: string[];
   editorialScore: number | null;
   officialUrl: string;
@@ -31,11 +70,7 @@ export interface NormalizedTool {
   youtubeVideoId: string | null;
   seoTitle: string;
   seoDescription: string;
-  dataSources: {
-    overview: "database" | "verified" | "ai_generated";
-    prosCons: "database" | "verified" | "ai_generated";
-    metadata: "database" | "verified" | "ai_generated";
-  };
+  dataStatus: "Database Verified" | "Database Enriched" | "Partially Enriched";
 }
 
 export function sanitizeUrl(url: unknown): string | null {
@@ -47,17 +82,25 @@ export function sanitizeUrl(url: unknown): string | null {
   return null;
 }
 
-export function extractYouTubeId(urlStr: unknown): string | null {
-  const url = sanitizeUrl(urlStr);
-  if (!url) return null;
+export function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
+  if (idStr && idStr.trim().length === 11) return idStr.trim();
+  if (!urlStr) return null;
 
   try {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = url.match(regExp);
+    const match = urlStr.match(regExp);
     return match && match[2].length === 11 ? match[2] : null;
   } catch {
     return null;
   }
+}
+
+export function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
+  const val = Number(rawScore || rawNeural || rawRating);
+  if (isNaN(val) || val <= 0) return null;
+  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
+  if (val <= 10) return Number(val.toFixed(1));
+  return 8.5;
 }
 
 export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
@@ -99,13 +142,13 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
         return parseProsConsColumn(parsed);
       }
     } catch {
-      // Fallback to text parsing
+      // Fallback
     }
   }
 
-  if (/Cons:|CONS:/i.test(textInput)) {
-    const parts = textInput.split(/Cons:|CONS:/i);
-    const prosText = parts[0].replace(/Pros:|PROS:/i, "").trim();
+  if (/Cons:|CONS:|Limitations:/i.test(textInput)) {
+    const parts = textInput.split(/Cons:|CONS:|Limitations:/i);
+    const prosText = parts[0].replace(/Pros:|PROS:|Features:/i, "").trim();
     const consText = parts.slice(1).join("\n").trim();
 
     return {
@@ -120,112 +163,69 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
   };
 }
 
-function normalizePricingModel(rawPricing?: unknown): "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales" {
-  if (!rawPricing || typeof rawPricing !== "string") return "Paid";
-  const p = rawPricing.toLowerCase();
-  if (p.includes("open source")) return "Open Source";
-  if (p.includes("freemium")) return "Freemium";
-  if (p.includes("free trial")) return "Free Trial";
-  if (p.includes("free") && !p.includes("paid")) return "Free";
-  if (p.includes("contact") || p.includes("enterprise")) return "Contact Sales";
-  return "Paid";
-}
-
 /**
- * Ensures scores like 85 are normalized to a clean 8.5/10 scale
+ * Generates tool-specific factual enrichments when database JSONB fields are NULL
  */
-function normalizeScore(rawScore: unknown): number | null {
-  const num = Number(rawScore);
-  if (isNaN(num) || num <= 0) return null;
-  if (num > 10 && num <= 100) {
-    return Number((num / 10).toFixed(1));
+export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial<DatabaseToolRecord> {
+  const slug = (raw.slug || "").toLowerCase().trim();
+  const name = raw.name || "Tool";
+  const category = raw.category || "Software";
+
+  if (slug === "ghost") {
+    return {
+      description: "Ghost is an open-source, independent publishing platform built on Node.js designed for professional creators, bloggers, newsletters, and online publications. It provides modern tools for subscription management, native newsletter delivery, custom Handlebars themes, and Stripe membership monetization.",
+      features_pros: [
+        { title: "Native Newsletter Delivery", description: "In-house email newsletter broadcasting and subscription management without third-party plugins." },
+        { title: "Membership Monetization", description: "Built-in audience membership support integrated directly with Stripe payments." },
+        { title: "Modern Publishing Editor", description: "Clean, card-based rich text and Markdown writing interface." },
+        { title: "Custom Handlebars Themes", description: "Flexible Handlebars theme architecture for full visual control." },
+        { title: "Headless Content APIs", description: "Full REST and GraphQL APIs for custom Jamstack integrations." }
+      ],
+      limitations_cons: [
+        { title: "Technical Self-Hosting", description: "Self-hosting requires server configuration and Node.js maintenance knowledge." },
+        { title: "Plugin Ecosystem", description: "Smaller plugin ecosystem compared to traditional platforms like WordPress." }
+      ],
+      who_should_use: "Independent publishers, bloggers, newsletter creators, journalists, media teams, and businesses building subscription membership platforms.",
+      how_to_use: [
+        "Create a Ghost publication on managed Ghost(Pro) or deploy the open-source package on a Node.js server.",
+        "Configure custom domain settings, publication branding, and Handlebars design themes.",
+        "Draft and format articles or newsletter broadcasts using the dynamic card editor.",
+        "Establish free and paid subscription membership tiers connected to Stripe.",
+        "Publish posts directly to the web and send automated newsletter broadcasts to subscribers."
+      ],
+      pricing_details: {
+        model: "Paid / Open Source",
+        note: "Ghost open-source software is free to self-host. Managed Ghost(Pro) starts at $9/mo based on audience size."
+      },
+      tags: ["CMS", "Blogging", "Publishing", "Newsletter", "Membership", "Node.js"],
+      faqs: [
+        { q: "What is Ghost used for?", a: "Ghost is used for running blogs, publishing email newsletters, managing subscriber tiers, and monetizing digital publications." },
+        { q: "Is Ghost free or paid?", a: "Ghost is open-source and free to self-host. Managed hosting via Ghost(Pro) is a paid service based on subscriber count." },
+        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost includes native email newsletter distribution and audience analytics out of the box." }
+      ],
+      seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
+      seo_description: "Discover Ghost features, pricing, pros, cons, and use cases on AI Vault."
+    };
   }
-  if (num <= 10) {
-    return Number(num.toFixed(1));
-  }
-  return 8.5;
-}
-
-export function normalizeTool(raw: unknown): NormalizedTool {
-  if (!raw || typeof raw !== "object") {
-    throw new Error("[NORMALIZER_ERROR] Invalid raw tool object");
-  }
-
-  const tool = raw as Record<string, unknown>;
-
-  const name = String(tool.name || "Software Tool").trim();
-  const slug = String(tool.slug || "").trim().toLowerCase();
-  const category = String(tool.category || "Software & AI").trim();
-
-  const { pros, cons } = parseProsConsColumn(tool.pros_cons || tool.pros || tool.cons);
-
-  const description = String(
-    tool.description || tool.seo_description || tool.meta_description || ""
-  ).trim();
-
-  const shortDescription = description
-    ? description.slice(0, 160).replace(/(<([^>]+)>)/gi, "") + (description.length > 160 ? "..." : "")
-    : `${name} is a software platform designed for ${category} operations.`;
-
-  const officialUrl = sanitizeUrl(tool.website_url || tool.official_url || tool.url) || "#";
-  const affiliateUrl = sanitizeUrl(tool.affiliate_url || tool.sponsored_url);
-  const youtubeVideoId = extractYouTubeId(tool.youtube_url || tool.video_url || tool.youtube_id);
-
-  let tags: string[] = [];
-  if (Array.isArray(tool.tags)) {
-    tags = tool.tags.map((t: unknown) => String(t).trim()).filter(Boolean);
-  } else if (typeof tool.tags === "string") {
-    tags = tool.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
-  }
-
-  // Derive default tags if missing in DB
-  if (tags.length === 0) {
-    tags = [category, name, "AI Tools", "Productivity"].map((t) => t.trim()).filter(Boolean);
-  }
-
-  let faqs: FAQItem[] | null = null;
-  if (Array.isArray(tool.faqs) && tool.faqs.length > 0) {
-    faqs = tool.faqs
-      .map((f: unknown) => {
-        if (f && typeof f === "object") {
-          const item = f as Record<string, unknown>;
-          return {
-            q: String(item.q || item.question || "").trim(),
-            a: String(item.a || item.answer || "").trim(),
-          };
-        }
-        return { q: "", a: "" };
-      })
-      .filter((f: FAQItem) => f.q.length > 0 && f.a.length > 0);
-  }
-
-  const editorialScore = normalizeScore(tool.score || tool.neural_score || tool.rating);
 
   return {
-    id: String(tool.id || slug),
-    name,
-    slug,
-    category,
-    pricingModel: normalizePricingModel(tool.pricing),
-    pricingDetails: tool.pricing ? String(tool.pricing).trim() : null,
-    description: description || `${name} provides specialized capabilities in the ${category} domain.`,
-    shortDescription,
-    pros,
-    cons,
-    whoShouldUse: tool.who_should_use ? String(tool.who_should_use).trim() : null,
-    howToUse: Array.isArray(tool.how_to_use) ? tool.how_to_use.map((item: unknown) => String(item)) : null,
-    faqs,
-    tags: Array.from(new Set(tags)),
-    editorialScore,
-    officialUrl,
-    affiliateUrl,
-    youtubeVideoId,
-    seoTitle: typeof tool.meta_title === "string" ? tool.meta_title : `${name} — Features, Pricing & Alternatives | AI Vault`,
-    seoDescription: typeof tool.meta_description === "string" ? tool.meta_description : shortDescription,
-    dataSources: {
-      overview: tool.description ? "database" : "ai_generated",
-      prosCons: pros.length > 0 || cons.length > 0 ? "database" : "ai_generated",
-      metadata: "database",
+    who_should_use: `${name} is designed for professionals, creators, and technical teams operating in the ${category} space.`,
+    how_to_use: [
+      `Visit the official platform portal for ${name}.`,
+      "Create or authenticate your account credentials.",
+      "Configure project workspace settings for your task.",
+      "Execute your workflow and export or integrate generated outputs."
+    ],
+    pricing_details: {
+      model: raw.pricing || "Freemium",
+      note: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official website for current tier details.`
     },
+    tags: [category, name, "Software", "AI Tools"].map((t) => t.trim()).filter(Boolean),
+    faqs: [
+      { q: `What is ${name} used for?`, a: (raw.description || `${name} provides software functionality for ${category} operations.`) },
+      { q: `What pricing model does ${name} offer?`, a: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official portal for active plans.` }
+    ],
+    seo_title: `${name} Review, Pricing, Features & Alternatives | AI Vault`,
+    seo_description: (raw.description || `Discover ${name} features, pricing, pros, cons, and alternatives on AI Vault.`).slice(0, 155)
   };
 }
