@@ -18,28 +18,29 @@ interface FormattedListItem {
 }
 
 /**
- * Sanitizes raw tool descriptions by removing legacy template strings,
- * analyst intros, Visora AI references, and outdated year markers.
+ * Strips legacy AI review boilerplate, analyst personas, fake research claims,
+ * and outdated year markers from database strings.
  */
 function sanitizeDescription(rawText: string = "", toolName: string = ""): string {
   if (!rawText) return "";
 
   let cleaned = rawText
-    // Remove legacy analyst and template boilerplate phrases
     .replace(/As a Senior SEO &? AI Analyst( for Visora AI)?\.*/gi, "")
     .replace(/Our Professional Review:?\.*/gi, "")
+    .replace(/I have conducted an in-depth analysis\.*/gi, "")
+    .replace(/I conducted a thorough analysis\.*/gi, "")
     .replace(/Visora AI network intelligence identifies\.*/gi, "")
     .replace(/AI Vault network intelligence identifies\.*/gi, "")
-    .replace(/I have conducted a thorough analysis\.*/gi, "")
     .replace(/Our analysis aims to provide\.*/gi, "")
     .replace(/Our research shows\.*/gi, "")
+    .replace(/empowering users to make informed decisions\.*/gi, "")
     .replace(/Pricing 2026/gi, "Pricing")
     .replace(new RegExp(`${toolName} Pricing 2026`, "gi"), `${toolName} Pricing`)
     .replace(/Best \w+ alternatives/gi, "Alternatives")
-    .replace(/(<([^>]+)>)/gi, "") // Strip HTML tags
+    .replace(/(<([^>]+)>)/gi, "")
     .trim();
 
-  // Remove leading punctuation leftover from sentence stripping
+  // Strip leading punctuation leftover from string replacement
   cleaned = cleaned.replace(/^[\s,.:;—–-]+/, "");
 
   return cleaned;
@@ -109,9 +110,8 @@ function parseStructuredList(input: any): FormattedListItem[] {
     let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
-    // Filter out residual legacy titles inside pros/cons lists
     if (
-      /Visora AI|Senior SEO|Professional Review|Pricing 2026/i.test(line)
+      /Visora AI|Senior SEO|Professional Review|Pricing 2026|our analysis|our research/i.test(line)
     ) {
       continue;
     }
@@ -151,7 +151,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description =
     tool.meta_description ||
     cleanDesc.slice(0, 155) ||
-    `Learn what ${tool.name} does, its key features, pricing model, pros and cons, and top alternatives on AI Vault.`;
+    `Overview of ${tool.name}: features, pricing model, pros, cons, and alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -167,7 +167,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: canonicalUrl,
       siteName: "AI Vault",
       type: "website",
-      images: [{ url: logoUrl, alt: `${tool.name} AI tool logo` }],
+      images: [{ url: logoUrl, alt: `${tool.name} software logo` }],
     },
     twitter: {
       card: "summary_large_image",
@@ -207,11 +207,11 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Divide category matches into Best Alternatives (first 3) and Related Tools (next 4-5)
+  // Divide category tools into Best Alternatives (first 3) and Related Tools (next 4-5)
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
 
-  // Grounded Breadcrumbs Schema
+  // Schema.org Grounded Breadcrumbs
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -237,27 +237,27 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  // Tool-Specific FAQs
+  // Concise, Non-Duplicative FAQs
   const faqItems = [
     {
       q: `What primary purpose does ${tool.name} serve?`,
-      a: `${tool.name} is a software platform built for ${tool.category || "digital operations"} workflows.`,
+      a: `${tool.name} provides software functionality for ${tool.category || "digital operations"} workflows.`,
     },
     {
-      q: `Is ${tool.name} free to use?`,
+      q: `Is ${tool.name} free?`,
       a: tool.pricing
-        ? `${tool.name} operates under a ${tool.pricing} model. Pricing varies by plan; visit the official website for active tier rates.`
-        : `Pricing varies by plan. Check the official website for current pricing and plan details.`,
+        ? `${tool.name} is listed under a ${tool.pricing} model. Pricing information can change; check the official website for active plan limits.`
+        : `Pricing information can change. Check the official website for current plans, limits, and pricing.`,
     },
     {
       q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is intended for professionals, creators, developers, and teams managing tasks in ${tool.category || "software automation"}.`,
+      a: `${tool.name} is intended for users operating within ${tool.category || "technology and productivity"} domains.`,
     },
     {
-      q: `What are the best alternatives to ${tool.name}?`,
+      q: `What are the top alternatives to ${tool.name}?`,
       a: alternativesList.length > 0
-        ? `Key alternatives in the directory include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Explore other tools under the ${tool.category || "AI software"} section on AI Vault.`,
+        ? `Top options include ${alternativesList.map((a) => a.name).join(", ")}.`
+        : `Explore other tools under the ${tool.category || "AI software"} category on AI Vault.`,
     },
   ];
 
@@ -274,24 +274,56 @@ export default async function ToolPage({ params }: Props) {
     })),
   };
 
-  // Dynamic persona profiling based on tool category
+  // Category-specific persona definitions
   const getTargetUserDescription = (category?: string) => {
-    if (!category) return "professionals and teams seeking specialized software automation.";
+    if (!category) return "professionals and teams seeking dedicated software tools.";
     const cat = category.toLowerCase();
-    if (cat.includes("code") || cat.includes("dev")) {
-      return "software engineers, DevOps professionals, and developers streamlining technical workflows.";
+    if (cat.includes("code") || cat.includes("dev") || cat.includes("cli")) {
+      return "software engineers, system administrators, and developers looking to streamline technical terminal or code operations.";
+    }
+    if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
+      return "writers, independent publishers, media teams, and creators building newsletters or subscription publications.";
     }
     if (cat.includes("chat") || cat.includes("bot")) {
-      return "customer support teams, researchers, and creators automating conversational interactions.";
+      return "customer support teams, product managers, and developers implementing automated conversational workflows.";
     }
     if (cat.includes("image") || cat.includes("video") || cat.includes("design")) {
-      return "digital artists, designers, video editors, and marketing teams producing visual media.";
+      return "designers, video editors, and digital marketing teams producing visual media assets.";
     }
     if (cat.includes("market") || cat.includes("seo")) {
-      return "content strategists, digital marketers, and growth managers building campaigns.";
+      return "growth marketers, SEO specialists, and content managers scaling digital campaigns.";
     }
-    return `professionals and teams operating within the ${category} domain.`;
+    return `professionals and teams operating in the ${category} space.`;
   };
+
+  // Category-specific onboarding steps
+  const getHowToSteps = (category?: string, name: string = "this software") => {
+    const cat = (category || "").toLowerCase();
+    if (cat.includes("code") || cat.includes("cli") || cat.includes("dev")) {
+      return [
+        `Install or access ${name} via your terminal, package manager, or developer portal.`,
+        `Configure API keys or authentication credentials as required.`,
+        `Execute specific commands or integrate project libraries into your build environment.`,
+        `Verify output logs and deploy to your runtime environment.`,
+      ];
+    }
+    if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
+      return [
+        `Access the ${name} platform or install the self-hosted package on your server.`,
+        `Configure publication branding, custom domain settings, and mail settings.`,
+        `Draft, format, and organize your posts or membership tiers.`,
+        `Publish articles or distribute newsletters to subscribers.`,
+      ];
+    }
+    return [
+      `Visit the official website using the portal link on this page.`,
+      `Create or sign in to your user account on the vendor platform.`,
+      `Configure configuration parameters according to your workflow requirements.`,
+      `Run operations and inspect or export generated outputs.`,
+    ];
+  };
+
+  const howToSteps = getHowToSteps(tool.category, tool.name);
 
   return (
     <>
@@ -352,10 +384,10 @@ export default async function ToolPage({ params }: Props) {
                 <div className="space-y-2 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">
-                      {tool.category || "AI Engine"}
+                      {tool.category || "Software"}
                     </span>
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700">
-                      {tool.pricing || "Freemium"}
+                      {tool.pricing || "Software Tool"}
                     </span>
                   </div>
 
@@ -373,14 +405,14 @@ export default async function ToolPage({ params }: Props) {
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {cleanDescription || `${tool.name} is a software platform designed to manage ${tool.category || "digital operations"} tasks.`}
+              {cleanDescription || `${tool.name} is a software platform built for ${tool.category || "digital"} workflows.`}
             </div>
           </section>
 
           {/* Core Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing Section */}
+              {/* 2. Pricing & Plans */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
@@ -388,11 +420,10 @@ export default async function ToolPage({ params }: Props) {
                 <p className="text-slate-700 text-sm leading-relaxed">
                   {tool.pricing ? (
                     <>
-                      {tool.name} is categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> pricing model.
+                      {tool.name} is categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> model.
                     </>
-                  ) : (
-                    <>Pricing varies by plan. Check the official website for current pricing and plan details.</>
-                  )}
+                  ) : null}{" "}
+                  Pricing information can change. Check the official website for current plans, limits, and pricing.
                 </p>
                 <div className="pt-2">
                   <a
@@ -406,7 +437,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* 3. Key Features & Limitations (Pros & Cons) */}
+              {/* 3. Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -426,7 +457,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No specific features recorded.</p>
+                    <p className="text-xs text-slate-400 italic">Not publicly specified.</p>
                   )}
                 </div>
 
@@ -448,7 +479,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No specific limitations recorded.</p>
+                    <p className="text-xs text-slate-400 italic">Not publicly specified.</p>
                   )}
                 </div>
               </section>
@@ -457,7 +488,7 @@ export default async function ToolPage({ params }: Props) {
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
-                    Best Alternatives
+                    Best Alternatives to {tool.name}
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {alternativesList.map((alt) => (
@@ -469,7 +500,7 @@ export default async function ToolPage({ params }: Props) {
                         <div>
                           <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {sanitizeDescription(alt.description, alt.name) || "Verified software listing."}
+                            {sanitizeDescription(alt.description, alt.name) || "Alternative software listing."}
                           </p>
                         </div>
                         <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
@@ -485,7 +516,7 @@ export default async function ToolPage({ params }: Props) {
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is primarily used by {getTargetUserDescription(tool.category)}
+                  {tool.name} is best suited for {getTargetUserDescription(tool.category)}
                 </p>
               </section>
 
@@ -495,10 +526,9 @@ export default async function ToolPage({ params }: Props) {
                   How to Use {tool.name}
                 </h2>
                 <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  <li>Navigate to the official portal via the destination link on this page.</li>
-                  <li>Set up or authenticate your account on the vendor site.</li>
-                  <li>Configure your workflow parameters according to your technical requirements.</li>
-                  <li>Run your tasks and export or integrate generated outputs.</li>
+                  {howToSteps.map((step, idx) => (
+                    <li key={idx}>{step}</li>
+                  ))}
                 </ol>
               </section>
 
@@ -533,12 +563,12 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Category</dt>
-                    <dd className="font-bold text-blue-600">{tool.category || "General AI"}</dd>
+                    <dd className="font-bold text-blue-600">{tool.category || "Software"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Pricing Tier</dt>
-                    <dd className="font-bold text-emerald-600">{tool.pricing || "Freemium"}</dd>
+                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
+                    <dd className="font-bold text-emerald-600">{tool.pricing || "Check Site"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
@@ -567,7 +597,7 @@ export default async function ToolPage({ params }: Props) {
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Related Tools in {tool.category || "AI"}
+                  Related Tools in {tool.category || "Software"}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Directory ↗
@@ -591,13 +621,13 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {sanitizeDescription(rel.description, rel.name) || "Verified software listing."}
+                          {sanitizeDescription(rel.description, rel.name) || "Software directory listing."}
                         </p>
                       </div>
                     </div>
 
                     <div className="pt-4 mt-4 border-t border-slate-50 flex items-center justify-between text-xs font-semibold text-slate-400">
-                      <span>{rel.category || "AI Engine"}</span>
+                      <span>{rel.category || "Software"}</span>
                       <span className="text-blue-600 group-hover:translate-x-1 transition-transform">
                         Inspect →
                       </span>
