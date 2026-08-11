@@ -15,16 +15,26 @@ const supabase = createClient(
 function HomeContent() {
   const searchParams = useSearchParams();
   const [tools, setTools] = useState<any[]>([]);
-  const [totalCount, setTotalCount] = useState<number>(0);
+  const [globalTotalCount, setGlobalTotalCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
   const [localSearch, setLocalSearch] = useState("");
 
   const activeCat = searchParams.get("cat") || "All";
 
   useEffect(() => {
-    async function fetchTools() {
+    async function fetchToolsAndCount() {
       setLoading(true);
       try {
+        // 1. Query exact canonical database total count (bypasses pagination & category filters)
+        const { count: exactDbCount, error: countErr } = await supabase
+          .from("ai_tools")
+          .select("id", { count: "exact", head: true });
+
+        if (!countErr && typeof exactDbCount === "number") {
+          setGlobalTotalCount(exactDbCount);
+        }
+
+        // 2. Query directory tools list
         let query = supabase.from("ai_tools").select("*");
         if (activeCat !== "All") {
           query = query.ilike("category", `%${activeCat}%`);
@@ -33,7 +43,7 @@ function HomeContent() {
         if (error) throw error;
 
         const rawData = data || [];
-        // Deduplicate records by unique slug
+        // Deduplicate records by unique tool slug
         const uniqueMap = new Map<string, any>();
         for (const t of rawData) {
           const key = (t.slug || t.name || "").toLowerCase().trim();
@@ -44,33 +54,29 @@ function HomeContent() {
         const uniqueList = Array.from(uniqueMap.values());
         setTools(uniqueList);
 
-        if (activeCat === "All") {
-          setTotalCount(uniqueList.length);
-        } else if (totalCount === 0) {
-          // Fetch global count if initialized on a filtered category
-          const { count } = await supabase
-            .from("ai_tools")
-            .select("id", { count: "exact", head: true });
-          setTotalCount(count || uniqueList.length);
+        // Fallback calculation if head count query was blocked
+        if (globalTotalCount === 0) {
+          setGlobalTotalCount(uniqueList.length);
         }
       } catch (err) {
-        console.error(err);
+        console.error("[HOME_FETCH_ERR]", err);
       } finally {
         setLoading(false);
       }
     }
-    fetchTools();
+
+    fetchToolsAndCount();
   }, [activeCat]);
 
+  // Filter tools for UI display without mutating the canonical directory total
   const filteredTools = tools.filter((t) => {
-    const term = localSearch.toLowerCase();
+    const term = localSearch.toLowerCase().trim();
+    if (!term) return true;
     const nameMatch = t.name?.toLowerCase().includes(term);
     const descMatch = t.description?.toLowerCase().includes(term);
     const catMatch = t.category?.toLowerCase().includes(term);
     return nameMatch || descMatch || catMatch;
   });
-
-  const displayCount = totalCount > 0 ? totalCount : tools.length;
 
   const categories = [
     { name: "All", icon: "⚡" },
@@ -127,7 +133,7 @@ function HomeContent() {
 
           <div className="flex items-center gap-4">
             <div className="bg-blue-600 text-white font-extrabold text-[10px] px-3 py-1.5 rounded-full uppercase tracking-widest shadow-md shadow-blue-500/20">
-              {displayCount > 0 ? `${displayCount}+ ENGINES` : "AI DIRECTORY"}
+              {globalTotalCount > 0 ? `${globalTotalCount}+ ENGINES` : "AI DIRECTORY"}
             </div>
           </div>
         </nav>
@@ -139,14 +145,14 @@ function HomeContent() {
             <span className="text-blue-600 italic">Best AI Software</span>
           </h1>
           <p className="max-w-2xl mx-auto text-slate-500 text-sm sm:text-base font-medium">
-            Discover, compare, and explore {displayCount > 0 ? `${displayCount}+` : "verified"} verified production AI tools, developer utilities, and SaaS platforms.
+            Discover, compare, and explore {globalTotalCount > 0 ? `${globalTotalCount}+` : "verified"} production AI tools, developer utilities, and SaaS platforms.
           </p>
 
           {/* 🔍 SEARCH BAR */}
           <div className="max-w-2xl mx-auto relative shadow-xl shadow-slate-200/50 rounded-2xl">
             <input
               type="text"
-              placeholder={`Search ${displayCount > 0 ? displayCount : ""} AI tools by name, category, or workflow...`}
+              placeholder={globalTotalCount > 0 ? `Search ${globalTotalCount}+ AI tools by name, category, or workflow...` : "Search AI tools by name, category, or workflow..."}
               value={localSearch}
               onChange={(e) => setLocalSearch(e.target.value)}
               className="w-full h-16 pl-6 pr-16 bg-white border border-slate-200 rounded-2xl text-sm font-semibold focus:outline-none focus:border-blue-600 transition"
@@ -179,7 +185,7 @@ function HomeContent() {
         <section className="max-w-7xl mx-auto px-6 pb-24 space-y-6">
           <div className="flex items-center justify-between border-b border-slate-200/80 pb-4">
             <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-              Verified AI Directory ({filteredTools.length})
+              VERIFIED AI DIRECTORY ({globalTotalCount > 0 ? globalTotalCount : filteredTools.length})
             </h2>
           </div>
 
