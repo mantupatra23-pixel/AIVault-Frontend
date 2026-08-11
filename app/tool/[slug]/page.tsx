@@ -208,7 +208,7 @@ export default async function ToolPage({ params }: Props) {
   const { outboundUrl, isAffiliate, buttonLabel } = await resolveToolOutboundUrl(
     tool.id,
     tool.slug,
-    tool.website_url
+    tool.website_url ?? null
   );
 
   const officialDirectUrl = tool.website_url || "#";
@@ -367,7 +367,9 @@ export default async function ToolPage({ params }: Props) {
               <section className="bg-white border border-slate-200/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
                 <h2 className="text-xl font-black text-slate-900 font-serif">Pricing & Plans</h2>
                 <p className="text-sm text-slate-600 leading-relaxed font-sans">
-                  {tool.pricing_details || `${tool.name} offers flexible options structured around ${tool.pricing || "Freemium"} tiers.`}
+                  {typeof tool.pricing_details === "string" 
+                    ? tool.pricing_details 
+                    : `${tool.name} offers flexible options structured around ${tool.pricing || "Freemium"} tiers.`}
                 </p>
               </section>
 
