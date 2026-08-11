@@ -160,6 +160,11 @@ export default async function ToolPage({ params }: Props) {
 
   const tool = enrichMissingToolFields(rawTool);
 
+  // Validate critical presence: name, category, description
+  if (!tool.name || !tool.category) {
+    notFound();
+  }
+
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
   const generalRelated = relatedTools;
 
@@ -176,13 +181,21 @@ export default async function ToolPage({ params }: Props) {
   const youtubeVideoId = extractYouTubeId(tool.youtube_id || tool.youtube_url || "");
   const normalizedScore = normalizeScore(tool.score || tool.rating);
 
-  const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
-  const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
-  const howToSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
-  const useCasesList: string[] = Array.isArray(tool.use_cases) ? tool.use_cases : [];
+  // Apply strict data presence validation thresholds
+  const rawPros: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
+  const rawCons: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
+  const rawSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
+  const rawUseCases: string[] = Array.isArray(tool.use_cases) ? tool.use_cases : [];
+  const rawFaqs: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
+
+  const prosList = rawPros.length >= 3 ? rawPros : [];
+  const consList = rawCons.length >= 3 ? rawCons : [];
+  const howToSteps = rawSteps.length >= 3 ? rawSteps : [];
+  const useCasesList = rawUseCases.length >= 3 ? rawUseCases : [];
+  const faqsList = rawFaqs.length >= 4 ? rawFaqs : [];
+
   const integrationsList: string[] = Array.isArray(tool.integrations) ? tool.integrations : [];
   const tagsList: string[] = Array.isArray(tool.tags) ? tool.tags : [];
-  const faqsList: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
 
   const whoShouldUseText = typeof tool.who_should_use === "string"
     ? tool.who_should_use
@@ -198,7 +211,9 @@ export default async function ToolPage({ params }: Props) {
     ? tool.pricing_details
     : (tool.pricing_details && typeof tool.pricing_details === "object" && "note" in tool.pricing_details)
     ? String((tool.pricing_details as Record<string, unknown>).note)
-    : null;
+    : tool.pricing
+    ? `Pricing model: ${tool.pricing}. Check official portal for active plan pricing.`
+    : "Pricing varies by plan and usage. Check the official website for current pricing.";
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -461,27 +476,28 @@ export default async function ToolPage({ params }: Props) {
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Category</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.category || "Software"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.category || "Not specified"}</dd>
                   </div>
 
-                  {tool.pricing_model || tool.pricing ? (
-                    <div className="pt-4 flex justify-between gap-2">
-                      <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                      <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing}</dd>
-                    </div>
-                  ) : null}
+                  <div className="pt-4 flex justify-between gap-2">
+                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
+                    <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing || "Not specified"}</dd>
+                  </div>
 
-                  {tool.operating_system && (
-                    <div className="pt-4 flex justify-between gap-2">
-                      <dt className="text-slate-500 font-medium">Operating System</dt>
-                      <dd className="font-bold text-slate-900 text-right">{tool.operating_system}</dd>
-                    </div>
-                  )}
+                  <div className="pt-4 flex justify-between gap-2">
+                    <dt className="text-slate-500 font-medium">Operating System</dt>
+                    <dd className="font-bold text-slate-900 text-right">{tool.operating_system || "Not specified"}</dd>
+                  </div>
 
-                  {tool.deployment && (
+                  <div className="pt-4 flex justify-between gap-2">
+                    <dt className="text-slate-500 font-medium">Deployment</dt>
+                    <dd className="font-bold text-slate-900 text-right">{tool.deployment || "Not specified"}</dd>
+                  </div>
+
+                  {tool.license && (
                     <div className="pt-4 flex justify-between gap-2">
-                      <dt className="text-slate-500 font-medium">Deployment</dt>
-                      <dd className="font-bold text-slate-900 text-right">{tool.deployment}</dd>
+                      <dt className="text-slate-500 font-medium">License</dt>
+                      <dd className="font-bold text-slate-900 text-right">{tool.license}</dd>
                     </div>
                   )}
 
