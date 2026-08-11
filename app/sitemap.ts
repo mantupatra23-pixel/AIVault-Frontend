@@ -6,26 +6,24 @@ export const revalidate = 0;
 
 interface ToolRecord {
   slug: string;
-  updated_at?: string;
   created_at?: string;
 }
 
 /**
  * Clean and normalize database slugs.
- * Handles trailing/leading slashes, spaces, and mixed casing.
  * Example: " /ChatGPT/ " => "chatgpt"
  */
 function normalizeSlug(rawSlug: any): string {
   if (!rawSlug || typeof rawSlug !== "string") return "";
-  
+
   let clean = rawSlug.trim();
-  
+
   // Remove leading and trailing slashes
   clean = clean.replace(/^\/+|\/+$/g, "");
-  
+
   // Convert to lowercase and trim remaining whitespace
   clean = clean.toLowerCase().trim();
-  
+
   return clean;
 }
 
@@ -41,10 +39,11 @@ async function fetchToolsFromSupabase(): Promise<ToolRecord[]> {
     return [];
   }
 
+  // Request ONLY slug and created_at to avoid invalid column (updated_at) errors
   const endpoint = `${supabaseUrl.replace(
     /\/$/,
     ""
-  )}/rest/v1/ai_tools?select=slug,updated_at,created_at&slug=not.is.null`;
+  )}/rest/v1/ai_tools?select=slug,created_at&slug=not.is.null`;
 
   try {
     const response = await fetch(endpoint, {
@@ -53,7 +52,7 @@ async function fetchToolsFromSupabase(): Promise<ToolRecord[]> {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
-        // Force Supabase to return up to 2000 rows, bypassing default 1000 limits
+        // Request up to 2000 rows without hitting default REST limit caps
         Range: "0-1999",
       },
       cache: "no-store",
@@ -62,7 +61,7 @@ async function fetchToolsFromSupabase(): Promise<ToolRecord[]> {
     if (!response.ok) {
       const errorBody = await response.text();
       console.error(
-        `[SITEMAP_FETCH_FAILED] Status: ${response.status} ${response.statusText} - Body: ${errorBody}`
+        `[SITEMAP_FETCH_FAILED] Status: ${response.status} ${response.statusText} Body: ${errorBody}`
       );
       return [];
     }
@@ -143,13 +142,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
     seenSlugs.add(cleanSlug);
 
+    const createdDate = tool.created_at ? new Date(tool.created_at) : null;
+    const isValidDate = createdDate && !isNaN(createdDate.getTime());
+
     toolRoutes.push({
       url: `${SITE_URL}/tool/${cleanSlug}`,
-      lastModified: tool.updated_at
-        ? new Date(tool.updated_at)
-        : tool.created_at
-        ? new Date(tool.created_at)
-        : new Date(),
+      ...(isValidDate ? { lastModified: createdDate } : {}),
       changeFrequency: "weekly",
       priority: 0.8,
     });
