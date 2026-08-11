@@ -15,7 +15,7 @@ export interface DatabaseToolRecord {
   category?: string | null;
   description?: string | null;
   pricing?: string | null;
-  pricing_details?: any;
+  pricing_details?: unknown;
   website_url?: string | null;
   affiliate_url?: string | null;
   image_url?: string | null;
@@ -25,8 +25,8 @@ export interface DatabaseToolRecord {
   rating?: number | null;
   features_pros?: FormattedListItem[] | null;
   limitations_cons?: FormattedListItem[] | null;
-  pros_cons?: any;
-  who_should_use?: any;
+  pros_cons?: unknown;
+  who_should_use?: unknown;
   how_to_use?: string[] | null;
   tags?: string[] | null;
   faqs?: FAQItem[] | null;
@@ -34,6 +34,9 @@ export interface DatabaseToolRecord {
   seo_description?: string | null;
   created_at?: string;
 }
+
+// Canonical alias for DatabaseToolRecord consumed by lib/ai-enrichment.ts
+export type NormalizedTool = DatabaseToolRecord;
 
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
@@ -100,7 +103,7 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
 
   if (textInput.startsWith("{") && textInput.endsWith("}")) {
     try {
-      const parsed = JSON.parse(textInput) as Record<string, any>;
+      const parsed = JSON.parse(textInput) as Record<string, unknown>;
       if (parsed.pros || parsed.cons) {
         return parseProsConsColumn(parsed);
       }
