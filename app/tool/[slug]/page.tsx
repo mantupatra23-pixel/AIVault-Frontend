@@ -82,46 +82,45 @@ async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null
     const category = raw.category || "Software";
     const name = raw.name || "Tool";
 
-    // Build tool-specific How-To steps based on category
+    // Ghost-specific How-To steps
     let howToSteps: string[] = [];
-    if (category.toLowerCase().includes("publish") || category.toLowerCase().includes("cms") || raw.slug === "ghost") {
+    if (raw.slug === "ghost") {
       howToSteps = [
-        `Set up your ${name} instance on Ghost(Pro) or deploy the open-source Node.js package on your server.`,
-        `Connect your custom domain, set up site branding, and configure email newsletter distribution settings.`,
-        `Draft posts, format content with the rich editor, and establish free or paid membership subscription tiers.`,
-        `Publish articles directly to the web and send automated newsletter broadcasts to your email subscribers.`
-      ];
-    } else if (category.toLowerCase().includes("code") || category.toLowerCase().includes("cli") || category.toLowerCase().includes("dev")) {
-      howToSteps = [
-        `Install or access ${name} using your package manager or developer terminal environment.`,
-        `Configure API keys, authentication credentials, and system environment variables.`,
-        `Execute specific CLI commands or integrate SDK libraries directly into your project codebase.`,
-        `Monitor output logs, verify integration endpoints, and deploy to your production environment.`
+        "Create a Ghost site via Ghost(Pro) or deploy the open-source software on your server.",
+        "Configure your domain, site branding, custom themes, and design settings.",
+        "Create posts and pages using the built-in publishing editor.",
+        "Configure membership tiers and newsletter distribution settings if required.",
+        "Publish content and manage your audience subscribers."
       ];
     } else {
       howToSteps = [
         `Visit the official platform website at ${raw.website_url || raw.official_url || "the official portal"}.`,
-        `Sign up for an account and authenticate your credentials.`,
-        `Configure operational settings for your target project.`,
-        `Execute your tasks and export generated results.`
+        "Create or sign in to your user account.",
+        "Configure settings for your project requirements.",
+        "Execute your tasks and export generated outputs."
       ];
     }
 
-    // Build tool-specific FAQs
+    // Who should use statement
+    const whoShouldUse = raw.slug === "ghost"
+      ? "Independent publishers, bloggers, newsletter creators, media teams, and businesses building a content or membership website."
+      : `${name} is best suited for teams, developers, and professionals managing tasks in ${category}.`;
+
+    // Concise, Non-Duplicative FAQs
     const faqs = [
       {
         q: `What is ${name} used for?`,
-        a: raw.description ? raw.description.slice(0, 200) + "..." : `${name} is designed for ${category} operations.`
+        a: raw.slug === "ghost"
+          ? "Ghost is used for publishing blogs, sending email newsletters, managing subscribers, and running paid membership content websites."
+          : `${name} provides software functionality for ${category} operations.`
       },
       {
-        q: `What is ${name}'s pricing structure?`,
-        a: raw.pricing ? `${name} is offered under: ${raw.pricing}` : "Pricing details can be verified on the official portal."
+        q: `What is ${name}'s pricing model?`,
+        a: raw.pricing || "Pricing information can change. Check the official website for current plans and limits."
       },
       {
         q: `Who should use ${name}?`,
-        a: category.toLowerCase().includes("publish") || raw.slug === "ghost"
-          ? `${name} is built for independent creators, newsletter publishers, journalists, and media teams.`
-          : `${name} is designed for developers, software engineers, and digital teams.`
+        a: whoShouldUse
       }
     ];
 
@@ -130,14 +129,12 @@ async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null
       name: raw.name,
       slug: raw.slug,
       category: category,
-      pricing_model: raw.pricing || "Paid",
+      pricing_model: raw.pricing ? "Paid / Freemium" : "Check Site",
       description: raw.description || "Content unavailable.",
-      pricing_details: raw.pricing || "Check official website for active subscription tiers.",
+      pricing_details: raw.pricing || "Check the official website for current plans, limits, and pricing.",
       features_pros: pros,
       limitations_cons: cons,
-      who_should_use: category.toLowerCase().includes("publish") || raw.slug === "ghost"
-        ? "Professional creators, independent writers, publishers, and digital media teams building subscription businesses."
-        : "Developers, software engineers, and digital operations teams.",
+      who_should_use: whoShouldUse,
       how_to_use: howToSteps,
       faqs: faqs,
       official_url: raw.website_url || raw.official_url || "#",
