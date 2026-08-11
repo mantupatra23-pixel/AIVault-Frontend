@@ -1,6 +1,5 @@
 import { NormalizedTool, generateToolSpecificEnrichment } from "./tool-normalizer";
 
-// Removes SEO filler phrases from raw database strings
 function sanitizeSEOContent(text: string | null | undefined): string | null {
   if (!text || typeof text !== "string") return null;
 

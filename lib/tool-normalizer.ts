@@ -132,7 +132,7 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
         return parseProsConsColumn(parsed);
       }
     } catch {
-      // Non-blocking fallback
+      // Non-blocking
     }
   }
 
@@ -153,12 +153,13 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
   };
 }
 
-// Tool-specific factual knowledge map without generic boilerplate
 export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>): Partial<DatabaseToolRecord> {
   const slug = (raw.slug || "").toLowerCase().trim();
 
   if (slug === "ghost") {
     return {
+      category: "Marketing / Publishing",
+      pricing_model: "Open Source / Managed SaaS",
       description: "Ghost is an open-source, independent publishing platform designed for professional publishers, blogs, memberships, and email newsletters.",
       who_should_use: "Independent publishers, digital magazines, professional bloggers, newsletter creators, and media organizations.",
       whoShouldUse: "Independent publishers, digital magazines, professional bloggers, newsletter creators, and media organizations.",
@@ -189,7 +190,7 @@ export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>)
         "Paid Content"
       ],
       integrations: ["Stripe", "Zapier", "Unsplash", "Disqus", "Mailgun"],
-      pricing_details: "Ghost core open-source software is free to self-host. Managed Ghost(Pro) cloud hosting starts at $9/month billed annually.",
+      pricing_details: "Ghost open-source software is free to self-host. Ghost(Pro) offers fully managed cloud hosting starting at $9/month billed annually.",
       tags: ["CMS", "Blogging", "Publishing", "Newsletters", "Open Source"],
       faqs: [
         { q: "What is Ghost used for?", a: "Ghost is a dedicated publishing platform built for modern blogs, online publications, and subscription email newsletters." },
@@ -209,6 +210,8 @@ export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>)
 
   if (slug === "nylas-cli") {
     return {
+      category: "Developer Tools",
+      pricing_model: "Free / Open Source Utility",
       description: "Nylas CLI is a developer-first command-line interface for testing, managing, and interacting with Nylas Communications APIs directly from terminal sessions.",
       who_should_use: "Backend developers, API integration engineers, and software engineering teams connecting Email, Calendar, or Contacts APIs.",
       whoShouldUse: "Backend developers, API integration engineers, and software engineering teams connecting Email, Calendar, or Contacts APIs.",
