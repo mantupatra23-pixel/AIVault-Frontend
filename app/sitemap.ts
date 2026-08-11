@@ -10,31 +10,50 @@ interface ToolRecord {
   created_at?: string;
 }
 
-async function fetchAllToolsFromDatabase(): Promise<ToolRecord[]> {
-  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
-  const supabaseKey = (
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    ""
-  ).trim();
+/**
+ * Clean and normalize database slugs.
+ * Handles trailing/leading slashes, spaces, and mixed casing.
+ * Example: " /ChatGPT/ " => "chatgpt"
+ */
+function normalizeSlug(rawSlug: any): string {
+  if (!rawSlug || typeof rawSlug !== "string") return "";
+  
+  let clean = rawSlug.trim();
+  
+  // Remove leading and trailing slashes
+  clean = clean.replace(/^\/+|\/+$/g, "");
+  
+  // Convert to lowercase and trim remaining whitespace
+  clean = clean.toLowerCase().trim();
+  
+  return clean;
+}
 
-  if (!supabaseUrl || !supabaseKey) {
+async function fetchToolsFromSupabase(): Promise<ToolRecord[]> {
+  const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
+  // SERVER-ONLY: Strictly require SUPABASE_SERVICE_ROLE_KEY. No fallback to anon key.
+  const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+
+  if (!supabaseUrl || !serviceRoleKey) {
     console.error(
-      "[SITEMAP_CRITICAL_ERROR] Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables."
+      "[SITEMAP_ERROR] Missing required server environment variables (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
     );
     return [];
   }
 
-  const endpoint = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_tools?select=slug,updated_at,created_at&slug=not.is.null`;
+  const endpoint = `${supabaseUrl.replace(
+    /\/$/,
+    ""
+  )}/rest/v1/ai_tools?select=slug,updated_at,created_at&slug=not.is.null`;
 
   try {
     const response = await fetch(endpoint, {
       method: "GET",
       headers: {
-        apikey: supabaseKey,
-        Authorization: `Bearer ${supabaseKey}`,
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
-        // Force Supabase to return up to 2000 rows without hitting default 1000 limit caps
+        // Force Supabase to return up to 2000 rows, bypassing default 1000 limits
         Range: "0-1999",
       },
       cache: "no-store",
@@ -51,14 +70,23 @@ async function fetchAllToolsFromDatabase(): Promise<ToolRecord[]> {
     const data = await response.json();
 
     if (!Array.isArray(data)) {
-      console.error("[SITEMAP_INVALID_DATA_TYPE] Returned payload is not an array:", data);
+      console.error("[SITEMAP_ERROR] Supabase response is not an array.");
       return [];
     }
 
-    console.log(`[SITEMAP_SUCCESS] Successfully fetched ${data.length} tool records from Supabase.`);
+    if (data.length === 0) {
+      console.error(
+        "[SITEMAP_ERROR] 0 AI tools returned. Check SUPABASE_SERVICE_ROLE_KEY and RLS/database permissions."
+      );
+      return [];
+    }
+
+    console.log(
+      `[SITEMAP_SUCCESS] Successfully fetched ${data.length} tool records from Supabase.`
+    );
     return data;
   } catch (error) {
-    console.error("[SITEMAP_FETCH_EXCEPTION] Unhandled network or execution error:", error);
+    console.error("[SITEMAP_EXCEPTION] Unhandled fetch exception:", error);
     return [];
   }
 }
@@ -97,10 +125,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const tools = await fetchAllToolsFromDatabase();
+  const tools = await fetchToolsFromSupabase();
 
   if (tools.length === 0) {
-    console.warn("[SITEMAP_WARNING] No tool records loaded. Returning static routes only.");
     return staticRoutes;
   }
 
@@ -108,10 +135,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const toolRoutes: MetadataRoute.Sitemap = [];
 
   for (const tool of tools) {
-    if (!tool.slug || typeof tool.slug !== "string") continue;
+    const cleanSlug = normalizeSlug(tool.slug);
 
-    const cleanSlug = tool.slug.trim().toLowerCase();
-    if (!cleanSlug || seenSlugs.has(cleanSlug)) continue;
+    if (!cleanSlug || seenSlugs.has(cleanSlug)) {
+      continue;
+    }
 
     seenSlugs.add(cleanSlug);
 
@@ -127,5 +155,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  return [...staticRoutes, ...toolRoutes];
+  // Combine static and tool routes
+  const combined = [...staticRoutes, ...toolRoutes];
+
+  // Deduplicate entries by final URL to guarantee zero duplicated <loc> items
+  const seenUrls = new Set<string>();
+  const uniqueSitemap: MetadataRoute.Sitemap = [];
+
+  for (const route of combined) {
+    if (seenUrls.has(route.url)) continue;
+    seenUrls.add(route.url);
+    uniqueSitemap.push(route);
+  }
+
+  return uniqueSitemap;
 }
