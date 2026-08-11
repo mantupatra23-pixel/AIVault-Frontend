@@ -18,7 +18,7 @@ export interface CandidateRow {
 export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () => void }) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [isDiscovering, setIsDiscovering] = useState(false);
-  const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error" | "warning"; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -31,7 +31,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         setCandidates(data.candidates || []);
       }
     } catch {
-      // Non-blocking
+      // Non-blocking background fetch
     }
   };
 
@@ -40,12 +40,12 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
   }, []);
 
   const handleRunScan = async () => {
-    if (isDiscovering) return;
+    if (isDiscovering) return; // Prevent duplicate clicks
 
     setIsDiscovering(true);
     setFeedback({
       type: "info",
-      text: "AUTO DISCOVERING... Initiating batch scan across index...",
+      text: "AUTO DISCOVERING... Initiating batched affiliate discovery scan...",
     });
 
     try {
@@ -54,11 +54,27 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       let hasMore = true;
       let totalScanned = 0;
       let totalDiscovered = 0;
+      let totalNoProgram = 0;
+      let modeText = "PUBLIC DISCOVERY MODE";
+      let requestCount = 0;
+      const maxBatchRequests = 20; // Safety limit
+      let previousOffset = -1;
 
-      while (hasMore) {
+      while (hasMore && requestCount < maxBatchRequests) {
+        // Prevent infinite loops if offset does not advance
+        if (offset === previousOffset) {
+          console.warn("[discovery-loop] Offset stall detected. Aborting scan loop.");
+          break;
+        }
+        previousOffset = offset;
+        requestCount++;
+
+        const currentStart = offset + 1;
+        const currentEnd = offset + batchSize;
+
         setFeedback({
           type: "info",
-          text: `Scanning batch ${offset + 1}–${offset + batchSize}...`,
+          text: `[${modeText}] — Scanning tools ${currentStart}–${currentEnd}...`,
         });
 
         const res = await fetch("/api/admin/affiliates/discover", {
@@ -67,36 +83,60 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
           body: JSON.stringify({ batchSize, offset }),
         });
 
-        const data = await res.json();
-
-        if (!res.ok || data.requiresCredentials) {
+        if (!res.ok) {
+          let errMessage = "Server processing error";
+          try {
+            const errData = await res.json();
+            errMessage = errData.error || errData.message || errMessage;
+          } catch {
+            // Fallback for non-JSON error responses
+          }
           setFeedback({
-            type: "warning",
-            text: data.message || "Affiliate discovery requires network credentials. Configure Impact / PartnerStack / CJ / ShareASale credentials in Credentials & Settings.",
+            type: "error",
+            text: `Affiliate discovery failed at tools ${currentStart}–${currentEnd}: ${errMessage}`,
           });
-          break;
+          return; // Stop scan immediately on HTTP error without claiming DISCOVERY COMPLETE
         }
 
-        totalScanned += data.scanned || 0;
+        const data = await res.json();
+
+        if (data.mode) {
+          modeText = data.mode.toUpperCase();
+        }
+
+        const scannedInBatch = data.scanned || 0;
+        totalScanned += scannedInBatch;
         totalDiscovered += data.candidatesFound || 0;
-        hasMore = Boolean(data.hasMore && (data.scanned || 0) > 0);
-        offset += batchSize;
+        totalNoProgram += data.noProgramFound || 0;
+
+        // Prevent stuck loop if API signals hasMore = true but scanned 0 tools
+        if (Boolean(data.hasMore) && scannedInBatch === 0) {
+          console.warn("[discovery-loop] API returned hasMore=true with scanned=0. Halting scan.");
+          hasMore = false;
+        } else {
+          hasMore = Boolean(data.hasMore);
+        }
+
+        offset += data.batchSize || batchSize;
       }
 
-      if (totalScanned > 0) {
-        setFeedback({
-          type: "success",
-          text: `DISCOVERY COMPLETE — Scanned ${totalScanned} tools. Found ${totalDiscovered} pending candidate opportunities.`,
-        });
-      }
+      setFeedback({
+        type: "success",
+        text: `DISCOVERY COMPLETE — Scanned ${totalScanned} tools. Found ${totalDiscovered} affiliate candidates. ${totalNoProgram} tools have no verified affiliate program.`,
+      });
 
-      fetchCandidates();
-      if (onScanComplete) onScanComplete();
+      await fetchCandidates();
+      if (onScanComplete) {
+        onScanComplete();
+      }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error during discovery";
-      setFeedback({ type: "error", text: `Affiliate discovery failed: ${msg}` });
+      const msg = err instanceof Error ? err.message : "Network connection error";
+      setFeedback({
+        type: "error",
+        text: `Affiliate discovery failed: ${msg}`,
+      });
     } finally {
-      setIsDiscovering(false);
+      setIsDiscovering(false); // ALWAYS release button state
     }
   };
 
@@ -114,7 +154,10 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       if (res.ok) {
         setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
         setEditingCandidate(null);
-        if (onScanComplete) onScanComplete();
+        await fetchCandidates();
+        if (onScanComplete) {
+          onScanComplete();
+        }
       }
     } catch {
       // Non-blocking
@@ -149,8 +192,6 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
           className={`p-4 rounded-xl text-xs font-bold font-mono ${
             feedback.type === "success"
               ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-              : feedback.type === "warning"
-              ? "bg-amber-500/10 text-amber-400 border border-amber-500/20"
               : feedback.type === "error"
               ? "bg-rose-500/10 text-rose-400 border border-rose-500/20"
               : "bg-blue-500/10 text-blue-300 border border-blue-500/20"
