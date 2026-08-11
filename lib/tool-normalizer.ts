@@ -1,4 +1,28 @@
-import { DatabaseToolRecord, FormattedListItem, FAQItem } from "@/types/tool";
+import { DatabaseToolRecord, FormattedListItem, FAQItem, PricingDetailsJSON } from "@/types/tool";
+
+export interface NormalizedTool {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  pricingModel: string;
+  pricingDetails: PricingDetailsJSON | null;
+  description: string;
+  shortDescription: string;
+  pros: FormattedListItem[];
+  cons: FormattedListItem[];
+  whoShouldUse: string | null;
+  howToUse: string[];
+  faqs: FAQItem[];
+  tags: string[];
+  editorialScore: number | null;
+  officialUrl: string;
+  affiliateUrl: string | null;
+  youtubeVideoId: string | null;
+  seoTitle: string;
+  seoDescription: string;
+  dataStatus: "Database Verified" | "Database Enriched" | "Partially Enriched";
+}
 
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
