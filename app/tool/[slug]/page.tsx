@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
 
+// Force runtime execution without caching old DB responses
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -17,7 +18,6 @@ interface FormattedListItem {
   description: string;
 }
 
-// Strict blacklist filter to reject legacy review/analyst language
 const BLACKLIST_PATTERNS = [
   /Professional Review/i,
   /I have conducted/i,
@@ -32,13 +32,10 @@ const BLACKLIST_PATTERNS = [
   /provides software functionality for .* workflows/i,
 ];
 
-function validateAndSanitizeText(rawText: string = "", toolName: string = ""): string {
+function sanitizeText(rawText: string = "", toolName: string = ""): string {
   if (!rawText) return "";
 
-  let cleaned = rawText;
-
-  // Remove blacklisted phrases
-  cleaned = cleaned
+  let cleaned = rawText
     .replace(/As a Senior SEO &? AI Analyst( for Visora AI)?\.*/gi, "")
     .replace(/Our Professional Review:?\.*/gi, "")
     .replace(/I have conducted (a|an) (in-depth|thorough) analysis\.*/gi, "")
@@ -56,12 +53,11 @@ function validateAndSanitizeText(rawText: string = "", toolName: string = ""): s
 
   cleaned = cleaned.replace(/^[\s,.:;—–-]+/, "");
 
-  // Safety fallback if entire text was blacklisted
-  for (const pattern of BLACKLIST_PATTERNS) {
+  BLACKLIST_PATTERNS.forEach((pattern) => {
     if (pattern.test(cleaned)) {
       cleaned = cleaned.replace(pattern, "").trim();
     }
-  }
+  });
 
   return cleaned;
 }
@@ -130,9 +126,7 @@ function parseStructuredList(input: any): FormattedListItem[] {
     let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
-    if (BLACKLIST_PATTERNS.some((pattern) => pattern.test(line))) {
-      continue;
-    }
+    if (BLACKLIST_PATTERNS.some((p) => p.test(line))) continue;
 
     if (line.includes(":") || line.includes(" - ")) {
       const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
@@ -163,22 +157,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const cleanDesc = validateAndSanitizeText(tool.description, tool.name);
+  const cleanDesc = sanitizeText(tool.description, tool.name);
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
   const title = tool.meta_title || `${tool.name}: Features, Pricing & Alternatives | AI Vault`;
   const description =
     tool.meta_description ||
     cleanDesc.slice(0, 155) ||
-    `Overview of ${tool.name}: key capabilities, pricing details, pros, cons, and alternatives.`;
+    `Overview of ${tool.name}: features, pricing model, pros, cons, and alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
   return {
     title,
     description,
-    alternates: {
-      canonical: canonicalUrl,
-    },
+    alternates: { canonical: canonicalUrl },
     openGraph: {
       title,
       description,
@@ -205,7 +197,7 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  const cleanDescription = validateAndSanitizeText(tool.description, tool.name);
+  const cleanDescription = sanitizeText(tool.description, tool.name);
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
 
   let prosItems = parseStructuredList(tool.pros);
@@ -225,57 +217,42 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Split category tools into Best Alternatives (first 3) and Related Tools (next 4-5)
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
 
-  // Schema.org Grounded Breadcrumbs
+  // Debug Log (Server Console)
+  console.log(`[PAGE_RENDER_DEBUG] SLUG: ${tool.slug} | NAME: ${tool.name} | DESC_LEN: ${cleanDescription.length} | PROS: ${prosItems.length} | CONS: ${consItems.length}`);
+
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: tool.category || "AI Tools",
-        item: `${SITE_URL}/?cat=${encodeURIComponent(tool.category || "")}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: tool.name,
-        item: canonicalUrl,
-      },
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
+      { "@type": "ListItem", position: 2, name: tool.category || "AI Tools", item: `${SITE_URL}/?cat=${encodeURIComponent(tool.category || "")}` },
+      { "@type": "ListItem", position: 3, name: tool.name, item: canonicalUrl },
     ],
   };
 
-  // Concise, Non-Duplicative FAQs
   const faqItems = [
     {
       q: `What is ${tool.name} used for?`,
-      a: `${tool.name} provides specialized capabilities in the ${tool.category || "software"} domain.`,
+      a: `${tool.name} provides software capabilities for ${tool.category || "digital operations"} workflows.`,
     },
     {
-      q: `Is ${tool.name} free or paid?`,
+      q: `Is ${tool.name} free?`,
       a: tool.pricing
-        ? `${tool.name} is categorized under a ${tool.pricing} tier. Check the official website for active plan limits.`
-        : `Pricing may change. Check the official website for the latest plans, limits and pricing.`,
+        ? `${tool.name} is listed under a ${tool.pricing} model. Pricing may change; check official website for active tiers.`
+        : `Pricing may change. Check the official website for current plans, limits and pricing.`,
     },
     {
       q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is designed for professionals and teams managing tasks in ${tool.category || "digital operations"}.`,
+      a: `${tool.name} is intended for developers, technical teams, and creators operating in ${tool.category || "software automation"}.`,
     },
     {
       q: `What are the best alternatives to ${tool.name}?`,
       a: alternativesList.length > 0
-        ? `Top options include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Check the ${tool.category || "software"} directory for similar platforms.`,
+        ? `Top alternatives include ${alternativesList.map((a) => a.name).join(", ")}.`
+        : `Check the ${tool.category || "software"} section on AI Vault for similar tools.`,
     },
   ];
 
@@ -285,59 +262,45 @@ export default async function ToolPage({ params }: Props) {
     mainEntity: faqItems.map((item) => ({
       "@type": "Question",
       name: item.q,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: item.a,
-      },
+      acceptedAnswer: { "@type": "Answer", text: item.a },
     })),
   };
 
-  // Target audience definitions
-  const getTargetUserDescription = (category?: string) => {
+  const getTargetUsers = (category?: string) => {
     if (!category) return "teams and professionals seeking software automation tools.";
     const cat = category.toLowerCase();
     if (cat.includes("code") || cat.includes("dev") || cat.includes("cli")) {
-      return "developers, system engineers, and technical teams looking to streamline terminal and code operations.";
+      return "developers, DevOps engineers, and system administrators looking to streamline CLI and API operations.";
     }
     if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
-      return "writers, independent publishers, and media teams managing blogs, newsletters, or membership platforms.";
-    }
-    if (cat.includes("chat") || cat.includes("bot")) {
-      return "customer support teams, product managers, and developers integrating conversational automation.";
-    }
-    if (cat.includes("image") || cat.includes("video") || cat.includes("design")) {
-      return "designers, video editors, and creative marketers producing visual assets.";
-    }
-    if (cat.includes("market") || cat.includes("seo")) {
-      return "marketing managers, growth strategists, and SEO professionals running campaigns.";
+      return "writers, independent publishers, and media organizations managing subscription blogs or newsletters.";
     }
     return `professionals and teams operating in the ${category} space.`;
   };
 
-  // Tool-specific onboarding steps
-  const getHowToSteps = (category?: string, name: string = "this software") => {
+  const getHowToSteps = (category?: string, name: string = "this tool") => {
     const cat = (category || "").toLowerCase();
     if (cat.includes("code") || cat.includes("cli") || cat.includes("dev")) {
       return [
-        `Install or access ${name} using your package manager, terminal interface, or developer portal.`,
-        `Configure environment variables and authentication API keys as required.`,
-        `Execute relevant commands or integrate libraries into your software environment.`,
-        `Inspect terminal/build output and deploy your project.`,
+        `Install or access ${name} via package managers or technical terminal interface.`,
+        `Configure environment variables and API authentication keys.`,
+        `Execute CLI commands or integrate libraries into your application workflow.`,
+        `Verify output logs and deploy to runtime.`,
       ];
     }
     if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
       return [
-        `Access the ${name} portal or deploy the package on your web host.`,
-        `Set up your publication domain, site settings, and subscription options.`,
-        `Create and format your content or newsletter issues.`,
-        `Publish posts and manage subscriber access.`,
+        `Set up your ${name} instance via managed hosting or self-hosted deployment.`,
+        `Configure publication domain, theme, and membership payment settings.`,
+        `Draft, format, and publish your content or newsletter issues.`,
+        `Manage subscriber access and analyze publication metrics.`,
       ];
     }
     return [
       `Visit the official website using the link on this page.`,
-      `Set up an account or authenticate on the vendor platform.`,
-      `Configure settings for your specific project requirements.`,
-      `Execute your tasks and export or integrate generated outputs.`,
+      `Create or sign in to your user account.`,
+      `Set up your project parameters and preferences.`,
+      `Execute your tasks and export generated outputs.`,
     ];
   };
 
@@ -345,17 +308,10 @@ export default async function ToolPage({ params }: Props) {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-        {/* Navigation Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -376,7 +332,6 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Breadcrumb Navigation */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li>
@@ -393,7 +348,6 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
-          {/* Hero Header */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -417,31 +371,26 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* 1. What is [Tool]? */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {cleanDescription || `${tool.name} is a software platform designed to manage ${tool.category || "digital operations"} tasks.`}
+              {cleanDescription || `${tool.name} is a software platform designed for ${tool.category || "digital"} workflows.`}
             </div>
           </section>
 
-          {/* Core Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing & Plans */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed">
                   {tool.pricing ? (
-                    <>
-                      {tool.name} is listed under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> model.
-                    </>
+                    <>{tool.name} is listed under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> tier model.</>
                   ) : null}{" "}
-                  Pricing may change. Check the official website for the latest plans, limits and pricing.
+                  Pricing may change. Check the official website for current plans, limits and pricing.
                 </p>
                 <div className="pt-2">
                   <a
@@ -455,7 +404,6 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* 3. Key Features & Limitations (Pros & Cons) */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -465,11 +413,7 @@ export default async function ToolPage({ params }: Props) {
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
                       {prosItems.map((item, i) => (
                         <li key={i} className="leading-relaxed">
-                          {item.title && (
-                            <strong className="text-slate-900 font-bold mr-1">
-                              {item.title}:
-                            </strong>
-                          )}
+                          {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
                         </li>
                       ))}
@@ -487,11 +431,7 @@ export default async function ToolPage({ params }: Props) {
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
                       {consItems.map((item, i) => (
                         <li key={i} className="leading-relaxed">
-                          {item.title && (
-                            <strong className="text-slate-900 font-bold mr-1">
-                              {item.title}:
-                            </strong>
-                          )}
+                          {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
                         </li>
                       ))}
@@ -502,7 +442,6 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* 4. Best Alternatives */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -518,7 +457,7 @@ export default async function ToolPage({ params }: Props) {
                         <div>
                           <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {validateAndSanitizeText(alt.description, alt.name) || "Alternative software listing."}
+                            {sanitizeText(alt.description, alt.name) || "Alternative software listing."}
                           </p>
                         </div>
                         <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
@@ -528,17 +467,15 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 5. Who Should Use It? */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is best suited for {getTargetUserDescription(tool.category)}
+                  {tool.name} is best suited for {getTargetUsers(tool.category)}
                 </p>
               </section>
 
-              {/* 6. How to Use [Tool] */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   How to Use {tool.name}
@@ -550,7 +487,6 @@ export default async function ToolPage({ params }: Props) {
                 </ol>
               </section>
 
-              {/* 7. FAQ */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Frequently Asked Questions
@@ -566,7 +502,6 @@ export default async function ToolPage({ params }: Props) {
               </section>
             </div>
 
-            {/* Sidebar Specifications */}
             <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
@@ -610,7 +545,6 @@ export default async function ToolPage({ params }: Props) {
             </aside>
           </div>
 
-          {/* 8. Related Tools */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
@@ -639,7 +573,7 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {validateAndSanitizeText(rel.description, rel.name) || "Software directory listing."}
+                          {sanitizeText(rel.description, rel.name) || "Software directory listing."}
                         </p>
                       </div>
                     </div>
