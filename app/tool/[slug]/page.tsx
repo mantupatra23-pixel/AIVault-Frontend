@@ -54,10 +54,10 @@ async function getRelatedTools(category: string, currentSlug: string) {
   try {
     const { data } = await supabase
       .from("ai_tools")
-      .select("name, slug, category, pricing, neural_score, image_url, logo_url, description")
+      .select("name, slug, category, pricing, image_url, logo_url, description")
       .ilike("category", `%${category}%`)
       .neq("slug", currentSlug)
-      .limit(6);
+      .limit(8);
 
     return data || [];
   } catch {
@@ -111,13 +111,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name} — Features, Pricing & Alternatives | AI Vault`;
-  
+  const title = tool.meta_title || `${tool.name}: Features, Pricing & Alternatives | AI Vault`;
+
   const cleanDesc = tool.description ? tool.description.replace(/(<([^>]+)>)/gi, "").slice(0, 155) : "";
   const description =
     tool.meta_description ||
     cleanDesc ||
-    `Explore ${tool.name}'s features, pricing models, pros, cons, and alternatives on AI Vault.`;
+    `Learn what ${tool.name} does, its key features, pricing model, pros and cons, and top alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -154,11 +154,6 @@ export default async function ToolPage({ params }: Props) {
   }
 
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
-  const scoreDisplay = tool.neural_score
-    ? Number(tool.neural_score).toFixed(1)
-    : tool.score
-    ? (tool.score / 10).toFixed(1)
-    : "8.5";
 
   let prosItems = parseStructuredList(tool.pros);
   let consItems = parseStructuredList(tool.cons);
@@ -177,11 +172,11 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Dedicated Alternatives vs Related splitting
+  // Split into alternatives (first 3) and related tools (next 4-5)
   const alternativesList = relatedTools.slice(0, 3);
-  const generalRelated = relatedTools.slice(3, 6);
+  const generalRelated = relatedTools.slice(3, 8);
 
-  // Schema.org Grounded Schemas
+  // Grounded Breadcrumbs Schema
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -207,25 +202,27 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  // Factually Grounded FAQs
+  // Tool-Specific, Concise FAQs
   const faqItems = [
     {
       q: `What is ${tool.name} used for?`,
-      a: `${tool.name} is designed to support tasks within the ${tool.category || "AI software"} domain.`,
+      a: `${tool.name} provides software solutions designed for ${tool.category || "digital operations"} workflows.`,
     },
     {
-      q: `Is ${tool.name} free or paid?`,
-      a: `${tool.name} is categorized under a ${tool.pricing || "Freemium"} model. Check the official portal for exact plan limits.`,
+      q: `Is ${tool.name} free?`,
+      a: tool.pricing
+        ? `${tool.name} is available under a ${tool.pricing} pricing model. Pricing can change; visit the official website for active tier plans.`
+        : `Pricing for ${tool.name} can change. Visit the official website for current plans and pricing details.`,
     },
     {
-      q: `Who is ${tool.name} best for?`,
-      a: `${tool.name} is suited for professionals, developers, and teams operating in ${tool.category || "digital operations"}.`,
+      q: `Who should use ${tool.name}?`,
+      a: `${tool.name} is best suited for teams, developers, and professionals managing projects in the ${tool.category || "technology"} domain.`,
     },
     {
       q: `What are the best alternatives to ${tool.name}?`,
       a: alternativesList.length > 0
-        ? `Top options include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Explore other tools listed under the ${tool.category || "AI"} category.`,
+        ? `Popular alternatives include ${alternativesList.map((a) => a.name).join(", ")}.`
+        : `Similar tools can be found under the ${tool.category || "AI software"} category on AI Vault.`,
     },
   ];
 
@@ -254,6 +251,7 @@ export default async function ToolPage({ params }: Props) {
       />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+        {/* Navigation Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -312,16 +310,6 @@ export default async function ToolPage({ params }: Props) {
                   </h1>
                 </div>
               </div>
-
-              <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
-                <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                  Internal Editorial Score
-                </span>
-                <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-tight font-serif">
-                  {scoreDisplay}
-                  <span className="text-base font-normal text-slate-400">/10</span>
-                </div>
-              </div>
             </div>
           </section>
 
@@ -331,20 +319,26 @@ export default async function ToolPage({ params }: Props) {
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {tool.description || `${tool.name} is a software platform designed to assist users with ${tool.category || "software automation"} tasks.`}
+              {tool.description || `${tool.name} is a software platform built for ${tool.category || "software automation"} workflows.`}
             </div>
           </section>
 
-          {/* Core Content Grid */}
+          {/* Core Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing Section */}
+              {/* 2. Pricing */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed">
-                  {tool.name} operates under a <strong className="text-slate-900 font-bold">{tool.pricing || "Freemium"}</strong> tier structure. Pricing may change. Visit the official website for the latest plans and current pricing.
+                  {tool.pricing ? (
+                    <>
+                      {tool.name} is currently categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> tier model.
+                    </>
+                  ) : (
+                    <>Pricing can change. Visit the official website for the latest plans and current pricing.</>
+                  )}
                 </p>
                 <div className="pt-2">
                   <a
@@ -353,7 +347,7 @@ export default async function ToolPage({ params }: Props) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Pricing on Official Portal →
+                    Check Latest Plans on Official Website →
                   </a>
                 </div>
               </section>
@@ -378,7 +372,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No explicit features listed.</p>
+                    <p className="text-xs text-slate-400 italic">No specific features recorded.</p>
                   )}
                 </div>
 
@@ -400,7 +394,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No explicit limitations listed.</p>
+                    <p className="text-xs text-slate-400 italic">No specific limitations recorded.</p>
                   )}
                 </div>
               </section>
@@ -435,7 +429,9 @@ export default async function ToolPage({ params }: Props) {
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is intended for users working in <strong className="text-slate-900">{tool.category || "AI software"}</strong> looking for a <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> software solution.
+                  {tool.name} is suitable for users, developers, and organisations working within the{" "}
+                  <strong className="text-slate-900">{tool.category || "AI software"}</strong> field looking for a{" "}
+                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> solution.
                 </p>
               </section>
 
@@ -445,10 +441,10 @@ export default async function ToolPage({ params }: Props) {
                   How to Use {tool.name}
                 </h2>
                 <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  <li>Visit the official portal using the link provided on this page.</li>
-                  <li>Sign up or set up an account if required.</li>
-                  <li>Follow the onboarding guide to configure your project parameters.</li>
-                  <li>Execute tasks and export or integrate generated outputs.</li>
+                  <li>Visit the official portal via the destination link on this page.</li>
+                  <li>Set up or authenticate your user account.</li>
+                  <li>Configure your project or tool parameters.</li>
+                  <li>Run your required tasks and export results.</li>
                 </ol>
               </section>
 
@@ -487,7 +483,7 @@ export default async function ToolPage({ params }: Props) {
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
+                    <dt className="text-slate-500 font-medium">Pricing Tier</dt>
                     <dd className="font-bold text-emerald-600">{tool.pricing || "Freemium"}</dd>
                   </div>
 
@@ -520,47 +516,40 @@ export default async function ToolPage({ params }: Props) {
                   Related Tools in {tool.category || "AI"}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
-                  View Full Directory ↗
+                  View Directory ↗
                 </Link>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {generalRelated.map((rel: any) => {
-                  const relScore = rel.neural_score ? Number(rel.neural_score).toFixed(1) : "8.5";
-
-                  return (
-                    <Link
-                      key={rel.slug}
-                      href={`/tool/${rel.slug}`}
-                      className="group bg-white border border-slate-100 hover:border-blue-200 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
-                    >
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <ToolLogo tool={rel} size="md" />
-                          <span className="text-xs font-bold text-blue-600 font-serif">
-                            ★ {relScore}
-                          </span>
-                        </div>
-
-                        <div>
-                          <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                            {rel.name}
-                          </h3>
-                          <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {rel.description || "Verified AI software listing."}
-                          </p>
-                        </div>
+                {generalRelated.map((rel: any) => (
+                  <Link
+                    key={rel.slug}
+                    href={`/tool/${rel.slug}`}
+                    className="group bg-white border border-slate-100 hover:border-blue-200 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
+                  >
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <ToolLogo tool={rel} size="md" />
                       </div>
 
-                      <div className="pt-4 mt-4 border-t border-slate-50 flex items-center justify-between text-xs font-semibold text-slate-400">
-                        <span>{rel.category || "AI Engine"}</span>
-                        <span className="text-blue-600 group-hover:translate-x-1 transition-transform">
-                          Inspect →
-                        </span>
+                      <div>
+                        <h3 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
+                          {rel.name}
+                        </h3>
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1">
+                          {rel.description || "Verified AI software listing."}
+                        </p>
                       </div>
-                    </Link>
-                  );
-                })}
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-slate-50 flex items-center justify-between text-xs font-semibold text-slate-400">
+                      <span>{rel.category || "AI Engine"}</span>
+                      <span className="text-blue-600 group-hover:translate-x-1 transition-transform">
+                        Inspect →
+                      </span>
+                    </div>
+                  </Link>
+                ))}
               </div>
             </section>
           )}
