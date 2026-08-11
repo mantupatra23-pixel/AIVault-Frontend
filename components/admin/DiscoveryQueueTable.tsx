@@ -8,19 +8,20 @@ export interface CandidateRow {
   tool_name: string;
   tool_slug: string;
   official_url: string | null;
-  affiliate_network: string;
+  network: string;
   program_name: string | null;
   candidate_url: string;
-  commission_details: string;
-  cookie_duration: number;
-  confidence_score: number;
+  evidence_url: string | null;
+  commission_rate: string | null;
+  cookie_duration_days: number;
+  confidence: number;
   status: string;
 }
 
 export function DiscoveryQueueTable() {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
   const [scanning, setScanning] = useState(false);
-  const [scanMessage, setScanMessage] = useState<string | null>(null);
+  const [progressMsg, setProgressMsg] = useState<string | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState("");
   const [actionLoading, setActionLoading] = useState(false);
@@ -43,20 +44,22 @@ export function DiscoveryQueueTable() {
 
   const handleRunScan = async () => {
     setScanning(true);
-    setScanMessage("Scanning directory tools for verified affiliate programs...");
+    setProgressMsg("Scanning directory tools... Step 1/5: Querying database index...");
 
     try {
-      const res = await fetch("/api/admin/affiliates/scan", { method: "POST" });
+      setTimeout(() => setProgressMsg("Scanning directory tools... Step 3/5: Checking active network credentials..."), 800);
+
+      const res = await fetch("/api/admin/affiliates/discover", { method: "POST" });
       const data = await res.json();
 
       if (res.ok) {
-        setScanMessage(`✓ Scan complete! Scanned ${data.scanned} tools. Found ${data.discovered} new affiliate candidates.`);
+        setProgressMsg(`✓ ${data.message}`);
         fetchCandidates();
       } else {
-        setScanMessage(`Scan error: ${data.error || "Execution error"}`);
+        setProgressMsg(`Discovery error: ${data.error || "Failed to execute scan"}`);
       }
     } catch {
-      setScanMessage("Scan execution error occurred.");
+      setProgressMsg("Discovery API connection error.");
     } finally {
       setScanning(false);
     }
@@ -76,7 +79,7 @@ export function DiscoveryQueueTable() {
         setEditingCandidate(null);
       }
     } catch {
-      // Handle error
+      // Non-blocking
     } finally {
       setActionLoading(false);
     }
@@ -87,25 +90,27 @@ export function DiscoveryQueueTable() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
         <div>
           <span className="text-[10px] font-extrabold uppercase tracking-widest bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full border border-amber-500/20">
-            Discovery Queue ({candidates.length})
+            Affiliate Discovery Queue ({candidates.length})
           </span>
           <h2 className="text-xl font-black text-white font-serif mt-1">
-            Affiliate Discovery Queue
+            Pending Opportunities Queue
           </h2>
         </div>
 
-        <button
-          onClick={handleRunScan}
-          disabled={scanning}
-          className="px-5 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
-        >
-          {scanning ? "SCANNING DIRECTORY..." : "AUTO DISCOVER AFFILIATES 🔍"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleRunScan}
+            disabled={scanning}
+            className="px-5 py-2.5 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+          >
+            {scanning ? "DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
+          </button>
+        </div>
       </div>
 
-      {scanMessage && (
-        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-bold text-blue-300">
-          {scanMessage}
+      {progressMsg && (
+        <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/20 text-xs font-bold text-blue-300 font-mono">
+          {progressMsg}
         </div>
       )}
 
@@ -129,7 +134,7 @@ export function DiscoveryQueueTable() {
                     <span className="block text-[10px] text-slate-500 font-mono">/tool/{c.tool_slug}</span>
                   </td>
                   <td className="p-4">
-                    <div className="text-white font-bold">{c.affiliate_network}</div>
+                    <div className="text-white font-bold">{c.network}</div>
                     <div className="text-[10px] text-slate-400">{c.program_name || "Merchant Program"}</div>
                   </td>
                   <td className="p-4 font-mono text-[11px] text-blue-400 truncate max-w-xs">
@@ -137,7 +142,7 @@ export function DiscoveryQueueTable() {
                   </td>
                   <td className="p-4 text-center">
                     <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400">
-                      {c.confidence_score}%
+                      {c.confidence}%
                     </span>
                   </td>
                   <td className="p-4 text-right space-x-2">
@@ -172,7 +177,7 @@ export function DiscoveryQueueTable() {
         </div>
       ) : (
         <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
-          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
+          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan unmonetized tools.
         </div>
       )}
 
