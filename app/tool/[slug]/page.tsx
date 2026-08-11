@@ -201,7 +201,7 @@ export default async function ToolPage({ params }: Props) {
   const generalRelated = relatedTools.slice(3, 8);
 
   const officialUrl = tool.website_url || tool.official_url || "#";
-  const destinationUrl = tool.affiliate_url || officialUrl;
+  const destinationUrl = tool.affiliate_url ? `/go/${tool.slug}` : officialUrl;
   const isAffiliate = Boolean(tool.affiliate_url);
   const youtubeVideoId = extractYouTubeId(tool.youtube_url, tool.youtube_id);
   const normalizedScore = normalizeScore(tool.score, tool.neural_score, tool.rating);
@@ -545,6 +545,12 @@ export default async function ToolPage({ params }: Props) {
                       Visit Official Direct Website ↗
                     </a>
                   )}
+
+                  {isAffiliate && (
+                    <p className="text-[10px] text-slate-400 text-center leading-normal pt-2">
+                      Disclosure: Some links may be affiliate links. AI Vault may earn a commission from qualifying purchases at no additional cost to you.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -552,7 +558,7 @@ export default async function ToolPage({ params }: Props) {
             </aside>
           </div>
 
-          {/* Related Tools Section */}
+          {/* Related Tools */}
           {generalRelated.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
