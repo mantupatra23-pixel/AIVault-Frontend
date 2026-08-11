@@ -1,0 +1,11 @@
+ALTER TABLE public.ai_tools
+ADD COLUMN IF NOT EXISTS features_pros JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS limitations_cons JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS who_should_use TEXT,
+ADD COLUMN IF NOT EXISTS how_to_use JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS pricing_details JSONB DEFAULT '{}'::jsonb,
+ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS faqs JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS related_tools JSONB DEFAULT '[]'::jsonb,
+ADD COLUMN IF NOT EXISTS seo_title TEXT,
+ADD COLUMN IF NOT EXISTS seo_description TEXT;

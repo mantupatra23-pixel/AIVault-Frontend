@@ -4,8 +4,6 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
-import { normalizeTool, NormalizedTool } from "@/lib/tool-normalizer";
-import { enrichMissingToolFields } from "@/lib/ai-enrichment";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -14,6 +12,50 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
+export interface FormattedListItem {
+  title?: string;
+  description: string;
+}
+
+export interface FAQItem {
+  q: string;
+  a: string;
+}
+
+export interface PricingDetailsJSON {
+  model?: string;
+  note?: string;
+  official_link?: string;
+}
+
+export interface DatabaseToolRecord {
+  id: string;
+  name: string;
+  slug: string;
+  category: string;
+  pricing: string | null;
+  description: string | null;
+  website_url: string | null;
+  official_url: string | null;
+  affiliate_url: string | null;
+  youtube_url: string | null;
+  youtube_id: string | null;
+  score: number | null;
+  neural_score: number | null;
+  rating: number | null;
+  image_url: string | null;
+  logo_url: string | null;
+  features_pros: FormattedListItem[] | null;
+  limitations_cons: FormattedListItem[] | null;
+  who_should_use: string | null;
+  how_to_use: string[] | null;
+  pricing_details: PricingDetailsJSON | null;
+  tags: string[] | null;
+  faqs: FAQItem[] | null;
+  seo_title: string | null;
+  seo_description: string | null;
+}
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -21,24 +63,42 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-async function getToolData(rawSlug: string): Promise<NormalizedTool | null> {
+function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
+  if (idStr && idStr.trim().length === 11) return idStr.trim();
+  if (!urlStr) return null;
+
+  try {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = urlStr.match(regExp);
+    return match && match[2].length === 11 ? match[2] : null;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
+  const val = Number(rawScore || rawNeural || rawRating);
+  if (isNaN(val) || val <= 0) return null;
+  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
+  if (val <= 10) return Number(val.toFixed(1));
+  return 8.5;
+}
+
+async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
   try {
     const decodedSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
-    const { data: raw, error } = await supabase
+    const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
       .eq("slug", decodedSlug)
       .maybeSingle();
 
-    if (error || !raw) return null;
-
-    const normalized = normalizeTool(raw);
-    return enrichMissingToolFields(normalized);
-  } catch (err) {
-    console.error(`[FETCH_EXCEPT] rawSlug=${rawSlug}`, err);
+    if (error || !data) return null;
+    return data as DatabaseToolRecord;
+  } catch {
     return null;
   }
 }
@@ -63,26 +123,28 @@ async function getRelatedTools(category: string, currentSlug: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
-  const tool = await getToolData(resolvedParams.slug);
+  const tool = await getToolFromDatabase(resolvedParams.slug);
 
   if (!tool) {
     return {
       title: "Tool Not Found | AI Vault",
-      description: "Explore verified AI tools and software in the AI Vault directory.",
+      description: "Explore verified software tools in the AI Vault directory.",
       robots: { index: false, follow: true },
     };
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const logoUrl = `${SITE_URL}/og-image.png`;
+  const title = tool.seo_title || `${tool.name} — Features, Pricing & Review | AI Vault`;
+  const description = tool.seo_description || tool.description?.slice(0, 155) || `${tool.name} overview and details.`;
+  const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
   return {
-    title: tool.seoTitle,
-    description: tool.seoDescription,
+    title,
+    description,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title: tool.seoTitle,
-      description: tool.seoDescription,
+      title,
+      description,
       url: canonicalUrl,
       siteName: "AI Vault",
       type: "website",
@@ -90,8 +152,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title: tool.seoTitle,
-      description: tool.seoDescription,
+      title,
+      description,
       images: [logoUrl],
     },
     robots: { index: true, follow: true },
@@ -100,25 +162,34 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ToolPage({ params }: Props) {
   const resolvedParams = await params;
-  const tool = await getToolData(resolvedParams.slug);
+  const tool = await getToolFromDatabase(resolvedParams.slug);
 
   if (!tool) {
     notFound();
   }
 
-  const relatedTools = await getRelatedTools(tool.category, tool.slug);
+  const relatedTools = await getRelatedTools(tool.category || "Software", tool.slug);
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
 
-  const destinationUrl = tool.affiliateUrl || tool.officialUrl;
-  const isAffiliate = Boolean(tool.affiliateUrl);
+  const officialUrl = tool.website_url || tool.official_url || "#";
+  const destinationUrl = tool.affiliate_url || officialUrl;
+  const isAffiliate = Boolean(tool.affiliate_url);
+  const youtubeVideoId = extractYouTubeId(tool.youtube_url, tool.youtube_id);
+  const normalizedScore = normalizeScore(tool.score, tool.neural_score, tool.rating);
+
+  const prosList = Array.isArray(tool.features_pros) ? tool.features_pros : [];
+  const consList = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
+  const howToSteps = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
+  const tagsList = Array.isArray(tool.tags) ? tool.tags : [];
+  const faqsList = Array.isArray(tool.faqs) ? tool.faqs : [];
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-      { "@type": "ListItem", position: 2, name: tool.category, item: `${SITE_URL}/?cat=${encodeURIComponent(tool.category)}` },
+      { "@type": "ListItem", position: 2, name: tool.category || "AI Tools", item: `${SITE_URL}/?cat=${encodeURIComponent(tool.category || "")}` },
       { "@type": "ListItem", position: 3, name: tool.name, item: `${SITE_URL}/tool/${tool.slug}` },
     ],
   };
@@ -127,20 +198,20 @@ export default async function ToolPage({ params }: Props) {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: tool.name,
-    applicationCategory: tool.category,
+    applicationCategory: tool.category || "Application",
     operatingSystem: "Web",
     url: destinationUrl,
     offers: {
       "@type": "Offer",
       priceCurrency: "USD",
-      description: tool.pricingDetails || tool.pricingModel,
+      description: tool.pricing || "Pricing varies",
     },
   };
 
-  const faqSchema = tool.faqs ? {
+  const faqSchema = faqsList.length > 0 ? {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: tool.faqs.map((item) => ({
+    mainEntity: faqsList.map((item) => ({
       "@type": "Question",
       name: item.q,
       acceptedAnswer: { "@type": "Answer", text: item.a },
@@ -180,7 +251,7 @@ export default async function ToolPage({ params }: Props) {
             <ol className="flex items-center gap-2 flex-wrap">
               <li><Link href="/" className="hover:text-blue-600 transition">Home</Link></li>
               <li>/</li>
-              <li><Link href={`/?cat=${encodeURIComponent(tool.category)}`} className="hover:text-blue-600 transition">{tool.category}</Link></li>
+              <li><Link href={`/?cat=${encodeURIComponent(tool.category || "")}`} className="hover:text-blue-600 transition">{tool.category || "Software"}</Link></li>
               <li>/</li>
               <li className="text-slate-900 font-bold">{tool.name}</li>
             </ol>
@@ -195,10 +266,10 @@ export default async function ToolPage({ params }: Props) {
                 <div className="space-y-2 min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-blue-50 text-blue-700 border border-blue-100">
-                      {tool.category}
+                      {tool.category || "Software"}
                     </span>
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700">
-                      {tool.pricingModel}
+                      {tool.pricing || "Freemium"}
                     </span>
                   </div>
 
@@ -208,13 +279,13 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {tool.editorialScore && (
+              {normalizedScore && (
                 <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
                     AI Vault Score
                   </span>
                   <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-tight font-serif">
-                    {tool.editorialScore}
+                    {normalizedScore}
                     <span className="text-base font-normal text-slate-400">/10</span>
                   </div>
                 </div>
@@ -222,18 +293,18 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Overview */}
+          {/* Overview Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {tool.description}
+              {tool.description || `${tool.name} is a software platform designed for ${tool.category || "digital"} operations.`}
             </div>
 
-            {tool.tags.length > 0 && (
+            {tagsList.length > 0 && (
               <div className="pt-4 flex flex-wrap gap-2">
-                {tool.tags.map((tag, i) => (
+                {tagsList.map((tag, i) => (
                   <span key={i} className="text-xs font-semibold px-2.5 py-1 bg-slate-50 text-slate-600 rounded-lg border border-slate-100">
                     #{tag}
                   </span>
@@ -242,15 +313,15 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* Embedded Video */}
-          {tool.youtubeVideoId && (
+          {/* Responsive YouTube Embed */}
+          {youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
                 Video Overview
               </h2>
               <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
                 <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${tool.youtubeVideoId}`}
+                  src={`https://www.youtube-nocookie.com/embed/${youtubeVideoId}`}
                   title={`${tool.name} Video Overview`}
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowFullScreen
@@ -262,13 +333,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* Pricing */}
+              {/* Pricing Section */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricingDetails || "Pricing information unavailable — check the official website for current plans and tier limits."}
+                  {tool.pricing_details?.note || tool.pricing || "Pricing information varies — check official website for plans and limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -277,7 +348,7 @@ export default async function ToolPage({ params }: Props) {
                     rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Pricing on Official Website →
+                    Check Official Pricing Tiers →
                   </a>
                 </div>
               </section>
@@ -288,9 +359,9 @@ export default async function ToolPage({ params }: Props) {
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
                     KEY FEATURES & PROS
                   </h2>
-                  {tool.pros.length > 0 ? (
+                  {prosList.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
-                      {tool.pros.map((item, i) => (
+                      {prosList.map((item, i) => (
                         <li key={i} className="leading-relaxed">
                           {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
@@ -298,7 +369,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not specified.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified.</p>
                   )}
                 </div>
 
@@ -306,9 +377,9 @@ export default async function ToolPage({ params }: Props) {
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-amber-700">
                     LIMITATIONS & CONS
                   </h2>
-                  {tool.cons.length > 0 ? (
+                  {consList.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
-                      {tool.cons.map((item, i) => (
+                      {consList.map((item, i) => (
                         <li key={i} className="leading-relaxed">
                           {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
@@ -316,12 +387,12 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not specified.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified.</p>
                   )}
                 </div>
               </section>
 
-              {/* Best Alternatives */}
+              {/* Alternatives */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -348,25 +419,25 @@ export default async function ToolPage({ params }: Props) {
               )}
 
               {/* Who Should Use */}
-              {tool.whoShouldUse && (
+              {tool.who_should_use && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
                     Who Should Use {tool.name}?
                   </h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    {tool.whoShouldUse}
+                    {tool.who_should_use}
                   </p>
                 </section>
               )}
 
               {/* How to Use */}
-              {tool.howToUse && tool.howToUse.length > 0 && (
+              {howToSteps.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
                     How to Get Started with {tool.name}
                   </h2>
                   <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                    {tool.howToUse.map((step, idx) => (
+                    {howToSteps.map((step, idx) => (
                       <li key={idx}>{step}</li>
                     ))}
                   </ol>
@@ -374,13 +445,13 @@ export default async function ToolPage({ params }: Props) {
               )}
 
               {/* FAQs */}
-              {tool.faqs && tool.faqs.length > 0 && (
+              {faqsList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
                     Frequently Asked Questions
                   </h2>
                   <div className="space-y-4 divide-y divide-slate-100">
-                    {tool.faqs.map((faq, index) => (
+                    {faqsList.map((faq, index) => (
                       <div key={index} className={index > 0 ? "pt-4" : ""}>
                         <h3 className="text-sm font-bold text-slate-900">{faq.q}</h3>
                         <p className="text-xs text-slate-600 mt-1 leading-relaxed">{faq.a}</p>
@@ -406,19 +477,19 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Category</dt>
-                    <dd className="font-bold text-blue-600">{tool.category}</dd>
+                    <dd className="font-bold text-blue-600">{tool.category || "Software"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Pricing Tier</dt>
-                    <dd className="font-bold text-emerald-600">{tool.pricingModel}</dd>
+                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
+                    <dd className="font-bold text-emerald-600">{tool.pricing || "Freemium"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Data Status</dt>
                     <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      {tool.dataSources.overview === "database" ? "Database Verified" : "Information Reviewed"}
+                      Database Enriched
                     </dd>
                   </div>
                 </dl>
@@ -440,7 +511,7 @@ export default async function ToolPage({ params }: Props) {
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Related Tools in {tool.category}
+                  Related Tools in {tool.category || "Software"}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Full Directory ↗
