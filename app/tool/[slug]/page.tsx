@@ -57,7 +57,7 @@ async function getRelatedTools(category: string, currentSlug: string) {
       .select("name, slug, category, pricing, neural_score, image_url, logo_url, description")
       .eq("category", category)
       .neq("slug", currentSlug)
-      .limit(3);
+      .limit(6);
 
     return data || [];
   } catch {
@@ -132,11 +132,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = tool.meta_title || `${tool.name} – Features, Pricing & Alternatives | AI Vault`;
+  const title = tool.meta_title || `${tool.name} — Features, Pricing, Alternatives & Review | AI Vault`;
+  
+  // Clean description stripped of boilerplates
+  const cleanDesc = tool.description ? tool.description.replace(/(<([^>]+)>)/gi, "").slice(0, 155) : "";
   const description =
     tool.meta_description ||
-    tool.description?.replace(/(<([^>]+)>)/gi, "").slice(0, 155) ||
-    `Explore ${tool.name}'s features, pricing, use cases, pros, cons and alternatives on AI Vault.`;
+    cleanDesc ||
+    `Explore ${tool.name}'s key features, pricing, pros, cons, and top alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -239,31 +242,34 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  // FAQ Schema generated ONLY when real FAQ data is present
-  const faqSchema = tool.faq
-    ? {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        mainEntity: [
-          {
-            "@type": "Question",
-            name: `What is ${tool.name}?`,
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: tool.description || `${tool.name} is a verified AI software engine in the ${tool.category} category.`,
-            },
-          },
-          {
-            "@type": "Question",
-            name: `Is ${tool.name} free to use?`,
-            acceptedAnswer: {
-              "@type": "Answer",
-              text: `${tool.name} operates under a ${tool.pricing || "Freemium"} deployment model.`,
-            },
-          },
-        ],
-      }
-    : null;
+  // Structured FAQs (Ground truth visible on page)
+  const faqItems = [
+    {
+      q: `What is ${tool.name}?`,
+      a: tool.description || `${tool.name} is a software solution designed for workflows in the ${tool.category || "AI"} domain.`,
+    },
+    {
+      q: `Is ${tool.name} free to use?`,
+      a: `${tool.name} is offered under a ${tool.pricing || "Freemium"} model. Check the official portal for exact plan terms.`,
+    },
+    {
+      q: `Who should use ${tool.name}?`,
+      a: `${tool.name} is ideal for individuals, developers, and teams working within ${tool.category || "software automation"}.`,
+    },
+  ];
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.a,
+      },
+    })),
+  };
 
   return (
     <>
@@ -275,12 +281,10 @@ export default async function ToolPage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
       />
-      {faqSchema && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-        />
-      )}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
@@ -320,7 +324,7 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
-          {/* Hero Section with Semantic H1 */}
+          {/* Hero Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -354,42 +358,44 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* Strategic Summary Article */}
-          <article className="bg-gradient-to-r from-blue-900 to-slate-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
-            <div className="space-y-3 relative z-10">
-              <div className="flex items-center gap-2 text-blue-400 text-xs font-extrabold tracking-widest uppercase">
-                <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                Strategic Verification Summary
-              </div>
-              <p className="text-lg sm:text-2xl font-serif text-slate-100 leading-relaxed">
-                AI Vault network intelligence identifies{" "}
-                <strong className="text-white underline decoration-blue-500 underline-offset-4">
-                  {tool.name}
-                </strong>{" "}
-                as an active software engine optimized for{" "}
-                <span className="text-blue-300">{tool.category || "Productivity"}</span> workflows.
-              </p>
+          {/* Section 1: What is [Tool]? */}
+          <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+            <h2 className="text-xl font-black text-slate-950 font-serif">
+              What is {tool.name}?
+            </h2>
+            <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
+              {tool.description || `${tool.name} is an AI software solution created for ${tool.category || "productivity"} workflows.`}
             </div>
-          </article>
+          </section>
 
-          {/* Core Content Layout with H2 Headers */}
+          {/* Section 2 & 3: Key Features & Pricing */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* What is {Tool}? */}
+              {/* Pricing Overview */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-                <h2 className="text-lg font-bold text-slate-950 font-serif">
-                  What is {tool.name}?
+                <h2 className="text-xl font-black text-slate-950 font-serif">
+                  Pricing & Access
                 </h2>
-                <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-                  {tool.description || `Explore how ${tool.name} automates operations in the ${tool.category} domain.`}
+                <p className="text-slate-700 text-sm leading-relaxed">
+                  {tool.name} operates under a <strong className="text-slate-900 font-bold">{tool.pricing || "Freemium"}</strong> tier structure. Pricing information and active subscription plans may change over time.
+                </p>
+                <div className="pt-2">
+                  <a
+                    href={officialUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
+                  >
+                    Check Latest Pricing on Official Website →
+                  </a>
                 </div>
               </section>
 
-              {/* Pros and Cons */}
+              {/* Section 4: Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
-                    ✓ Key Features & Pros
+                    KEY FEATURES & PROS
                   </h2>
                   {prosItems.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
@@ -405,13 +411,13 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No explicit pros recorded.</p>
+                    <p className="text-xs text-slate-400 italic">Feature list available via official portal.</p>
                   )}
                 </div>
 
                 <div className="bg-white border border-amber-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-amber-700">
-                    × Limitations & Cons
+                    LIMITATIONS & CONS
                   </h2>
                   {consItems.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
@@ -427,21 +433,49 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">No significant limitations recorded.</p>
+                    <p className="text-xs text-slate-400 italic">No explicit limitations recorded.</p>
                   )}
                 </div>
               </section>
 
-              {/* Who Should Use Section */}
+              {/* Section 6: Who Should Use [Tool]? */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
-                <h2 className="text-lg font-bold text-slate-950 font-serif">
+                <h2 className="text-xl font-black text-slate-950 font-serif">
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is built for developers, creators, and teams operating within the{" "}
-                  <strong className="text-slate-900">{tool.category || "AI"}</strong> category looking for a{" "}
-                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> solution.
+                  {tool.name} is designed for teams, developers, and professionals specializing in{" "}
+                  <strong className="text-slate-900">{tool.category || "AI software"}</strong> looking for an efficient{" "}
+                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> tool.
                 </p>
+              </section>
+
+              {/* Section 7: How to Use [Tool] */}
+              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+                <h2 className="text-xl font-black text-slate-950 font-serif">
+                  How to Get Started with {tool.name}
+                </h2>
+                <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
+                  <li>Visit the official portal at <a href={officialUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">official site</a>.</li>
+                  <li>Sign up or authenticate an account if required.</li>
+                  <li>Select your operational workflow or configure key parameters.</li>
+                  <li>Run tasks and inspect generated results.</li>
+                </ol>
+              </section>
+
+              {/* Section 8: FAQ */}
+              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                <h2 className="text-xl font-black text-slate-950 font-serif">
+                  Frequently Asked Questions
+                </h2>
+                <div className="space-y-4 divide-y divide-slate-100">
+                  {faqItems.map((faq, index) => (
+                    <div key={index} className={index > 0 ? "pt-4" : ""}>
+                      <h3 className="text-sm font-bold text-slate-900">{faq.q}</h3>
+                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">{faq.a}</p>
+                    </div>
+                  ))}
+                </div>
               </section>
             </div>
 
@@ -469,7 +503,7 @@ export default async function ToolPage({ params }: Props) {
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Crawl Verification</dt>
+                    <dt className="text-slate-500 font-medium">Verification Status</dt>
                     <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
                       VERIFIED
@@ -477,24 +511,25 @@ export default async function ToolPage({ params }: Props) {
                   </div>
                 </dl>
 
+                {/* Section 10: Official Website CTA */}
                 <a
                   href={officialUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full inline-flex items-center justify-center py-4 px-6 text-sm font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all shadow-md hover:shadow-blue-500/25 active:scale-98"
                 >
-                  Visit Official Portal ↗
+                  VISIT OFFICIAL PORTAL ↗
                 </a>
               </div>
             </aside>
           </div>
 
-          {/* Alternatives & Related Engines */}
+          {/* Section 5 & 9: Related Tools & Alternatives */}
           {relatedTools.length > 0 && (
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Best Alternatives & Related Engines
+                  Best Alternatives & Related Tools
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
                   View Directory ↗
