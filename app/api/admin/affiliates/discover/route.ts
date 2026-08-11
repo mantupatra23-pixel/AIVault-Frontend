@@ -25,12 +25,12 @@ export async function POST(request: NextRequest) {
       if (body.batchSize) batchSize = parseInt(body.batchSize, 10);
       if (body.offset) offset = parseInt(body.offset, 10);
     } catch {
-      // Use defaults if empty body
+      // Use default pagination
     }
 
     console.log(`[affiliate-discovery] started batchSize=${batchSize} offset=${offset}`);
 
-    // 1. Fetch enabled network credentials
+    // Fetch enabled affiliate network publisher settings
     const { data: enabledNetworks } = await supabase
       .from("affiliate_settings")
       .select("network_name, publisher_id, is_enabled")
@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
     const activeNetworks = (enabledNetworks || []).filter((n) => n.publisher_id && n.publisher_id.trim() !== "");
 
     if (activeNetworks.length === 0) {
-      // Credentials not configured - return helpful administrative alert
       const { count: unmonetizedCount } = await supabase
         .from("ai_tools")
         .select("id", { count: "exact", head: true });
@@ -49,12 +48,12 @@ export async function POST(request: NextRequest) {
         requiresCredentials: true,
         scanned: 0,
         candidatesFound: 0,
-        noProgramFound: 0,
+        noProgramFound: unmonetizedCount || 0,
         message: "Affiliate discovery requires network credentials. Configure Impact / PartnerStack / CJ / ShareASale credentials in Credentials & Settings.",
       });
     }
 
-    // 2. Fetch schema-safe tool index batch from public.ai_tools
+    // Schema-safe selection from public.ai_tools
     const { data: tools, count: totalTools } = await supabase
       .from("ai_tools")
       .select("id, name, slug, category, website_url", { count: "exact" })
@@ -68,12 +67,14 @@ export async function POST(request: NextRequest) {
         candidatesFound: 0,
         noProgramFound: 0,
         offset,
+        batchSize,
         total: totalTools || 0,
+        hasMore: false,
         message: "All eligible tool batches processed.",
       });
     }
 
-    // Load existing active links to skip
+    // Load active affiliate links to skip
     const { data: existingLinks } = await supabase
       .from("affiliate_links")
       .select("tool_id, status");
@@ -105,17 +106,8 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      let cleanDomain = "";
-      try {
-        const parsed = new URL(websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`);
-        cleanDomain = parsed.hostname.replace("www.", "").toLowerCase();
-      } catch {
-        cleanDomain = websiteUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
-      }
-
       let candidateFound = false;
 
-      // Match against configured publisher settings
       for (const net of activeNetworks) {
         if (net.publisher_id) {
           candidateFound = true;
@@ -156,7 +148,7 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      if (!candidateFound) {
+      if (!candidateMatched(candidateFound)) {
         noProgramCount++;
         await supabase.from("affiliate_links").upsert(
           {
@@ -169,13 +161,17 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    function candidateMatched(found: boolean): boolean {
+      return found;
+    }
+
     console.log(`[affiliate-discovery] scanned=${scannedCount} candidates=${candidatesFound} noProgram=${noProgramCount}`);
 
     return NextResponse.json({
       success: true,
       scanned: scannedCount,
       candidatesFound,
-      noProgramFound,
+      noProgramFound: noProgramCount,
       offset,
       batchSize,
       total: totalTools || 0,
