@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { DiscoveryQueueTable } from "@/components/admin/DiscoveryQueueTable";
 
@@ -12,9 +11,8 @@ const supabase = createClient(
 );
 
 export default function AdminDashboard() {
-  const router = useRouter();
   const [tools, setTools] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Initial Page Load state ONLY
   const [editingTool, setEditingTool] = useState<any>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -28,89 +26,99 @@ export default function AdminDashboard() {
     totalClicks: 0,
   });
 
-  useEffect(() => {
-    checkUser();
+  // In-place refresh method: Fetches data via API without unmounting page or setting isLoading = true
+  const refreshDashboardData = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/affiliates/overview");
+      if (res.ok) {
+        const data = await res.json();
+        setStats({
+          totalTools: data.totalTools || 0,
+          activeLinks: data.activeLinks || 0,
+          discoveryRequired: data.discoveryRequired || 0,
+          noProgramCount: data.noProgramCount || 0,
+          totalClicks: data.totalClicks || 0,
+        });
+        if (data.tools) {
+          setTools(data.tools);
+        }
+      }
+    } catch {
+      // Non-blocking background sync failure
+    }
   }, []);
 
-  async function checkUser() {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  // Initial load runs EXACTLY ONCE on component mount
+  useEffect(() => {
+    let isMounted = true;
 
-    // Preserve existing admin email authentication check
-    if (!user || user.email !== "mantu-patra23@gmail.com") {
-      fetchData();
-    } else {
-      fetchData();
-    }
-  }
-
-  async function fetchData() {
-    setLoading(true);
-
-    // 1. Fetch AI Tools from public.ai_tools
-    const { data, count } = await supabase
-      .from("ai_tools")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false });
-
-    // 2. Fetch Affiliate Clicks Telemetry
-    const { count: clickCount } = await supabase
-      .from("affiliate_clicks")
-      .select("id", { count: "exact", head: true });
-
-    if (data) {
-      setTools(data);
-      const active = data.filter(
-        (t) => t.affiliate_status === "ACTIVE" || (t.affiliate_url && t.affiliate_url.trim() !== "")
-      ).length;
-      const noProgram = data.filter((t) => t.affiliate_status === "NO_AFFILIATE_PROGRAM").length;
-      const total = count || data.length;
-
-      setStats({
-        totalTools: total,
-        activeLinks: active,
-        noProgramCount: noProgram,
-        discoveryRequired: Math.max(0, total - active - noProgram),
-        totalClicks: clickCount || 0,
-      });
+    async function initialLoad() {
+      try {
+        const res = await fetch("/api/admin/affiliates/overview");
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          setStats({
+            totalTools: data.totalTools || 0,
+            activeLinks: data.activeLinks || 0,
+            discoveryRequired: data.discoveryRequired || 0,
+            noProgramCount: data.noProgramCount || 0,
+            totalClicks: data.totalClicks || 0,
+          });
+          if (data.tools) {
+            setTools(data.tools);
+          }
+        }
+      } catch {
+        // Fallback
+      } finally {
+        if (isMounted) {
+          setIsLoading(false); // ALWAYS terminate initial load
+        }
+      }
     }
 
-    setLoading(false);
-  }
+    initialLoad();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   async function handleUpdate() {
     if (!editingTool) return;
     setSaving(true);
 
-    const isAffiliateActive = Boolean(editingTool.affiliate_url && editingTool.affiliate_url.trim() !== "");
-    const nextStatus = editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
+    const isAffiliateActive = Boolean(
+      editingTool.affiliate_url && editingTool.affiliate_url.trim() !== ""
+    );
+    const nextStatus =
+      editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
-    // Update public.ai_tools record directly in Supabase using sanitized schema fields
-    const { error } = await supabase
-      .from("ai_tools")
-      .update({
-        name: editingTool.name,
-        affiliate_url: editingTool.affiliate_url || null,
-        affiliate_status: nextStatus,
-        affiliate_network: editingTool.affiliate_network || "Direct Partner",
-        affiliate_program_name: editingTool.affiliate_program_name || null,
-        affiliate_commission_details: editingTool.affiliate_commission_details || null,
-        is_featured: editingTool.is_featured,
-        youtube_id: editingTool.youtube_id,
-        description: editingTool.description,
-        last_validated_at: isAffiliateActive ? new Date().toISOString() : editingTool.last_validated_at,
-      })
-      .eq("id", editingTool.id);
+    try {
+      const res = await fetch("/api/admin/affiliates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          toolId: editingTool.id,
+          affiliateUrl: editingTool.affiliate_url,
+          networkName: editingTool.affiliate_network || "Direct Partner",
+          status: nextStatus,
+        }),
+      });
 
-    if (!error) {
-      setIsEditOpen(false);
-      fetchData();
-      alert("✅ Vault & Affiliate Settings Updated Successfully!");
-    } else {
-      alert("❌ Update Failed: " + error.message);
+      if (res.ok) {
+        setIsEditOpen(false);
+        await refreshDashboardData(); // Update in-place
+      } else {
+        const errData = await res.json();
+        alert("❌ Save Failed: " + (errData.error || "Server error"));
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Save error";
+      alert("❌ Save Error: " + msg);
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   }
 
   const filteredTools = tools.filter(
@@ -120,13 +128,13 @@ export default function AdminDashboard() {
       (t.category || "").toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-20">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-            Loading Affiliate Command Center...
+            LOADING AFFILIATE COMMAND CENTER...
           </p>
         </div>
       </div>
@@ -140,7 +148,7 @@ export default function AdminDashboard() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
             <span className="text-[10px] font-extrabold uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20">
-              Founder Control Hub
+              Founder Portal
             </span>
             <h1 className="text-3xl sm:text-4xl font-black text-white font-serif mt-2 tracking-tight">
               Affiliate Command Center
@@ -169,41 +177,51 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Affiliate Overview Stats */}
+        {/* Affiliate Overview Stats Cards */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">Total Directory</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
+              Total Directory
+            </span>
             <div className="text-3xl font-black text-white">{stats.totalTools}</div>
             <p className="text-[11px] text-slate-500">Indexed tools in database</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">Active Links</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">
+              Active Links
+            </span>
             <div className="text-3xl font-black text-emerald-400">{stats.activeLinks}</div>
             <p className="text-[11px] text-slate-500">Monetized & verified</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">Discovery Required</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">
+              Discovery Required
+            </span>
             <div className="text-3xl font-black text-amber-400">{stats.discoveryRequired}</div>
             <p className="text-[11px] text-slate-500">Pending scan or review</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400">Total Clicks</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400">
+              Total Clicks
+            </span>
             <div className="text-3xl font-black text-purple-400">{stats.totalClicks}</div>
             <p className="text-[11px] text-slate-500">Logged via /go/[slug]</p>
           </div>
 
           <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">Confirmed Revenue</span>
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">
+              Confirmed Revenue
+            </span>
             <div className="text-3xl font-black text-blue-400">Not reported</div>
             <p className="text-[11px] text-slate-500">Network report sync</p>
           </div>
         </section>
 
         {/* Interactive Discovery Queue Table */}
-        <DiscoveryQueueTable onScanComplete={fetchData} />
+        <DiscoveryQueueTable onScanComplete={refreshDashboardData} />
 
         {/* Directory Tools Table */}
         <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-6">
@@ -222,24 +240,30 @@ export default function AdminDashboard() {
             <table className="w-full text-left text-xs text-slate-300">
               <thead className="bg-slate-950 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
                 <tr>
-                  <th className="px-6 py-4">Intelligence / Tool Name</th>
+                  <th className="px-6 py-4">Tool Name</th>
+                  <th className="px-6 py-4">Category</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Network</th>
                   <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 font-medium">
                 {filteredTools.map((t) => {
-                  const hasAffiliate = Boolean(t.affiliate_url && t.affiliate_url.trim() !== "");
-                  const currentStatus = t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
+                  const hasAffiliate = Boolean(
+                    t.affiliate_url && t.affiliate_url.trim() !== ""
+                  );
+                  const currentStatus =
+                    t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
 
                   return (
                     <tr key={t.id} className="hover:bg-slate-800/30 transition">
                       <td className="px-6 py-4 font-bold text-white">
                         <div className="text-sm">{t.name}</div>
                         <div className="text-[10px] text-slate-500 font-mono">
-                          /tool/{t.slug} • {t.category || "Software"} {t.youtube_id ? "• 🎬 Video" : ""}
+                          /tool/{t.slug}
                         </div>
                       </td>
+                      <td className="px-6 py-4 text-slate-400">{t.category || "Software"}</td>
                       <td className="px-6 py-4">
                         <span
                           className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
@@ -253,6 +277,7 @@ export default function AdminDashboard() {
                           {currentStatus.replace(/_/g, " ")}
                         </span>
                       </td>
+                      <td className="px-6 py-4">{t.affiliate_network || "Direct Partner"}</td>
                       <td className="px-6 py-4 text-right">
                         <button
                           onClick={() => {
@@ -304,7 +329,9 @@ export default function AdminDashboard() {
                     <label className="font-bold text-slate-300">Affiliate Network</label>
                     <select
                       value={editingTool.affiliate_network || "Direct Partner"}
-                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_network: e.target.value })}
+                      onChange={(e) =>
+                        setEditingTool({ ...editingTool, affiliate_network: e.target.value })
+                      }
                       className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
                     >
                       <option value="Direct Partner">Direct Partner Program</option>
@@ -319,7 +346,9 @@ export default function AdminDashboard() {
                     <label className="font-bold text-slate-300">Affiliate Status</label>
                     <select
                       value={editingTool.affiliate_status || "DISCOVERY_REQUIRED"}
-                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_status: e.target.value })}
+                      onChange={(e) =>
+                        setEditingTool({ ...editingTool, affiliate_status: e.target.value })
+                      }
                       className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
                     >
                       <option value="DISCOVERY_REQUIRED">DISCOVERY REQUIRED</option>
@@ -333,51 +362,19 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Approved Affiliate Destination URL</label>
+                  <label className="font-bold text-slate-300">Verified Affiliate Destination URL</label>
                   <input
                     type="url"
                     placeholder="https://partner.com/link?aff=real_id"
                     value={editingTool.affiliate_url || ""}
-                    onChange={(e) => setEditingTool({ ...editingTool, affiliate_url: e.target.value })}
+                    onChange={(e) =>
+                      setEditingTool({ ...editingTool, affiliate_url: e.target.value })
+                    }
                     className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
                   />
                   <p className="text-[10px] text-slate-500">
                     Saves directly to Supabase and routes public traffic via /go/{editingTool.slug}.
                   </p>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-300">YouTube Video ID</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. dQw4w9WgXcQ"
-                    value={editingTool.youtube_id || ""}
-                    onChange={(e) => setEditingTool({ ...editingTool, youtube_id: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Description</label>
-                  <textarea
-                    rows={4}
-                    value={editingTool.description || ""}
-                    onChange={(e) => setEditingTool({ ...editingTool, description: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500 leading-relaxed"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 pt-2">
-                  <input
-                    type="checkbox"
-                    id="is_featured"
-                    checked={Boolean(editingTool.is_featured)}
-                    onChange={(e) => setEditingTool({ ...editingTool, is_featured: e.target.checked })}
-                    className="w-4 h-4 rounded bg-slate-950 border-slate-800 text-blue-600 focus:ring-0"
-                  />
-                  <label htmlFor="is_featured" className="font-bold text-slate-300">
-                    Feature on Directory Homepage
-                  </label>
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">

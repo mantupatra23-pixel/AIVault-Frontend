@@ -18,7 +18,7 @@ export interface CandidateRow {
 
 export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () => void }) {
   const [candidates, setCandidates] = useState<CandidateRow[]>([]);
-  const [scanning, setScanning] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [feedback, setFeedback] = useState<{ type: "info" | "success" | "error"; text: string } | null>(null);
   const [editingCandidate, setEditingCandidate] = useState<CandidateRow | null>(null);
   const [customUrlInput, setCustomUrlInput] = useState("");
@@ -32,7 +32,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         setCandidates(data.candidates || []);
       }
     } catch {
-      // Non-blocking
+      // Non-blocking background fetch
     }
   };
 
@@ -41,33 +41,61 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
   }, []);
 
   const handleRunScan = async () => {
-    setScanning(true);
-    setFeedback({ type: "info", text: "AUTO DISCOVERING... Scanning tools requiring discovery..." });
+    if (isDiscovering) return; // Prevent double clicks
+
+    setIsDiscovering(true);
+    setFeedback({
+      type: "info",
+      text: "AUTO DISCOVERING... Scanning tools requiring discovery...",
+    });
 
     try {
-      const res = await fetch("/api/admin/affiliates/discover", { method: "POST" });
+      const res = await fetch("/api/admin/affiliates/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetSlug: "all" }),
+      });
+
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.success) {
+        const foundCount = data.candidatesFound ?? data.candidates ?? 0;
+        const scannedCount = data.scanned ?? 0;
+        const noProgCount = data.noProgramFound ?? data.noProgram ?? 0;
+
         setFeedback({
           type: "success",
-          text: `DISCOVERY COMPLETE — Scanned ${data.scanned} tools. Found ${data.candidates || 0} pending candidates. ${data.noProgramFound || 0} marked No Program.`,
+          text: `DISCOVERY COMPLETE — Scanned ${scannedCount} tools. Found ${foundCount} pending candidates. ${noProgCount} marked No Program.`,
         });
-        fetchCandidates();
-        if (onScanComplete) onScanComplete();
+
+        // In-place update of queue table
+        await fetchCandidates();
+
+        // In-place refresh of parent dashboard state without full-page navigation
+        if (onScanComplete) {
+          onScanComplete();
+        }
       } else {
-        setFeedback({ type: "error", text: `Affiliate discovery failed: ${data.error || "Server processing error"}` });
+        setFeedback({
+          type: "error",
+          text: `Affiliate discovery failed: ${data.error || data.message || "Server processing error"}`,
+        });
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Connection error";
-      setFeedback({ type: "error", text: `Affiliate discovery failed: ${msg}` });
+      const msg = err instanceof Error ? err.message : "Network error during discovery";
+      setFeedback({
+        type: "error",
+        text: `Affiliate discovery failed: ${msg}`,
+      });
     } finally {
-      setScanning(false);
+      setIsDiscovering(false); // ALWAYS end the discovering state
     }
   };
 
   const handleCandidateAction = async (candidateId: string, action: "APPROVE" | "REJECT", customUrl?: string) => {
+    if (actionLoading) return;
     setActionLoading(true);
+
     try {
       const res = await fetch("/api/admin/affiliates/candidates", {
         method: "POST",
@@ -78,7 +106,9 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       if (res.ok) {
         setCandidates((prev) => prev.filter((c) => c.id !== candidateId));
         setEditingCandidate(null);
-        if (onScanComplete) onScanComplete();
+        if (onScanComplete) {
+          onScanComplete();
+        }
       }
     } catch {
       // Non-blocking
@@ -101,10 +131,10 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
 
         <button
           onClick={handleRunScan}
-          disabled={scanning}
-          className="px-6 py-3 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
+          disabled={isDiscovering}
+          className="px-6 py-3 text-xs font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50 active:scale-98"
         >
-          {scanning ? "AUTO DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
+          {isDiscovering ? "AUTO DISCOVERING..." : "AUTO DISCOVER AFFILIATES 🔍"}
         </button>
       </div>
 
@@ -157,7 +187,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
                     <button
                       onClick={() => handleCandidateAction(c.id, "APPROVE")}
                       disabled={actionLoading}
-                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow-sm"
+                      className="px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-lg transition shadow-sm disabled:opacity-50"
                     >
                       APPROVE
                     </button>
@@ -173,7 +203,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
                     <button
                       onClick={() => handleCandidateAction(c.id, "REJECT")}
                       disabled={actionLoading}
-                      className="px-3 py-1.5 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition"
+                      className="px-3 py-1.5 text-xs font-bold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 rounded-lg transition disabled:opacity-50"
                     >
                       REJECT
                     </button>
@@ -185,7 +215,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         </div>
       ) : (
         <div className="p-8 text-center text-xs text-slate-500 italic border border-dashed border-slate-800 rounded-2xl">
-          No pending affiliate candidates in queue. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
+          Discovery completed. No new affiliate candidates were found. Click &quot;AUTO DISCOVER AFFILIATES&quot; to scan for merchant programs.
         </div>
       )}
 
@@ -220,7 +250,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
                   type="button"
                   onClick={() => handleCandidateAction(editingCandidate.id, "APPROVE", customUrlInput)}
                   disabled={actionLoading}
-                  className="px-5 py-2.5 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition"
+                  className="px-5 py-2.5 text-xs font-extrabold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl transition disabled:opacity-50"
                 >
                   APPROVE & ACTIVATE →
                 </button>
