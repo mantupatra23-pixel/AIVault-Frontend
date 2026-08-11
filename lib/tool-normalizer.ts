@@ -1,4 +1,6 @@
-import { DatabaseToolRecord, FormattedListItem, FAQItem, PricingDetailsJSON } from "@/types/tool";
+import { DatabaseToolRecord, FormattedListItem, FAQItem as SharedFAQItem, PricingDetailsJSON } from "@/types/tool";
+
+export type FAQItem = SharedFAQItem;
 
 export interface NormalizedTool {
   id: string;
