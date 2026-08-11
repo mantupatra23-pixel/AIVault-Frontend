@@ -1,6 +1,39 @@
-import { DatabaseToolRecord, FormattedListItem, FAQItem, PricingDetailsJSON, NormalizedTool } from "@/types/tool";
+export interface FormattedListItem {
+  title?: string;
+  description: string;
+}
 
-export type { FAQItem, NormalizedTool };
+export interface FAQItem {
+  q: string;
+  a: string;
+}
+
+export interface DatabaseToolRecord {
+  id: string;
+  name: string;
+  slug: string;
+  category?: string | null;
+  description?: string | null;
+  pricing?: string | null;
+  pricing_details?: any;
+  website_url?: string | null;
+  affiliate_url?: string | null;
+  image_url?: string | null;
+  logo_url?: string | null;
+  youtube_id?: string | null;
+  score?: number | null;
+  rating?: number | null;
+  features_pros?: FormattedListItem[] | null;
+  limitations_cons?: FormattedListItem[] | null;
+  pros_cons?: any;
+  who_should_use?: any;
+  how_to_use?: string[] | null;
+  tags?: string[] | null;
+  faqs?: FAQItem[] | null;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  created_at?: string;
+}
 
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
@@ -11,25 +44,26 @@ export function sanitizeUrl(url: unknown): string | null {
   return null;
 }
 
-export function extractYouTubeId(urlStr: string | null, idStr: string | null): string | null {
-  if (idStr && idStr.trim().length === 11) return idStr.trim();
+export function extractYouTubeId(urlStr: string | null | undefined): string | null {
   if (!urlStr) return null;
+  const trimmed = urlStr.trim();
+  if (trimmed.length === 11 && !trimmed.includes("/")) return trimmed;
 
   try {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-    const match = urlStr.match(regExp);
+    const match = trimmed.match(regExp);
     return match && match[2].length === 11 ? match[2] : null;
   } catch {
     return null;
   }
 }
 
-export function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRating: number | null): number | null {
-  const val = Number(rawScore || rawNeural || rawRating);
-  if (isNaN(val) || val <= 0) return null;
-  if (val > 10 && val <= 100) return Number((val / 10).toFixed(1));
-  if (val <= 10) return Number(val.toFixed(1));
-  return 8.5;
+export function normalizeScore(rawScore: number | null | undefined): number | null {
+  if (rawScore === null || rawScore === undefined || isNaN(rawScore)) return null;
+  const val = Number(rawScore);
+  if (val > 10 && val <= 100) return Math.round(val);
+  if (val <= 10 && val > 0) return Math.round(val * 10);
+  return 85;
 }
 
 export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
@@ -37,13 +71,13 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
 
   const cleanLines = (lines: string[]): FormattedListItem[] => {
     return lines
-      .map((line) => line.replace(/^\d+\.\s*/, "").replace(/^[•\*\-\s]+/, "").trim())
+      .map((line) => line.replace(/^\d+\.\s*/, "").trim())
       .filter(Boolean)
       .map((cleanLine) => {
-        if (cleanLine.includes(":") || cleanLine.includes(" - ")) {
-          const parts = cleanLine.split(/:(.+)| - (.+)/).filter(Boolean);
-          if (parts.length >= 2) {
-            return { title: parts[0].trim(), description: parts.slice(1).join(" ").trim() };
+        if (cleanLine.includes(":") || cleanLine.includes("-")) {
+          const parts = cleanLine.split(/:(.+)|-(.+)/);
+          if (parts.length >= 2 && parts[1]) {
+            return { title: parts[0].trim(), description: parts[1].trim() };
           }
         }
         return { description: cleanLine };
@@ -52,8 +86,8 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
 
   if (typeof input === "object" && input !== null && !Array.isArray(input)) {
     const obj = input as Record<string, unknown>;
-    const pros = Array.isArray(obj.pros) ? obj.pros.map(String) : obj.pros ? [String(obj.pros)] : [];
-    const cons = Array.isArray(obj.cons) ? obj.cons.map(String) : obj.cons ? [String(obj.cons)] : [];
+    const pros = Array.isArray(obj.pros) ? (obj.pros as string[]) : [];
+    const cons = Array.isArray(obj.cons) ? (obj.cons as string[]) : [];
     return { pros: cleanLines(pros), cons: cleanLines(cons) };
   }
 
@@ -66,7 +100,7 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
 
   if (textInput.startsWith("{") && textInput.endsWith("}")) {
     try {
-      const parsed = JSON.parse(textInput) as Record<string, unknown>;
+      const parsed = JSON.parse(textInput) as Record<string, any>;
       if (parsed.pros || parsed.cons) {
         return parseProsConsColumn(parsed);
       }
@@ -92,66 +126,66 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
   };
 }
 
-export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial<DatabaseToolRecord> {
+export function generateToolSpecificEnrichment(raw: Partial<DatabaseToolRecord>): Partial<DatabaseToolRecord> {
   const slug = (raw.slug || "").toLowerCase().trim();
   const name = raw.name || "Tool";
   const category = raw.category || "Software";
 
   if (slug === "ghost") {
     return {
-      description: "Ghost is an open-source, independent publishing platform built on Node.js designed for professional creators, bloggers, newsletters, and online publications. It provides modern tools for subscription management, native newsletter delivery, custom Handlebars themes, and Stripe membership monetization.",
+      description: "Ghost is an open-source, independent publishing platform for professional creators, bloggers, and media businesses.",
       features_pros: [
-        { title: "Native Newsletter Distribution", description: "In-house email newsletter broadcasting and subscription management without third-party plugins." },
-        { title: "Membership Monetization", description: "Built-in audience membership support integrated directly with Stripe payments." },
-        { title: "Modern Publishing Editor", description: "Clean, card-based rich text and Markdown writing interface." },
-        { title: "Custom Handlebars Themes", description: "Flexible Handlebars theme architecture for total visual control." },
-        { title: "Headless Content APIs", description: "Full REST and GraphQL APIs for custom Jamstack integrations." }
+        { title: "Native Newsletter Distribution", description: "Built-in email newsletter delivery directly integrated with content publishing." },
+        { title: "Membership Monetization", description: "Native support for free and paid member subscriptions with zero platform fees." },
+        { title: "Modern Publishing Editor", description: "Distraction-free Markdown and card-based rich media editing experience." },
+        { title: "Custom Handlebars Themes", description: "Full design control with extensible custom theme development engine." },
+        { title: "Headless Content APIs", description: "REST and GraphQL APIs to use Ghost as a headless CMS for any frontend stack." },
       ],
       limitations_cons: [
-        { title: "Technical Self-Hosting", description: "Self-hosting requires server configuration and Node.js maintenance knowledge." },
-        { title: "Plugin Ecosystem", description: "Smaller plugin ecosystem compared to traditional platforms like WordPress." }
+        { title: "Technical Self-Hosting", description: "Self-hosted instances require Server/Linux system administration skills." },
+        { title: "Plugin Ecosystem", description: "Fewer marketplace plugins compared to traditional CMS platforms like WordPress." },
       ],
-      who_should_use: "Independent publishers, bloggers, newsletter creators, journalists, media teams, and businesses building subscription membership platforms.",
+      who_should_use: "Independent publishers, bloggers, newsletter creators, and media organizations.",
       how_to_use: [
-        "Create a Ghost publication on managed Ghost(Pro) or deploy the open-source package on a Node.js server.",
-        "Configure custom domain settings, publication branding, and Handlebars design themes.",
-        "Draft and format articles or newsletter broadcasts using the dynamic card editor.",
-        "Establish free and paid subscription membership tiers connected to Stripe.",
-        "Publish posts directly to the web and send automated newsletter broadcasts to subscribers."
+        "Create a Ghost publication on managed Ghost Pro or setup a self-hosted instance",
+        "Configure custom domain settings, publication design, and branding options",
+        "Draft and format articles or newsletter broadcasts inside the editor",
+        "Establish free and paid subscription membership tiers",
+        "Publish posts directly to the web and send newsletter issues to subscribers"
       ],
       pricing_details: {
         model: "Paid / Open Source",
-        note: "Ghost open-source software is free to self-host. Managed Ghost(Pro) starts at $9/mo based on audience size."
+        note: "Ghost open-source software is free to self-host. Managed Ghost Pro hosting plans start with scalable tiers based on member size."
       },
-      tags: ["CMS", "Blogging", "Publishing", "Newsletter", "Membership", "Node.js"],
+      tags: ["CMS", "Blogging", "Publishing", "Newsletters", "Open Source"],
       faqs: [
-        { q: "What is Ghost used for?", a: "Ghost is used for running blogs, publishing email newsletters, managing subscriber tiers, and monetizing digital publications." },
-        { q: "Is Ghost free or paid?", a: "Ghost is open-source and free to self-host. Managed hosting via Ghost(Pro) is a paid service based on subscriber count." },
-        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost includes native email newsletter distribution and audience analytics out of the box." }
+        { q: "What is Ghost used for?", a: "Ghost is a publishing platform designed for modern online blogs, magazines, and subscription newsletters." },
+        { q: "Is Ghost free or paid?", a: "The software is 100% open-source and free to self-host. Ghost Pro offers fully managed paid cloud hosting." },
+        { q: "Does Ghost support native email newsletters?", a: "Yes, Ghost natively sends email newsletters directly to member lists without third-party email plugins." }
       ],
       seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
-      seo_description: "Discover Ghost features, pricing, pros, cons, use cases and alternatives on AI Vault."
+      seo_description: "Discover Ghost features, pricing details, pros/cons, and publishing capabilities on AI Vault.",
     };
   }
 
   return {
-    who_should_use: `${name} is designed for professionals, creators, and technical teams operating in the ${category} space.`,
+    who_should_use: `${name} is designed for professionals, developers, and teams seeking efficient ${category.toLowerCase()} solutions.`,
     how_to_use: [
-      `Visit the official platform portal for ${name}.`,
-      "Create or authenticate your account credentials.",
-      "Configure project workspace settings for your task.",
-      "Execute your workflow and export or integrate generated outputs."
+      `Visit the official platform portal for ${name}`,
+      "Create or authenticate your account credentials",
+      "Configure project workspace settings for your team",
+      "Execute your workflow and export or integrate results"
     ],
     pricing_details: {
       model: raw.pricing || "Freemium",
-      note: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check the official website for current plans and tier limits.`
+      note: `${name} is listed under a ${raw.pricing || "Freemium"} model.`
     },
-    tags: [category, name, "Software", "AI Tools"].map((t) => t.trim()).filter(Boolean),
+    tags: [category.toLowerCase(), name.toLowerCase(), "Software", "AI Tools"],
     faqs: [
-      { q: `What is ${name} used for?`, a: (raw.description || `${name} provides software functionality for ${category} operations.`) },
-      { q: `What pricing model does ${name} offer?`, a: `${name} is listed under a ${raw.pricing || "Freemium"} model. Check official portal for active plans.` }
+      { q: `What is ${name} used for?`, a: `${name} is a software platform specializing in ${category.toLowerCase()} capabilities.` },
+      { q: `What pricing model does ${name} offer?`, a: `${name} operates under a ${raw.pricing || "Freemium"} plan model.` }
     ],
     seo_title: `${name} Review, Pricing, Features & Alternatives | AI Vault`,
-    seo_description: (raw.description || `Discover ${name} features, pricing, pros, cons, and alternatives on AI Vault.`).slice(0, 155)
+    seo_description: `Discover ${name} features, pricing options, pros/cons, and alternative tools on AI Vault.`,
   };
 }
