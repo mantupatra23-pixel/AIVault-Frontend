@@ -17,31 +17,51 @@ interface FormattedListItem {
   description: string;
 }
 
-/**
- * Strips legacy AI review boilerplate, analyst personas, fake research claims,
- * and outdated year markers from database strings.
- */
-function sanitizeDescription(rawText: string = "", toolName: string = ""): string {
+// Strict blacklist filter to reject legacy review/analyst language
+const BLACKLIST_PATTERNS = [
+  /Professional Review/i,
+  /I have conducted/i,
+  /I conducted/i,
+  /Our analysis/i,
+  /Our research/i,
+  /Senior SEO/i,
+  /Visora AI/i,
+  /Pricing 2026/i,
+  /empowering users to make informed decisions/i,
+  /expected to remain competitive/i,
+  /provides software functionality for .* workflows/i,
+];
+
+function validateAndSanitizeText(rawText: string = "", toolName: string = ""): string {
   if (!rawText) return "";
 
-  let cleaned = rawText
+  let cleaned = rawText;
+
+  // Remove blacklisted phrases
+  cleaned = cleaned
     .replace(/As a Senior SEO &? AI Analyst( for Visora AI)?\.*/gi, "")
     .replace(/Our Professional Review:?\.*/gi, "")
-    .replace(/I have conducted an in-depth analysis\.*/gi, "")
-    .replace(/I conducted a thorough analysis\.*/gi, "")
+    .replace(/I have conducted (a|an) (in-depth|thorough) analysis\.*/gi, "")
+    .replace(/I conducted (a|an) (in-depth|thorough) analysis\.*/gi, "")
     .replace(/Visora AI network intelligence identifies\.*/gi, "")
     .replace(/AI Vault network intelligence identifies\.*/gi, "")
     .replace(/Our analysis aims to provide\.*/gi, "")
     .replace(/Our research shows\.*/gi, "")
     .replace(/empowering users to make informed decisions\.*/gi, "")
+    .replace(/expected to remain competitive\.*/gi, "")
     .replace(/Pricing 2026/gi, "Pricing")
     .replace(new RegExp(`${toolName} Pricing 2026`, "gi"), `${toolName} Pricing`)
-    .replace(/Best \w+ alternatives/gi, "Alternatives")
     .replace(/(<([^>]+)>)/gi, "")
     .trim();
 
-  // Strip leading punctuation leftover from string replacement
   cleaned = cleaned.replace(/^[\s,.:;—–-]+/, "");
+
+  // Safety fallback if entire text was blacklisted
+  for (const pattern of BLACKLIST_PATTERNS) {
+    if (pattern.test(cleaned)) {
+      cleaned = cleaned.replace(pattern, "").trim();
+    }
+  }
 
   return cleaned;
 }
@@ -110,9 +130,7 @@ function parseStructuredList(input: any): FormattedListItem[] {
     let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
-    if (
-      /Visora AI|Senior SEO|Professional Review|Pricing 2026|our analysis|our research/i.test(line)
-    ) {
+    if (BLACKLIST_PATTERNS.some((pattern) => pattern.test(line))) {
       continue;
     }
 
@@ -145,13 +163,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
-  const cleanDesc = sanitizeDescription(tool.description, tool.name);
+  const cleanDesc = validateAndSanitizeText(tool.description, tool.name);
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
   const title = tool.meta_title || `${tool.name}: Features, Pricing & Alternatives | AI Vault`;
   const description =
     tool.meta_description ||
     cleanDesc.slice(0, 155) ||
-    `Overview of ${tool.name}: features, pricing model, pros, cons, and alternatives on AI Vault.`;
+    `Overview of ${tool.name}: key capabilities, pricing details, pros, cons, and alternatives.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
 
@@ -187,7 +205,7 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  const cleanDescription = sanitizeDescription(tool.description, tool.name);
+  const cleanDescription = validateAndSanitizeText(tool.description, tool.name);
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
 
   let prosItems = parseStructuredList(tool.pros);
@@ -207,7 +225,7 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Divide category tools into Best Alternatives (first 3) and Related Tools (next 4-5)
+  // Split category tools into Best Alternatives (first 3) and Related Tools (next 4-5)
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
 
@@ -240,24 +258,24 @@ export default async function ToolPage({ params }: Props) {
   // Concise, Non-Duplicative FAQs
   const faqItems = [
     {
-      q: `What primary purpose does ${tool.name} serve?`,
-      a: `${tool.name} provides software functionality for ${tool.category || "digital operations"} workflows.`,
+      q: `What is ${tool.name} used for?`,
+      a: `${tool.name} provides specialized capabilities in the ${tool.category || "software"} domain.`,
     },
     {
-      q: `Is ${tool.name} free?`,
+      q: `Is ${tool.name} free or paid?`,
       a: tool.pricing
-        ? `${tool.name} is listed under a ${tool.pricing} model. Pricing information can change; check the official website for active plan limits.`
-        : `Pricing information can change. Check the official website for current plans, limits, and pricing.`,
+        ? `${tool.name} is categorized under a ${tool.pricing} tier. Check the official website for active plan limits.`
+        : `Pricing may change. Check the official website for the latest plans, limits and pricing.`,
     },
     {
       q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is intended for users operating within ${tool.category || "technology and productivity"} domains.`,
+      a: `${tool.name} is designed for professionals and teams managing tasks in ${tool.category || "digital operations"}.`,
     },
     {
-      q: `What are the top alternatives to ${tool.name}?`,
+      q: `What are the best alternatives to ${tool.name}?`,
       a: alternativesList.length > 0
         ? `Top options include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Explore other tools under the ${tool.category || "AI software"} category on AI Vault.`,
+        : `Check the ${tool.category || "software"} directory for similar platforms.`,
     },
   ];
 
@@ -274,52 +292,52 @@ export default async function ToolPage({ params }: Props) {
     })),
   };
 
-  // Category-specific persona definitions
+  // Target audience definitions
   const getTargetUserDescription = (category?: string) => {
-    if (!category) return "professionals and teams seeking dedicated software tools.";
+    if (!category) return "teams and professionals seeking software automation tools.";
     const cat = category.toLowerCase();
     if (cat.includes("code") || cat.includes("dev") || cat.includes("cli")) {
-      return "software engineers, system administrators, and developers looking to streamline technical terminal or code operations.";
+      return "developers, system engineers, and technical teams looking to streamline terminal and code operations.";
     }
     if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
-      return "writers, independent publishers, media teams, and creators building newsletters or subscription publications.";
+      return "writers, independent publishers, and media teams managing blogs, newsletters, or membership platforms.";
     }
     if (cat.includes("chat") || cat.includes("bot")) {
-      return "customer support teams, product managers, and developers implementing automated conversational workflows.";
+      return "customer support teams, product managers, and developers integrating conversational automation.";
     }
     if (cat.includes("image") || cat.includes("video") || cat.includes("design")) {
-      return "designers, video editors, and digital marketing teams producing visual media assets.";
+      return "designers, video editors, and creative marketers producing visual assets.";
     }
     if (cat.includes("market") || cat.includes("seo")) {
-      return "growth marketers, SEO specialists, and content managers scaling digital campaigns.";
+      return "marketing managers, growth strategists, and SEO professionals running campaigns.";
     }
     return `professionals and teams operating in the ${category} space.`;
   };
 
-  // Category-specific onboarding steps
+  // Tool-specific onboarding steps
   const getHowToSteps = (category?: string, name: string = "this software") => {
     const cat = (category || "").toLowerCase();
     if (cat.includes("code") || cat.includes("cli") || cat.includes("dev")) {
       return [
-        `Install or access ${name} via your terminal, package manager, or developer portal.`,
-        `Configure API keys or authentication credentials as required.`,
-        `Execute specific commands or integrate project libraries into your build environment.`,
-        `Verify output logs and deploy to your runtime environment.`,
+        `Install or access ${name} using your package manager, terminal interface, or developer portal.`,
+        `Configure environment variables and authentication API keys as required.`,
+        `Execute relevant commands or integrate libraries into your software environment.`,
+        `Inspect terminal/build output and deploy your project.`,
       ];
     }
     if (cat.includes("publish") || cat.includes("blog") || cat.includes("content")) {
       return [
-        `Access the ${name} platform or install the self-hosted package on your server.`,
-        `Configure publication branding, custom domain settings, and mail settings.`,
-        `Draft, format, and organize your posts or membership tiers.`,
-        `Publish articles or distribute newsletters to subscribers.`,
+        `Access the ${name} portal or deploy the package on your web host.`,
+        `Set up your publication domain, site settings, and subscription options.`,
+        `Create and format your content or newsletter issues.`,
+        `Publish posts and manage subscriber access.`,
       ];
     }
     return [
-      `Visit the official website using the portal link on this page.`,
-      `Create or sign in to your user account on the vendor platform.`,
-      `Configure configuration parameters according to your workflow requirements.`,
-      `Run operations and inspect or export generated outputs.`,
+      `Visit the official website using the link on this page.`,
+      `Set up an account or authenticate on the vendor platform.`,
+      `Configure settings for your specific project requirements.`,
+      `Execute your tasks and export or integrate generated outputs.`,
     ];
   };
 
@@ -405,7 +423,7 @@ export default async function ToolPage({ params }: Props) {
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {cleanDescription || `${tool.name} is a software platform built for ${tool.category || "digital"} workflows.`}
+              {cleanDescription || `${tool.name} is a software platform designed to manage ${tool.category || "digital operations"} tasks.`}
             </div>
           </section>
 
@@ -420,10 +438,10 @@ export default async function ToolPage({ params }: Props) {
                 <p className="text-slate-700 text-sm leading-relaxed">
                   {tool.pricing ? (
                     <>
-                      {tool.name} is categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> model.
+                      {tool.name} is listed under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> model.
                     </>
                   ) : null}{" "}
-                  Pricing information can change. Check the official website for current plans, limits, and pricing.
+                  Pricing may change. Check the official website for the latest plans, limits and pricing.
                 </p>
                 <div className="pt-2">
                   <a
@@ -437,7 +455,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* 3. Pros & Cons */}
+              {/* 3. Key Features & Limitations (Pros & Cons) */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -500,7 +518,7 @@ export default async function ToolPage({ params }: Props) {
                         <div>
                           <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
                           <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                            {sanitizeDescription(alt.description, alt.name) || "Alternative software listing."}
+                            {validateAndSanitizeText(alt.description, alt.name) || "Alternative software listing."}
                           </p>
                         </div>
                         <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
@@ -568,7 +586,7 @@ export default async function ToolPage({ params }: Props) {
 
                   <div className="pt-4 flex justify-between items-center">
                     <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-emerald-600">{tool.pricing || "Check Site"}</dd>
+                    <dd className="font-bold text-emerald-600">{tool.pricing || "Not specified"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
@@ -621,7 +639,7 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {sanitizeDescription(rel.description, rel.name) || "Software directory listing."}
+                          {validateAndSanitizeText(rel.description, rel.name) || "Software directory listing."}
                         </p>
                       </div>
                     </div>
