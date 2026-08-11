@@ -4,6 +4,8 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
+import { normalizeTool, NormalizedTool } from "@/lib/tool-normalizer";
+import { enrichMissingToolFields } from "@/lib/ai-enrichment";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -12,29 +14,6 @@ type Props = {
   params: Promise<{ slug: string }>;
 };
 
-interface FormattedListItem {
-  title?: string;
-  description: string;
-}
-
-interface NormalizedTool {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricing_model: string;
-  description: string;
-  pricing_details: string | null;
-  features_pros: FormattedListItem[];
-  limitations_cons: FormattedListItem[];
-  who_should_use: string | null;
-  how_to_use: string[] | null;
-  faqs: { q: string; a: string }[] | null;
-  official_url: string;
-  image_url?: string;
-  logo_url?: string;
-}
-
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -42,99 +21,7 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-/**
- * Clean & Format List Items safely
- */
-function cleanAndFormatItems(lines: string[]): FormattedListItem[] {
-  const items: FormattedListItem[] = [];
-
-  for (let line of lines) {
-    let cleanLine = line
-      .replace(/^\d+\.\s*/, "")
-      .replace(/^[•\*\-\s]+/, "")
-      .trim();
-
-    if (!cleanLine) continue;
-
-    if (cleanLine.includes(":") || cleanLine.includes(" - ")) {
-      const parts = cleanLine.split(/:(.+)| - (.+)/).filter(Boolean);
-      if (parts.length >= 2) {
-        items.push({
-          title: parts[0].trim(),
-          description: parts.slice(1).join(" ").trim(),
-        });
-        continue;
-      }
-    }
-
-    items.push({ description: cleanLine });
-  }
-
-  return items;
-}
-
-/**
- * Universal Parser for the real `pros_cons` column in Supabase
- */
-function parseProsConsColumn(input: any): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
-  if (!input) return { pros: [], cons: [] };
-
-  let prosLines: string[] = [];
-  let consLines: string[] = [];
-
-  // Case A: Input is JSON Object or JSON String
-  if (typeof input === "object" && input !== null && !Array.isArray(input)) {
-    if (input.pros) prosLines = Array.isArray(input.pros) ? input.pros : [String(input.pros)];
-    if (input.cons) consLines = Array.isArray(input.cons) ? input.cons : [String(input.cons)];
-    return {
-      pros: cleanAndFormatItems(prosLines),
-      cons: cleanAndFormatItems(consLines),
-    };
-  }
-
-  let textInput = "";
-  if (Array.isArray(input)) {
-    textInput = input.join("\n");
-  } else if (typeof input === "string") {
-    textInput = input.trim();
-  }
-
-  // Case B: Serialized JSON
-  if (textInput.startsWith("{") && textInput.endsWith("}")) {
-    try {
-      const parsed = JSON.parse(textInput);
-      if (parsed.pros || parsed.cons) {
-        return parseProsConsColumn(parsed);
-      }
-    } catch {
-      // Continue to text parsing
-    }
-  }
-
-  // Case C: Plain text containing "Pros:" and "Cons:" split points
-  if (/Cons:|CONS:/i.test(textInput)) {
-    const parts = textInput.split(/Cons:|CONS:/i);
-    const prosText = parts[0].replace(/Pros:|PROS:/i, "").trim();
-    const consText = parts.slice(1).join("\n").trim();
-
-    prosLines = prosText.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
-    consLines = consText.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
-
-    return {
-      pros: cleanAndFormatItems(prosLines),
-      cons: cleanAndFormatItems(consLines),
-    };
-  }
-
-  // Case D: Generic newline/bullet-separated list without explicit "Cons:" header
-  const allLines = textInput.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
-  return {
-    pros: cleanAndFormatItems(allLines),
-    cons: [],
-  };
-}
-
-async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null> {
+async function getToolData(rawSlug: string): Promise<NormalizedTool | null> {
   const supabase = getSupabaseClient();
   if (!supabase) return null;
 
@@ -148,30 +35,12 @@ async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null
 
     if (error || !raw) return null;
 
-    // Parse the single `pros_cons` column
-    const { pros, cons } = parseProsConsColumn(raw.pros_cons);
-    const category = raw.category || "Software";
-    const name = raw.name || "Tool";
-
-    return {
-      id: raw.id,
-      name: name,
-      slug: raw.slug,
-      category: category,
-      pricing_model: raw.pricing || "Not Specified",
-      description: raw.description || raw.seo_description || raw.meta_description || "Content unavailable.",
-      pricing_details: raw.pricing || null,
-      features_pros: pros,
-      limitations_cons: cons,
-      who_should_use: raw.who_should_use || null,
-      how_to_use: Array.isArray(raw.how_to_use) ? raw.how_to_use : null,
-      faqs: Array.isArray(raw.faqs) ? raw.faqs : null,
-      official_url: raw.website_url || raw.official_url || "#",
-      image_url: raw.image_url,
-      logo_url: raw.logo_url,
-    };
+    // 1. Normalize DB record
+    const normalized = normalizeTool(raw);
+    // 2. Safe Enrichment for missing fields
+    return enrichMissingToolFields(normalized);
   } catch (err) {
-    console.error("[FETCH_EXCEPT]", err);
+    console.error(`[FETCH_EXCEPT] rawSlug=${rawSlug}`, err);
     return null;
   }
 }
@@ -196,7 +65,7 @@ async function getRelatedTools(category: string, currentSlug: string) {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const resolvedParams = await params;
-  const tool = await getNormalizedTool(resolvedParams.slug);
+  const tool = await getToolData(resolvedParams.slug);
 
   if (!tool) {
     return {
@@ -207,17 +76,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
-  const title = `${tool.name} — Features, Pricing & Alternatives | AI Vault`;
-  const description = tool.description.slice(0, 155);
-  const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
+  const logoUrl = `${SITE_URL}/og-image.png`;
 
   return {
-    title,
-    description,
+    title: tool.seoTitle,
+    description: tool.seoDescription,
     alternates: { canonical: canonicalUrl },
     openGraph: {
-      title,
-      description,
+      title: tool.seoTitle,
+      description: tool.seoDescription,
       url: canonicalUrl,
       siteName: "AI Vault",
       type: "website",
@@ -225,8 +92,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description,
+      title: tool.seoTitle,
+      description: tool.seoDescription,
       images: [logoUrl],
     },
     robots: { index: true, follow: true },
@@ -235,7 +102,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ToolPage({ params }: Props) {
   const resolvedParams = await params;
-  const tool = await getNormalizedTool(resolvedParams.slug);
+  const tool = await getToolData(resolvedParams.slug);
 
   if (!tool) {
     notFound();
@@ -244,6 +111,9 @@ export default async function ToolPage({ params }: Props) {
   const relatedTools = await getRelatedTools(tool.category, tool.slug);
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
+
+  const destinationUrl = tool.affiliateUrl || tool.officialUrl;
+  const isAffiliate = Boolean(tool.affiliateUrl);
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -255,11 +125,40 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
+  const softwareSchema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: tool.name,
+    applicationCategory: tool.category,
+    operatingSystem: "Web",
+    url: destinationUrl,
+    offers: {
+      "@type": "Offer",
+      priceCurrency: "USD",
+      description: tool.pricingDetails || tool.pricingModel,
+    },
+  };
+
+  const faqSchema = tool.faqs ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: tool.faqs.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  } : null;
+
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }} />
+      {faqSchema && (
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
+      )}
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
+        {/* Navigation Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -269,17 +168,18 @@ export default async function ToolPage({ params }: Props) {
             </Link>
 
             <a
-              href={tool.official_url}
+              href={destinationUrl}
               target="_blank"
-              rel="noopener noreferrer"
+              rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
               className="inline-flex items-center justify-center px-5 py-2.5 text-xs font-bold tracking-wider uppercase text-white bg-blue-600 hover:bg-blue-700 rounded-full transition-all shadow-sm hover:shadow-blue-500/20 active:scale-95"
             >
-              VISIT OFFICIAL PORTAL ↗
+              {isAffiliate ? "VISIT PARTNER PORTAL ↗" : "VISIT OFFICIAL PORTAL ↗"}
             </a>
           </div>
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
+          {/* Breadcrumbs */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li><Link href="/" className="hover:text-blue-600 transition">Home</Link></li>
@@ -290,6 +190,7 @@ export default async function ToolPage({ params }: Props) {
             </ol>
           </nav>
 
+          {/* Hero Section */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-10 shadow-sm relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 relative z-10">
               <div className="flex items-center gap-5 sm:gap-6 min-w-0">
@@ -301,7 +202,7 @@ export default async function ToolPage({ params }: Props) {
                       {tool.category}
                     </span>
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-widest bg-slate-100 text-slate-700">
-                      {tool.pricing_model}
+                      {tool.pricingModel}
                     </span>
                   </div>
 
@@ -310,10 +211,22 @@ export default async function ToolPage({ params }: Props) {
                   </h1>
                 </div>
               </div>
+
+              {tool.editorialScore && (
+                <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
+                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Algorithmic Score
+                  </span>
+                  <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-tight font-serif">
+                    {tool.editorialScore}
+                    <span className="text-base font-normal text-slate-400">/10</span>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 
-          {/* 1. Description */}
+          {/* 1. Overview */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -321,7 +234,36 @@ export default async function ToolPage({ params }: Props) {
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
               {tool.description}
             </div>
+
+            {/* Tags Display */}
+            {tool.tags.length > 0 && (
+              <div className="pt-4 flex flex-wrap gap-2">
+                {tool.tags.map((tag, i) => (
+                  <span key={i} className="text-xs font-semibold px-2.5 py-1 bg-slate-50 text-slate-600 rounded-lg border border-slate-100">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
           </section>
+
+          {/* Embedded YouTube Video if present */}
+          {tool.youtubeVideoId && (
+            <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+              <h2 className="text-xl font-black text-slate-950 font-serif">
+                Video Overview
+              </h2>
+              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-slate-900 shadow-inner">
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${tool.youtubeVideoId}`}
+                  title={`${tool.name} Video Overview`}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                  className="absolute top-0 left-0 w-full h-full border-0"
+                />
+              </div>
+            </section>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
@@ -331,29 +273,29 @@ export default async function ToolPage({ params }: Props) {
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details || "Pricing details are not specified. Check the official portal for current tiers."}
+                  {tool.pricingDetails || `Pricing details for ${tool.name} vary by tier. Check official site for current plans.`}
                 </p>
                 <div className="pt-2">
                   <a
-                    href={tool.official_url}
+                    href={destinationUrl}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Pricing on Official Website →
+                    Check Official Pricing Tiers →
                   </a>
                 </div>
               </section>
 
-              {/* 3. Key Features & Pros / Cons */}
+              {/* 3. Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
                     KEY FEATURES & PROS
                   </h2>
-                  {tool.features_pros.length > 0 ? (
+                  {tool.pros.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
-                      {tool.features_pros.map((item, i) => (
+                      {tool.pros.map((item, i) => (
                         <li key={i} className="leading-relaxed">
                           {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
@@ -361,7 +303,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Content unavailable.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified in database.</p>
                   )}
                 </div>
 
@@ -369,9 +311,9 @@ export default async function ToolPage({ params }: Props) {
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-amber-700">
                     LIMITATIONS & CONS
                   </h2>
-                  {tool.limitations_cons.length > 0 ? (
+                  {tool.cons.length > 0 ? (
                     <ol className="space-y-3 text-sm text-slate-700 list-decimal list-inside">
-                      {tool.limitations_cons.map((item, i) => (
+                      {tool.cons.map((item, i) => (
                         <li key={i} className="leading-relaxed">
                           {item.title && <strong className="text-slate-900 font-bold mr-1">{item.title}:</strong>}
                           <span>{item.description}</span>
@@ -379,7 +321,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Content unavailable.</p>
+                    <p className="text-xs text-slate-400 italic">Not explicitly specified in database.</p>
                   )}
                 </div>
               </section>
@@ -411,25 +353,25 @@ export default async function ToolPage({ params }: Props) {
               )}
 
               {/* 5. Who Should Use It? */}
-              {tool.who_should_use && (
+              {tool.whoShouldUse && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
                     Who Should Use {tool.name}?
                   </h2>
                   <p className="text-sm text-slate-600 leading-relaxed">
-                    {tool.who_should_use}
+                    {tool.whoShouldUse}
                   </p>
                 </section>
               )}
 
               {/* 6. How to Use */}
-              {tool.how_to_use && tool.how_to_use.length > 0 && (
+              {tool.howToUse && tool.howToUse.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
-                    How to Use {tool.name}
+                    How to Get Started with {tool.name}
                   </h2>
                   <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                    {tool.how_to_use.map((step, idx) => (
+                    {tool.howToUse.map((step, idx) => (
                       <li key={idx}>{step}</li>
                     ))}
                   </ol>
@@ -454,15 +396,16 @@ export default async function ToolPage({ params }: Props) {
               )}
             </div>
 
+            {/* Sidebar Specifications */}
             <aside className="space-y-6 lg:sticky lg:top-28">
               <div className="bg-white border border-slate-100 rounded-3xl p-6 shadow-sm space-y-6">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Specifications
+                  System Specifications
                 </h2>
 
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Tool Name</dt>
+                    <dt className="text-slate-500 font-medium">Software</dt>
                     <dd className="font-bold text-slate-900 truncate max-w-[150px]">{tool.name}</dd>
                   </div>
 
@@ -472,26 +415,26 @@ export default async function ToolPage({ params }: Props) {
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-emerald-600">{tool.pricing_model}</dd>
+                    <dt className="text-slate-500 font-medium">Model</dt>
+                    <dd className="font-bold text-emerald-600">{tool.pricingModel}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Status</dt>
+                    <dt className="text-slate-500 font-medium">Data Status</dt>
                     <dd className="inline-flex items-center gap-1.5 font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full text-xs">
                       <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
-                      Information Reviewed
+                      {tool.dataSources.overview === "database" ? "Database Verified" : "Information Reviewed"}
                     </dd>
                   </div>
                 </dl>
 
                 <a
-                  href={tool.official_url}
+                  href={destinationUrl}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
                   className="w-full inline-flex items-center justify-center py-4 px-6 text-sm font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-2xl transition-all shadow-md hover:shadow-blue-500/25 active:scale-98"
                 >
-                  VISIT OFFICIAL PORTAL ↗
+                  {isAffiliate ? "VISIT PARTNER PORTAL ↗" : "VISIT OFFICIAL PORTAL ↗"}
                 </a>
               </div>
             </aside>
@@ -502,10 +445,10 @@ export default async function ToolPage({ params }: Props) {
             <section className="pt-8 border-t border-slate-100 space-y-6">
               <div className="flex items-center justify-between">
                 <h2 className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-                  Related Tools
+                  Related Tools in {tool.category}
                 </h2>
                 <Link href="/" className="text-xs font-bold text-blue-600 hover:underline">
-                  View Directory ↗
+                  View Full Directory ↗
                 </Link>
               </div>
 
@@ -526,7 +469,7 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {rel.description || "Content unavailable."}
+                          {rel.description || "Software listing."}
                         </p>
                       </div>
                     </div>
