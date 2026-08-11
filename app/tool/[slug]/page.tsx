@@ -24,12 +24,12 @@ interface NormalizedTool {
   category: string;
   pricing_model: string;
   description: string;
-  pricing_details: string;
+  pricing_details: string | null;
   features_pros: FormattedListItem[];
   limitations_cons: FormattedListItem[];
-  who_should_use: string;
-  how_to_use: string[];
-  faqs: { q: string; a: string }[];
+  who_should_use: string | null;
+  how_to_use: string[] | null;
+  faqs: { q: string; a: string }[] | null;
   official_url: string;
   image_url?: string;
   logo_url?: string;
@@ -42,25 +42,63 @@ function getSupabaseClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
+/**
+ * Universal Array Parser: Correctly handles Postgres arrays, JSON strings,
+ * newline-separated text, and bullet-point strings.
+ */
 function parseListItems(input: any): FormattedListItem[] {
   if (!input) return [];
-  let lines: string[] = [];
-  if (Array.isArray(input)) {
-    lines = input.map((i) => String(i));
-  } else if (typeof input === "string") {
-    lines = input.split(/\n|•|\*/).map((s) => s.trim()).filter(Boolean);
-  }
 
-  return lines.map((line) => {
-    const cleanLine = line.replace(/^\d+\.\s*/, "").trim();
-    if (cleanLine.includes(":") || cleanLine.includes(" - ")) {
-      const parts = cleanLine.split(/:(.+)| - (.+)/).filter(Boolean);
-      if (parts.length >= 2) {
-        return { title: parts[0].trim(), description: parts.slice(1).join(" ").trim() };
+  let rawLines: string[] = [];
+
+  if (Array.isArray(input)) {
+    rawLines = input.map((item) => String(item));
+  } else if (typeof input === "string") {
+    let trimmed = input.trim();
+
+    // Check if string is a serialized JSON array
+    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          rawLines = parsed.map((item) => String(item));
+        }
+      } catch {
+        // Fallback if JSON parse fails
+        rawLines = [trimmed];
       }
     }
-    return { description: cleanLine };
-  });
+
+    if (rawLines.length === 0) {
+      // Split by newlines, bullets, or asterisks
+      rawLines = trimmed
+        .split(/\n|•|\*/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+  }
+
+  const items: FormattedListItem[] = [];
+
+  for (let i = 0; i < rawLines.length; i++) {
+    let line = rawLines[i].replace(/^\d+\.\s*/, "").replace(/^[•\*\-\s]+/, "").trim();
+    if (!line) continue;
+
+    if (line.includes(":") || line.includes(" - ")) {
+      const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
+      if (parts.length >= 2) {
+        items.push({
+          title: parts[0].trim(),
+          description: parts.slice(1).join(" ").trim(),
+        });
+        continue;
+      }
+    }
+
+    items.push({ description: line });
+  }
+
+  return items;
 }
 
 async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null> {
@@ -82,64 +120,23 @@ async function getNormalizedTool(rawSlug: string): Promise<NormalizedTool | null
     const category = raw.category || "Software";
     const name = raw.name || "Tool";
 
-    // Ghost-specific How-To steps
-    let howToSteps: string[] = [];
-    if (raw.slug === "ghost") {
-      howToSteps = [
-        "Create a Ghost site via Ghost(Pro) or deploy the open-source software on your server.",
-        "Configure your domain, site branding, custom themes, and design settings.",
-        "Create posts and pages using the built-in publishing editor.",
-        "Configure membership tiers and newsletter distribution settings if required.",
-        "Publish content and manage your audience subscribers."
-      ];
-    } else {
-      howToSteps = [
-        `Visit the official platform website at ${raw.website_url || raw.official_url || "the official portal"}.`,
-        "Create or sign in to your user account.",
-        "Configure settings for your project requirements.",
-        "Execute your tasks and export generated outputs."
-      ];
-    }
-
-    // Who should use statement
-    const whoShouldUse = raw.slug === "ghost"
-      ? "Independent publishers, bloggers, newsletter creators, media teams, and businesses building a content or membership website."
-      : `${name} is best suited for teams, developers, and professionals managing tasks in ${category}.`;
-
-    // Concise, Non-Duplicative FAQs
-    const faqs = [
-      {
-        q: `What is ${name} used for?`,
-        a: raw.slug === "ghost"
-          ? "Ghost is used for publishing blogs, sending email newsletters, managing subscribers, and running paid membership content websites."
-          : `${name} provides software functionality for ${category} operations.`
-      },
-      {
-        q: `What is ${name}'s pricing model?`,
-        a: raw.pricing || "Pricing information can change. Check the official website for current plans and limits."
-      },
-      {
-        q: `Who should use ${name}?`,
-        a: whoShouldUse
-      }
-    ];
-
+    // Direct mapping to DB columns
     return {
       id: raw.id,
-      name: raw.name,
+      name: name,
       slug: raw.slug,
       category: category,
-      pricing_model: raw.pricing ? "Paid / Freemium" : "Check Site",
+      pricing_model: raw.pricing || "Not Specified",
       description: raw.description || "Content unavailable.",
-      pricing_details: raw.pricing || "Check the official website for current plans, limits, and pricing.",
+      pricing_details: raw.pricing || null,
       features_pros: pros,
       limitations_cons: cons,
-      who_should_use: whoShouldUse,
-      how_to_use: howToSteps,
-      faqs: faqs,
+      who_should_use: raw.who_should_use || null,
+      how_to_use: Array.isArray(raw.how_to_use) ? raw.how_to_use : null,
+      faqs: Array.isArray(raw.faqs) ? raw.faqs : null,
       official_url: raw.website_url || raw.official_url || "#",
       image_url: raw.image_url,
-      logo_url: raw.logo_url
+      logo_url: raw.logo_url,
     };
   } catch (err) {
     console.error("[FETCH_EXCEPT]", err);
@@ -226,20 +223,9 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    mainEntity: tool.faqs.map((item) => ({
-      "@type": "Question",
-      name: item.q,
-      acceptedAnswer: { "@type": "Answer", text: item.a },
-    })),
-  };
-
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} />
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
@@ -307,13 +293,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing */}
+              {/* 2. Pricing & Plans */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricing_details}
+                  {tool.pricing_details || "Pricing information is not specified. Check the official website for current plans and limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -327,7 +313,7 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </section>
 
-              {/* 3. Pros & Cons */}
+              {/* 3. Key Features & Pros / Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -392,42 +378,48 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 5. Who Should Use It? */}
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  Who Should Use {tool.name}?
-                </h2>
-                <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.who_should_use}
-                </p>
-              </section>
+              {/* 5. Who Should Use It? (Rendered if available) */}
+              {tool.who_should_use && (
+                <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
+                  <h2 className="text-xl font-black text-slate-950 font-serif">
+                    Who Should Use {tool.name}?
+                  </h2>
+                  <p className="text-sm text-slate-600 leading-relaxed">
+                    {tool.who_should_use}
+                  </p>
+                </section>
+              )}
 
-              {/* 6. How to Use [Tool] */}
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  How to Use {tool.name}
-                </h2>
-                <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  {tool.how_to_use.map((step, idx) => (
-                    <li key={idx}>{step}</li>
-                  ))}
-                </ol>
-              </section>
+              {/* 6. How to Use (Rendered if available) */}
+              {tool.how_to_use && tool.how_to_use.length > 0 && (
+                <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+                  <h2 className="text-xl font-black text-slate-950 font-serif">
+                    How to Use {tool.name}
+                  </h2>
+                  <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
+                    {tool.how_to_use.map((step, idx) => (
+                      <li key={idx}>{step}</li>
+                    ))}
+                  </ol>
+                </section>
+              )}
 
-              {/* 7. FAQs */}
-              <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
-                <h2 className="text-xl font-black text-slate-950 font-serif">
-                  Frequently Asked Questions
-                </h2>
-                <div className="space-y-4 divide-y divide-slate-100">
-                  {tool.faqs.map((faq, index) => (
-                    <div key={index} className={index > 0 ? "pt-4" : ""}>
-                      <h3 className="text-sm font-bold text-slate-900">{faq.q}</h3>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">{faq.a}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
+              {/* 7. FAQs (Rendered if available) */}
+              {tool.faqs && tool.faqs.length > 0 && (
+                <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
+                  <h2 className="text-xl font-black text-slate-950 font-serif">
+                    Frequently Asked Questions
+                  </h2>
+                  <div className="space-y-4 divide-y divide-slate-100">
+                    {tool.faqs.map((faq, index) => (
+                      <div key={index} className={index > 0 ? "pt-4" : ""}>
+                        <h3 className="text-sm font-bold text-slate-900">{faq.q}</h3>
+                        <p className="text-xs text-slate-600 mt-1 leading-relaxed">{faq.a}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
             </div>
 
             <aside className="space-y-6 lg:sticky lg:top-28">
