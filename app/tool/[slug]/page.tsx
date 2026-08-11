@@ -4,9 +4,8 @@ import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
-import { normalizeSlug } from "@/lib/slug-normalizer";
 
-// Enforce dynamic server-side runtime lookup — Bypasses static build-time 404 locks
+// Enforce runtime database lookup — Removes build-time 404 static locks
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -47,8 +46,6 @@ export interface DatabaseToolRecord {
   rating: number | null;
   image_url: string | null;
   logo_url: string | null;
-  is_sponsored?: boolean | null;
-  created_at?: string | null;
   features_pros: FormattedListItem[] | null;
   limitations_cons: FormattedListItem[] | null;
   who_should_use: string | null;
@@ -91,45 +88,33 @@ function normalizeScore(rawScore: number | null, rawNeural: number | null, rawRa
 }
 
 /**
- * Robust Multi-Tier Lookup: Ensures direct Supabase resolution
+ * Direct Supabase Lookup Engine
  */
 async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord | null> {
   const supabase = getSupabaseClient();
   if (!supabase || !rawSlug) return null;
 
   try {
-    const cleanRaw = decodeURIComponent(rawSlug).trim();
-    const normalized = normalizeSlug(cleanRaw);
+    const cleanSlug = decodeURIComponent(rawSlug).toLowerCase().trim();
 
-    // Tier 1: Direct exact match
+    // 1. Direct query using .from("ai_tools")
     let { data, error } = await supabase
       .from("ai_tools")
       .select("*")
-      .eq("slug", cleanRaw)
+      .eq("slug", cleanSlug)
       .maybeSingle();
 
-    // Tier 2: Normalized slug match
-    if (!data && normalized !== cleanRaw) {
-      const res = await supabase
-        .from("ai_tools")
-        .select("*")
-        .eq("slug", normalized)
-        .maybeSingle();
-      data = res.data;
-    }
-
-    // Tier 3: Case-insensitive fallback
+    // 2. Case-insensitive fallback lookup
     if (!data) {
       const res = await supabase
         .from("ai_tools")
         .select("*")
-        .ilike("slug", normalized)
+        .ilike("slug", cleanSlug)
         .maybeSingle();
       data = res.data;
     }
 
     if (error || !data) return null;
-
     return data as DatabaseToolRecord;
   } catch {
     return null;
@@ -347,7 +332,7 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* YouTube Section */}
+          {/* YouTube Video Section */}
           {youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
