@@ -38,9 +38,6 @@ export interface NormalizedTool {
   };
 }
 
-/**
- * Validates HTTP/HTTPS URLs to prevent XSS/javascript: injection
- */
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
@@ -50,9 +47,6 @@ export function sanitizeUrl(url: unknown): string | null {
   return null;
 }
 
-/**
- * Extracts YouTube Video ID from YouTube URLs
- */
 export function extractYouTubeId(urlStr: unknown): string | null {
   const url = sanitizeUrl(urlStr);
   if (!url) return null;
@@ -66,9 +60,6 @@ export function extractYouTubeId(urlStr: unknown): string | null {
   }
 }
 
-/**
- * Safely parses any text/JSON format inside `pros_cons`
- */
 export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
   if (!input) return { pros: [], cons: [] };
 
@@ -87,7 +78,6 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
       });
   };
 
-  // Case A: Structured JS Object
   if (typeof input === "object" && input !== null && !Array.isArray(input)) {
     const obj = input as Record<string, unknown>;
     const pros = Array.isArray(obj.pros) ? obj.pros.map(String) : obj.pros ? [String(obj.pros)] : [];
@@ -102,7 +92,6 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
     textInput = input.trim();
   }
 
-  // Case B: Serialized JSON
   if (textInput.startsWith("{") && textInput.endsWith("}")) {
     try {
       const parsed = JSON.parse(textInput) as Record<string, unknown>;
@@ -114,7 +103,6 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
     }
   }
 
-  // Case C: Newline/Header Split ("Pros:" and "Cons:")
   if (/Cons:|CONS:/i.test(textInput)) {
     const parts = textInput.split(/Cons:|CONS:/i);
     const prosText = parts[0].replace(/Pros:|PROS:/i, "").trim();
@@ -126,16 +114,12 @@ export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]
     };
   }
 
-  // Case D: Single List
   return {
     pros: cleanLines(textInput.split(/\n|•|\*/)),
     cons: [],
   };
 }
 
-/**
- * Standardize Pricing Model Enums
- */
 function normalizePricingModel(rawPricing?: unknown): "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales" {
   if (!rawPricing || typeof rawPricing !== "string") return "Paid";
   const p = rawPricing.toLowerCase();
@@ -148,8 +132,20 @@ function normalizePricingModel(rawPricing?: unknown): "Free" | "Freemium" | "Pai
 }
 
 /**
- * Central Tool Normalizer Component
+ * Ensures scores like 85 are normalized to a clean 8.5/10 scale
  */
+function normalizeScore(rawScore: unknown): number | null {
+  const num = Number(rawScore);
+  if (isNaN(num) || num <= 0) return null;
+  if (num > 10 && num <= 100) {
+    return Number((num / 10).toFixed(1));
+  }
+  if (num <= 10) {
+    return Number(num.toFixed(1));
+  }
+  return 8.5;
+}
+
 export function normalizeTool(raw: unknown): NormalizedTool {
   if (!raw || typeof raw !== "object") {
     throw new Error("[NORMALIZER_ERROR] Invalid raw tool object");
@@ -161,10 +157,8 @@ export function normalizeTool(raw: unknown): NormalizedTool {
   const slug = String(tool.slug || "").trim().toLowerCase();
   const category = String(tool.category || "Software & AI").trim();
 
-  // Parse Pros & Cons from `pros_cons` or legacy columns
   const { pros, cons } = parseProsConsColumn(tool.pros_cons || tool.pros || tool.cons);
 
-  // Description prioritization
   const description = String(
     tool.description || tool.seo_description || tool.meta_description || ""
   ).trim();
@@ -173,20 +167,22 @@ export function normalizeTool(raw: unknown): NormalizedTool {
     ? description.slice(0, 160).replace(/(<([^>]+)>)/gi, "") + (description.length > 160 ? "..." : "")
     : `${name} is a software platform designed for ${category} operations.`;
 
-  // Parse URLs
   const officialUrl = sanitizeUrl(tool.website_url || tool.official_url || tool.url) || "#";
   const affiliateUrl = sanitizeUrl(tool.affiliate_url || tool.sponsored_url);
   const youtubeVideoId = extractYouTubeId(tool.youtube_url || tool.video_url || tool.youtube_id);
 
-  // Strictly typed tags array parser (Fixes line 183 parameter type error)
-  let tags: string[] = [category, "AI", "Software"];
+  let tags: string[] = [];
   if (Array.isArray(tool.tags)) {
     tags = tool.tags.map((t: unknown) => String(t).trim()).filter(Boolean);
   } else if (typeof tool.tags === "string") {
     tags = tool.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
   }
 
-  // Strictly typed FAQs parser
+  // Derive default tags if missing in DB
+  if (tags.length === 0) {
+    tags = [category, name, "AI Tools", "Productivity"].map((t) => t.trim()).filter(Boolean);
+  }
+
   let faqs: FAQItem[] | null = null;
   if (Array.isArray(tool.faqs) && tool.faqs.length > 0) {
     faqs = tool.faqs
@@ -203,9 +199,7 @@ export function normalizeTool(raw: unknown): NormalizedTool {
       .filter((f: FAQItem) => f.q.length > 0 && f.a.length > 0);
   }
 
-  // Score handling (0 - 10)
-  const rawScore = Number(tool.score || tool.neural_score || tool.rating);
-  const editorialScore = !isNaN(rawScore) && rawScore > 0 ? Number(rawScore.toFixed(1)) : null;
+  const editorialScore = normalizeScore(tool.score || tool.neural_score || tool.rating);
 
   return {
     id: String(tool.id || slug),

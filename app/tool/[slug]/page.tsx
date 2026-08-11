@@ -35,9 +35,7 @@ async function getToolData(rawSlug: string): Promise<NormalizedTool | null> {
 
     if (error || !raw) return null;
 
-    // 1. Normalize DB record
     const normalized = normalizeTool(raw);
-    // 2. Safe Enrichment for missing fields
     return enrichMissingToolFields(normalized);
   } catch (err) {
     console.error(`[FETCH_EXCEPT] rawSlug=${rawSlug}`, err);
@@ -158,7 +156,6 @@ export default async function ToolPage({ params }: Props) {
       )}
 
       <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900">
-        {/* Navigation Header */}
         <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <Link href="/" className="flex items-center gap-2 group">
@@ -179,7 +176,6 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Breadcrumbs */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li><Link href="/" className="hover:text-blue-600 transition">Home</Link></li>
@@ -215,7 +211,7 @@ export default async function ToolPage({ params }: Props) {
               {tool.editorialScore && (
                 <div className="flex sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-slate-100 flex-shrink-0">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    Algorithmic Score
+                    AI Vault Score
                   </span>
                   <div className="text-3xl sm:text-4xl font-black text-blue-600 tracking-tight font-serif">
                     {tool.editorialScore}
@@ -226,7 +222,7 @@ export default async function ToolPage({ params }: Props) {
             </div>
           </section>
 
-          {/* 1. Overview */}
+          {/* Overview */}
           <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
             <h2 className="text-xl font-black text-slate-950 font-serif">
               What is {tool.name}?
@@ -235,7 +231,6 @@ export default async function ToolPage({ params }: Props) {
               {tool.description}
             </div>
 
-            {/* Tags Display */}
             {tool.tags.length > 0 && (
               <div className="pt-4 flex flex-wrap gap-2">
                 {tool.tags.map((tag, i) => (
@@ -247,7 +242,7 @@ export default async function ToolPage({ params }: Props) {
             )}
           </section>
 
-          {/* Embedded YouTube Video if present */}
+          {/* Embedded Video */}
           {tool.youtubeVideoId && (
             <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
               <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -267,13 +262,13 @@ export default async function ToolPage({ params }: Props) {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing & Plans */}
+              {/* Pricing */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
                 </h2>
                 <p className="text-slate-700 text-sm leading-relaxed font-medium">
-                  {tool.pricingDetails || `Pricing details for ${tool.name} vary by tier. Check official site for current plans.`}
+                  {tool.pricingDetails || "Pricing information unavailable — check the official website for current plans and tier limits."}
                 </p>
                 <div className="pt-2">
                   <a
@@ -282,12 +277,12 @@ export default async function ToolPage({ params }: Props) {
                     rel={isAffiliate ? "nofollow sponsored" : "noopener noreferrer"}
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Official Pricing Tiers →
+                    Check Pricing on Official Website →
                   </a>
                 </div>
               </section>
 
-              {/* 3. Pros & Cons */}
+              {/* Pros & Cons */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -303,7 +298,7 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not explicitly specified in database.</p>
+                    <p className="text-xs text-slate-400 italic">Not specified.</p>
                   )}
                 </div>
 
@@ -321,12 +316,12 @@ export default async function ToolPage({ params }: Props) {
                       ))}
                     </ol>
                   ) : (
-                    <p className="text-xs text-slate-400 italic">Not explicitly specified in database.</p>
+                    <p className="text-xs text-slate-400 italic">Not specified.</p>
                   )}
                 </div>
               </section>
 
-              {/* 4. Best Alternatives */}
+              {/* Best Alternatives */}
               {alternativesList.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -352,7 +347,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 5. Who Should Use It? */}
+              {/* Who Should Use */}
               {tool.whoShouldUse && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-3">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -364,7 +359,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 6. How to Use */}
+              {/* How to Use */}
               {tool.howToUse && tool.howToUse.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -378,7 +373,7 @@ export default async function ToolPage({ params }: Props) {
                 </section>
               )}
 
-              {/* 7. FAQs */}
+              {/* FAQs */}
               {tool.faqs && tool.faqs.length > 0 && (
                 <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
                   <h2 className="text-xl font-black text-slate-950 font-serif">
@@ -415,7 +410,7 @@ export default async function ToolPage({ params }: Props) {
                   </div>
 
                   <div className="pt-4 flex justify-between items-center">
-                    <dt className="text-slate-500 font-medium">Model</dt>
+                    <dt className="text-slate-500 font-medium">Pricing Tier</dt>
                     <dd className="font-bold text-emerald-600">{tool.pricingModel}</dd>
                   </div>
 
