@@ -1,30 +1,6 @@
-import { DatabaseToolRecord, FormattedListItem, FAQItem as SharedFAQItem, PricingDetailsJSON } from "@/types/tool";
+import { DatabaseToolRecord, FormattedListItem, FAQItem, PricingDetailsJSON, NormalizedTool } from "@/types/tool";
 
-export type FAQItem = SharedFAQItem;
-
-export interface NormalizedTool {
-  id: string;
-  name: string;
-  slug: string;
-  category: string;
-  pricingModel: string;
-  pricingDetails: PricingDetailsJSON | null;
-  description: string;
-  shortDescription: string;
-  pros: FormattedListItem[];
-  cons: FormattedListItem[];
-  whoShouldUse: string | null;
-  howToUse: string[];
-  faqs: FAQItem[];
-  tags: string[];
-  editorialScore: number | null;
-  officialUrl: string;
-  affiliateUrl: string | null;
-  youtubeVideoId: string | null;
-  seoTitle: string;
-  seoDescription: string;
-  dataStatus: "Database Verified" | "Database Enriched" | "Partially Enriched";
-}
+export type { FAQItem, NormalizedTool };
 
 export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
@@ -155,36 +131,6 @@ export function generateToolSpecificEnrichment(raw: DatabaseToolRecord): Partial
       ],
       seo_title: "Ghost Review, Pricing, Features & Alternatives | AI Vault",
       seo_description: "Discover Ghost features, pricing, pros, cons, use cases and alternatives on AI Vault."
-    };
-  }
-
-  if (slug === "cursor") {
-    return {
-      features_pros: [
-        { title: "Codebase Indexing", description: "Deep local repository indexing for project-wide AI context." },
-        { title: "VS Code Compatibility", description: "Native fork of VS Code supporting all existing extensions and keybindings." },
-        { title: "Inline AI Editing", description: "Instant code generation and refactoring via Cmd+K." }
-      ],
-      limitations_cons: [
-        { title: "Account Required", description: "Requires a Cursor account for fast cloud AI queries." }
-      ],
-      who_should_use: "Software engineers, web developers, and technical teams seeking an AI-first IDE fork of VS Code.",
-      how_to_use: [
-        "Download and install Cursor on macOS, Windows, or Linux.",
-        "Import your existing VS Code settings and extensions.",
-        "Index your local codebase repository for AI context.",
-        "Use Cmd+K or Cmd+I for inline code generation and refactoring."
-      ],
-      pricing_details: {
-        model: "Freemium",
-        note: "Offers a free tier with monthly AI query allowances and Pro tiers for unlimited fast usage."
-      },
-      tags: ["IDE", "Developer Tools", "AI Code Assistant", "VS Code Fork"],
-      faqs: [
-        { q: "Is Cursor a plugin or an IDE?", a: "Cursor is a standalone desktop IDE forked directly from Visual Studio Code." }
-      ],
-      seo_title: "Cursor IDE Review, Pricing, Features & Alternatives | AI Vault",
-      seo_description: "Discover Cursor IDE features, pricing, pros, cons, use cases and alternatives on AI Vault."
     };
   }
 

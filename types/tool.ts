@@ -9,7 +9,7 @@ export interface FAQItem {
 }
 
 export interface PricingDetailsJSON {
-  model?: "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales" | string;
+  model?: string;
   note?: string;
   official_link?: string;
   plans?: { name: string; price: string; period?: string; features?: string[] }[];
