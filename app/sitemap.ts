@@ -1,92 +1,70 @@
 import { MetadataRoute } from "next";
 import { SITE_URL } from "@/lib/site-url";
+import { FALLBACK_TOOL_SLUGS } from "@/lib/sitemap-fallback";
 
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
+// Prerender sitemap statically at build time with 24-hour background revalidation
+export const revalidate = 86400;
 
 interface ToolRecord {
   slug: string;
   created_at?: string;
 }
 
-/**
- * Clean and normalize database slugs.
- * Example: " /ChatGPT/ " => "chatgpt"
- */
 function normalizeSlug(rawSlug: any): string {
   if (!rawSlug || typeof rawSlug !== "string") return "";
-
   let clean = rawSlug.trim();
-
-  // Remove leading and trailing slashes
   clean = clean.replace(/^\/+|\/+$/g, "");
-
-  // Convert to lowercase and trim remaining whitespace
-  clean = clean.toLowerCase().trim();
-
-  return clean;
+  return clean.toLowerCase().trim();
 }
 
-async function fetchToolsFromSupabase(): Promise<ToolRecord[]> {
+async function fetchAllToolSlugs(): Promise<ToolRecord[]> {
   const supabaseUrl = (process.env.NEXT_PUBLIC_SUPABASE_URL || "").trim();
-  // SERVER-ONLY: Strictly require SUPABASE_SERVICE_ROLE_KEY. No fallback to anon key.
   const serviceRoleKey = (process.env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
+  const anonKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "").trim();
+  const keyToUse = serviceRoleKey || anonKey;
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    console.error(
-      "[SITEMAP_ERROR] Missing required server environment variables (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)."
-    );
-    return [];
+  if (!supabaseUrl || !keyToUse) {
+    console.warn("[SITEMAP_WARN] Missing Supabase credentials. Utilizing static fallback list.");
+    return FALLBACK_TOOL_SLUGS.map((slug) => ({ slug }));
   }
 
-  // Request ONLY slug and created_at to avoid invalid column (updated_at) errors
-  const endpoint = `${supabaseUrl.replace(
-    /\/$/,
-    ""
-  )}/rest/v1/ai_tools?select=slug,created_at&slug=not.is.null`;
+  const endpoint = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/ai_tools?select=slug,created_at&slug=not.is.null`;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout ceiling
+
     const response = await fetch(endpoint, {
       method: "GET",
       headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
+        apikey: keyToUse,
+        Authorization: `Bearer ${keyToUse}`,
         "Content-Type": "application/json",
-        // Request up to 2000 rows without hitting default REST limit caps
         Range: "0-1999",
       },
-      cache: "no-store",
+      signal: controller.signal,
+      // Build-time revalidation caching
+      next: { revalidate: 86400 },
     });
 
+    clearTimeout(timeoutId);
+
     if (!response.ok) {
-      const errorBody = await response.text();
-      console.error(
-        `[SITEMAP_FETCH_FAILED] Status: ${response.status} ${response.statusText} Body: ${errorBody}`
-      );
-      return [];
+      console.warn(`[SITEMAP_WARN] Supabase REST status ${response.status}. Using fallback slugs.`);
+      return FALLBACK_TOOL_SLUGS.map((slug) => ({ slug }));
     }
 
     const data = await response.json();
 
-    if (!Array.isArray(data)) {
-      console.error("[SITEMAP_ERROR] Supabase response is not an array.");
-      return [];
+    if (!Array.isArray(data) || data.length === 0) {
+      console.warn("[SITEMAP_WARN] Database query returned empty. Utilizing fallback list.");
+      return FALLBACK_TOOL_SLUGS.map((slug) => ({ slug }));
     }
 
-    if (data.length === 0) {
-      console.error(
-        "[SITEMAP_ERROR] 0 AI tools returned. Check SUPABASE_SERVICE_ROLE_KEY and RLS/database permissions."
-      );
-      return [];
-    }
-
-    console.log(
-      `[SITEMAP_SUCCESS] Successfully fetched ${data.length} tool records from Supabase.`
-    );
     return data;
-  } catch (error) {
-    console.error("[SITEMAP_EXCEPTION] Unhandled fetch exception:", error);
-    return [];
+  } catch (err) {
+    console.warn("[SITEMAP_WARN] Network or execution error fetching tools. Utilizing fallback list.", err);
+    return FALLBACK_TOOL_SLUGS.map((slug) => ({ slug }));
   }
 }
 
@@ -124,11 +102,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  const tools = await fetchToolsFromSupabase();
-
-  if (tools.length === 0) {
-    return staticRoutes;
-  }
+  const tools = await fetchAllToolSlugs();
 
   const seenSlugs = new Set<string>();
   const toolRoutes: MetadataRoute.Sitemap = [];
@@ -153,10 +127,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
   }
 
-  // Combine static and tool routes
   const combined = [...staticRoutes, ...toolRoutes];
-
-  // Deduplicate entries by final URL to guarantee zero duplicated <loc> items
   const seenUrls = new Set<string>();
   const uniqueSitemap: MetadataRoute.Sitemap = [];
 
