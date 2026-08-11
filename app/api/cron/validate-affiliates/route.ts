@@ -1,4 +1,4 @@
-import { NextResponse } from "next";
+import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export async function GET() {
       checked++;
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
 
         const res = await fetch(tool.affiliate_url!, {
           method: "HEAD",
@@ -46,7 +46,6 @@ export async function GET() {
         clearTimeout(timeoutId);
 
         if (res.status >= 400 && res.status !== 403) {
-          // Mark Link as Invalid and notify admin
           broken++;
           await supabase
             .from("ai_tools")
@@ -64,14 +63,12 @@ export async function GET() {
             message: `Outbound check returned HTTP ${res.status}. Public traffic falls back to official website URL safely.`,
           });
         } else {
-          // Update last verified timestamp
           await supabase
             .from("ai_tools")
             .update({ affiliate_last_checked_at: new Date().toISOString() })
             .eq("id", tool.id);
         }
       } catch {
-        // Network timeout / unreachable
         broken++;
         await supabase
           .from("ai_tools")
