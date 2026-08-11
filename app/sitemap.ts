@@ -1,9 +1,10 @@
 import { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/site-url";
 import { FALLBACK_TOOL_SLUGS } from "@/lib/sitemap-fallback";
 
-// Prerender sitemap statically at build time with 24-hour background revalidation
+// Force static prerendering with 24-hour background revalidation
 export const revalidate = 86400;
+
+const CANONICAL_SITE_URL = "https://aivault.pp.ua";
 
 interface ToolRecord {
   slug: string;
@@ -32,7 +33,7 @@ async function fetchAllToolSlugs(): Promise<ToolRecord[]> {
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout ceiling
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
 
     const response = await fetch(endpoint, {
       method: "GET",
@@ -43,7 +44,6 @@ async function fetchAllToolSlugs(): Promise<ToolRecord[]> {
         Range: "0-1999",
       },
       signal: controller.signal,
-      // Build-time revalidation caching
       next: { revalidate: 86400 },
     });
 
@@ -63,7 +63,7 @@ async function fetchAllToolSlugs(): Promise<ToolRecord[]> {
 
     return data;
   } catch (err) {
-    console.warn("[SITEMAP_WARN] Network or execution error fetching tools. Utilizing fallback list.", err);
+    console.warn("[SITEMAP_WARN] Error fetching tools. Utilizing fallback list.", err);
     return FALLBACK_TOOL_SLUGS.map((slug) => ({ slug }));
   }
 }
@@ -71,31 +71,31 @@ async function fetchAllToolSlugs(): Promise<ToolRecord[]> {
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: `${SITE_URL}`,
+      url: `${CANONICAL_SITE_URL}`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
-      url: `${SITE_URL}/about`,
+      url: `${CANONICAL_SITE_URL}/about`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
-      url: `${SITE_URL}/contact`,
+      url: `${CANONICAL_SITE_URL}/contact`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.3,
     },
     {
-      url: `${SITE_URL}/privacy`,
+      url: `${CANONICAL_SITE_URL}/privacy`,
       lastModified: new Date(),
       changeFrequency: "yearly",
       priority: 0.2,
     },
     {
-      url: `${SITE_URL}/terms`,
+      url: `${CANONICAL_SITE_URL}/terms`,
       lastModified: new Date(),
       changeFrequency: "yearly",
       priority: 0.2,
@@ -120,7 +120,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const isValidDate = createdDate && !isNaN(createdDate.getTime());
 
     toolRoutes.push({
-      url: `${SITE_URL}/tool/${cleanSlug}`,
+      url: `${CANONICAL_SITE_URL}/tool/${cleanSlug}`,
       ...(isValidDate ? { lastModified: createdDate } : {}),
       changeFrequency: "weekly",
       priority: 0.8,
