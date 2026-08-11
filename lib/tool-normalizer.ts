@@ -41,7 +41,7 @@ export interface NormalizedTool {
 /**
  * Validates HTTP/HTTPS URLs to prevent XSS/javascript: injection
  */
-export function sanitizeUrl(url: any): string | null {
+export function sanitizeUrl(url: unknown): string | null {
   if (!url || typeof url !== "string") return null;
   const trimmed = url.trim();
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
@@ -53,7 +53,7 @@ export function sanitizeUrl(url: any): string | null {
 /**
  * Extracts YouTube Video ID from YouTube URLs
  */
-export function extractYouTubeId(urlStr: any): string | null {
+export function extractYouTubeId(urlStr: unknown): string | null {
   const url = sanitizeUrl(urlStr);
   if (!url) return null;
 
@@ -69,7 +69,7 @@ export function extractYouTubeId(urlStr: any): string | null {
 /**
  * Safely parses any text/JSON format inside `pros_cons`
  */
-export function parseProsConsColumn(input: any): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
+export function parseProsConsColumn(input: unknown): { pros: FormattedListItem[]; cons: FormattedListItem[] } {
   if (!input) return { pros: [], cons: [] };
 
   const cleanLines = (lines: string[]): FormattedListItem[] => {
@@ -89,14 +89,15 @@ export function parseProsConsColumn(input: any): { pros: FormattedListItem[]; co
 
   // Case A: Structured JS Object
   if (typeof input === "object" && input !== null && !Array.isArray(input)) {
-    const pros = Array.isArray(input.pros) ? input.pros : input.pros ? [String(input.pros)] : [];
-    const cons = Array.isArray(input.cons) ? input.cons : input.cons ? [String(input.cons)] : [];
+    const obj = input as Record<string, unknown>;
+    const pros = Array.isArray(obj.pros) ? obj.pros.map(String) : obj.pros ? [String(obj.pros)] : [];
+    const cons = Array.isArray(obj.cons) ? obj.cons.map(String) : obj.cons ? [String(obj.cons)] : [];
     return { pros: cleanLines(pros), cons: cleanLines(cons) };
   }
 
   let textInput = "";
   if (Array.isArray(input)) {
-    textInput = input.join("\n");
+    textInput = input.map(String).join("\n");
   } else if (typeof input === "string") {
     textInput = input.trim();
   }
@@ -104,7 +105,7 @@ export function parseProsConsColumn(input: any): { pros: FormattedListItem[]; co
   // Case B: Serialized JSON
   if (textInput.startsWith("{") && textInput.endsWith("}")) {
     try {
-      const parsed = JSON.parse(textInput);
+      const parsed = JSON.parse(textInput) as Record<string, unknown>;
       if (parsed.pros || parsed.cons) {
         return parseProsConsColumn(parsed);
       }
@@ -135,8 +136,8 @@ export function parseProsConsColumn(input: any): { pros: FormattedListItem[]; co
 /**
  * Standardize Pricing Model Enums
  */
-function normalizePricingModel(rawPricing?: string): "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales" {
-  if (!rawPricing) return "Paid";
+function normalizePricingModel(rawPricing?: unknown): "Free" | "Freemium" | "Paid" | "Open Source" | "Free Trial" | "Contact Sales" {
+  if (!rawPricing || typeof rawPricing !== "string") return "Paid";
   const p = rawPricing.toLowerCase();
   if (p.includes("open source")) return "Open Source";
   if (p.includes("freemium")) return "Freemium";
@@ -149,21 +150,23 @@ function normalizePricingModel(rawPricing?: string): "Free" | "Freemium" | "Paid
 /**
  * Central Tool Normalizer Component
  */
-export function normalizeTool(raw: any): NormalizedTool {
+export function normalizeTool(raw: unknown): NormalizedTool {
   if (!raw || typeof raw !== "object") {
     throw new Error("[NORMALIZER_ERROR] Invalid raw tool object");
   }
 
-  const name = String(raw.name || "Software Tool").trim();
-  const slug = String(raw.slug || "").trim().toLowerCase();
-  const category = String(raw.category || "Software & AI").trim();
+  const tool = raw as Record<string, unknown>;
+
+  const name = String(tool.name || "Software Tool").trim();
+  const slug = String(tool.slug || "").trim().toLowerCase();
+  const category = String(tool.category || "Software & AI").trim();
 
   // Parse Pros & Cons from `pros_cons` or legacy columns
-  const { pros, cons } = parseProsConsColumn(raw.pros_cons || raw.pros || raw.cons);
+  const { pros, cons } = parseProsConsColumn(tool.pros_cons || tool.pros || tool.cons);
 
   // Description prioritization
   const description = String(
-    raw.description || raw.seo_description || raw.meta_description || ""
+    tool.description || tool.seo_description || tool.meta_description || ""
   ).trim();
 
   const shortDescription = description
@@ -171,54 +174,62 @@ export function normalizeTool(raw: any): NormalizedTool {
     : `${name} is a software platform designed for ${category} operations.`;
 
   // Parse URLs
-  const officialUrl = sanitizeUrl(raw.website_url || raw.official_url || raw.url) || "#";
-  const affiliateUrl = sanitizeUrl(raw.affiliate_url || raw.sponsored_url);
-  const youtubeVideoId = extractYouTubeId(raw.youtube_url || raw.video_url || raw.youtube_id);
+  const officialUrl = sanitizeUrl(tool.website_url || tool.official_url || tool.url) || "#";
+  const affiliateUrl = sanitizeUrl(tool.affiliate_url || tool.sponsored_url);
+  const youtubeVideoId = extractYouTubeId(tool.youtube_url || tool.video_url || tool.youtube_id);
 
-  // Parse Tags
+  // Strictly typed tags array parser (Fixes line 183 parameter type error)
   let tags: string[] = [category, "AI", "Software"];
-  if (Array.isArray(raw.tags)) {
-    tags = raw.tags.map((t: any) => String(t).trim()).filter(Boolean);
-  } else if (typeof raw.tags === "string") {
-    tags = raw.tags.split(",").map((t) => t.trim()).filter(Boolean);
+  if (Array.isArray(tool.tags)) {
+    tags = tool.tags.map((t: unknown) => String(t).trim()).filter(Boolean);
+  } else if (typeof tool.tags === "string") {
+    tags = tool.tags.split(",").map((t: string) => t.trim()).filter(Boolean);
   }
 
-  // Parse FAQs
+  // Strictly typed FAQs parser
   let faqs: FAQItem[] | null = null;
-  if (Array.isArray(raw.faqs) && raw.faqs.length > 0) {
-    faqs = raw.faqs.map((f: any) => ({
-      q: String(f.q || f.question || "").trim(),
-      a: String(f.a || f.answer || "").trim(),
-    })).filter((f: FAQItem) => f.q && f.a);
+  if (Array.isArray(tool.faqs) && tool.faqs.length > 0) {
+    faqs = tool.faqs
+      .map((f: unknown) => {
+        if (f && typeof f === "object") {
+          const item = f as Record<string, unknown>;
+          return {
+            q: String(item.q || item.question || "").trim(),
+            a: String(item.a || item.answer || "").trim(),
+          };
+        }
+        return { q: "", a: "" };
+      })
+      .filter((f: FAQItem) => f.q.length > 0 && f.a.length > 0);
   }
 
   // Score handling (0 - 10)
-  const rawScore = Number(raw.score || raw.neural_score || raw.rating);
+  const rawScore = Number(tool.score || tool.neural_score || tool.rating);
   const editorialScore = !isNaN(rawScore) && rawScore > 0 ? Number(rawScore.toFixed(1)) : null;
 
   return {
-    id: String(raw.id || slug),
+    id: String(tool.id || slug),
     name,
     slug,
     category,
-    pricingModel: normalizePricingModel(raw.pricing),
-    pricingDetails: raw.pricing ? String(raw.pricing).trim() : null,
+    pricingModel: normalizePricingModel(tool.pricing),
+    pricingDetails: tool.pricing ? String(tool.pricing).trim() : null,
     description: description || `${name} provides specialized capabilities in the ${category} domain.`,
     shortDescription,
     pros,
     cons,
-    whoShouldUse: raw.who_should_use ? String(raw.who_should_use).trim() : null,
-    howToUse: Array.isArray(raw.how_to_use) ? raw.how_to_use.map(String) : null,
+    whoShouldUse: tool.who_should_use ? String(tool.who_should_use).trim() : null,
+    howToUse: Array.isArray(tool.how_to_use) ? tool.how_to_use.map((item: unknown) => String(item)) : null,
     faqs,
     tags: Array.from(new Set(tags)),
     editorialScore,
     officialUrl,
     affiliateUrl,
     youtubeVideoId,
-    seoTitle: raw.meta_title || `${name} — Features, Pricing & Alternatives | AI Vault`,
-    seoDescription: raw.meta_description || shortDescription,
+    seoTitle: typeof tool.meta_title === "string" ? tool.meta_title : `${name} — Features, Pricing & Alternatives | AI Vault`,
+    seoDescription: typeof tool.meta_description === "string" ? tool.meta_description : shortDescription,
     dataSources: {
-      overview: raw.description ? "database" : "ai_generated",
+      overview: tool.description ? "database" : "ai_generated",
       prosCons: pros.length > 0 || cons.length > 0 ? "database" : "ai_generated",
       metadata: "database",
     },
