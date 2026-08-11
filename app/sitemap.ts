@@ -2,9 +2,8 @@ import { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { SITE_URL } from "@/lib/site-url";
 
-// Force dynamic execution with 1-hour revalidation for optimal crawler response times
 export const dynamic = "force-dynamic";
-export const revalidate = 3600;
+export const revalidate = 0;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -40,7 +39,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // Read environment variables directly (supports both anon and service keys safely)
+  // Read environment variables directly
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseKey =
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -48,7 +47,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "";
 
   if (!supabaseUrl || !supabaseKey) {
-    console.error("[SITEMAP_ERROR] Supabase credentials missing");
+    console.error("[SITEMAP_CRITICAL] Missing Supabase environment variables!");
     return staticRoutes;
   }
 
@@ -57,29 +56,28 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       auth: { persistSession: false },
     });
 
-    // Fetch ALL records (paging up to 2000 items to bypass Supabase default limits)
+    // Query all rows directly without arbitrary filters
     const { data: tools, error } = await supabase
       .from("ai_tools")
       .select("slug, updated_at, created_at")
-      .not("slug", "is", null)
-      .range(0, 1999);
+      .not("slug", "is", null);
 
     if (error) {
-      console.error("[SITEMAP_DB_ERROR]", error.message);
+      console.error("[SITEMAP_DB_ERROR]", error.message, error.code);
       return staticRoutes;
     }
 
     if (!tools || tools.length === 0) {
+      console.error("[SITEMAP_EMPTY] ai_tools returned 0 rows");
       return staticRoutes;
     }
 
-    // Deduplicate slugs and strip spaces/slashes
     const seenSlugs = new Set<string>();
     const toolRoutes: MetadataRoute.Sitemap = [];
 
     for (const t of tools) {
       if (!t.slug || typeof t.slug !== "string") continue;
-      
+
       const cleanSlug = t.slug.trim().toLowerCase();
       if (!cleanSlug || seenSlugs.has(cleanSlug)) continue;
 
@@ -97,9 +95,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       });
     }
 
+    console.log(`[SITEMAP_SUCCESS] Generated ${toolRoutes.length} tool routes`);
     return [...staticRoutes, ...toolRoutes];
   } catch (err) {
-    console.error("[SITEMAP_EXCEPT]", err);
+    console.error("[SITEMAP_EXCEPTION]", err);
     return staticRoutes;
   }
 }
