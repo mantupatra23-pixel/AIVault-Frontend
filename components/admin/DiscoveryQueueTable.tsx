@@ -40,12 +40,12 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
   }, []);
 
   const handleRunScan = async () => {
-    if (isDiscovering) return; // Prevent duplicate clicks
+    if (isDiscovering) return; // Duplicate click protection
 
     setIsDiscovering(true);
     setFeedback({
       type: "info",
-      text: "AUTO DISCOVERING... Initiating batched affiliate discovery scan...",
+      text: "AUTO DISCOVERING... Initiating multi-stage affiliate discovery scan...",
     });
 
     try {
@@ -57,18 +57,10 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
       let totalNoProgram = 0;
       let modeText = "PUBLIC DISCOVERY MODE";
       let requestCount = 0;
-      const maxBatchRequests = 20; // Safety limit
-      let previousOffset = -1;
+      const maxBatchRequests = 20;
 
       while (hasMore && requestCount < maxBatchRequests) {
-        // Prevent infinite loops if offset does not advance
-        if (offset === previousOffset) {
-          console.warn("[discovery-loop] Offset stall detected. Aborting scan loop.");
-          break;
-        }
-        previousOffset = offset;
         requestCount++;
-
         const currentStart = offset + 1;
         const currentEnd = offset + batchSize;
 
@@ -77,28 +69,38 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
           text: `[${modeText}] — Scanning tools ${currentStart}–${currentEnd}...`,
         });
 
-        const res = await fetch("/api/admin/affiliates/discover", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ batchSize, offset }),
-        });
+        let attempts = 0;
+        let batchSuccess = false;
+        let data: any = null;
 
-        if (!res.ok) {
-          let errMessage = "Server processing error";
+        // Up to 2 retries for transient batch network failures
+        while (attempts < 2 && !batchSuccess) {
+          attempts++;
           try {
-            const errData = await res.json();
-            errMessage = errData.error || errData.message || errMessage;
+            const res = await fetch("/api/admin/affiliates/discover", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ batchSize, offset }),
+            });
+
+            if (res.ok) {
+              data = await res.json();
+              batchSuccess = true;
+            } else {
+              if (attempts < 2) await new Promise((r) => setTimeout(r, 1000));
+            }
           } catch {
-            // Fallback for non-JSON error responses
+            if (attempts < 2) await new Promise((r) => setTimeout(r, 1000));
           }
-          setFeedback({
-            type: "error",
-            text: `Affiliate discovery failed at tools ${currentStart}–${currentEnd}: ${errMessage}`,
-          });
-          return; // Stop scan immediately on HTTP error without claiming DISCOVERY COMPLETE
         }
 
-        const data = await res.json();
+        if (!batchSuccess || !data) {
+          setFeedback({
+            type: "error",
+            text: `Affiliate discovery failed at tools ${currentStart}–${currentEnd}. Scan stopped safely.`,
+          });
+          return;
+        }
 
         if (data.mode) {
           modeText = data.mode.toUpperCase();
@@ -109,9 +111,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         totalDiscovered += data.candidatesFound || 0;
         totalNoProgram += data.noProgramFound || 0;
 
-        // Prevent stuck loop if API signals hasMore = true but scanned 0 tools
         if (Boolean(data.hasMore) && scannedInBatch === 0) {
-          console.warn("[discovery-loop] API returned hasMore=true with scanned=0. Halting scan.");
           hasMore = false;
         } else {
           hasMore = Boolean(data.hasMore);
@@ -122,7 +122,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
 
       setFeedback({
         type: "success",
-        text: `DISCOVERY COMPLETE — Scanned ${totalScanned} tools. Found ${totalDiscovered} affiliate candidates. ${totalNoProgram} tools have no verified affiliate program.`,
+        text: `DISCOVERY COMPLETE — Scanned ${totalScanned} tools. Found ${totalDiscovered} verified affiliate candidates. ${totalNoProgram} tools have no verified affiliate program.`,
       });
 
       await fetchCandidates();
@@ -136,7 +136,7 @@ export function DiscoveryQueueTable({ onScanComplete }: { onScanComplete?: () =>
         text: `Affiliate discovery failed: ${msg}`,
       });
     } finally {
-      setIsDiscovering(false); // ALWAYS release button state
+      setIsDiscovering(false); // Release button state
     }
   };
 

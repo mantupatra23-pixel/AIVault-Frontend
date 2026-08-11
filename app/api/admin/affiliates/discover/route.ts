@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import * as cheerio from "cheerio";
 
 export const dynamic = "force-dynamic";
 
@@ -10,57 +11,218 @@ function getSupabaseClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-// Helper: Safely verify public merchant domain for legitimate partner/affiliate pages
-async function verifyPublicAffiliateProgram(domainUrl: string): Promise<{ candidateUrl: string; network: string; programName: string } | null> {
-  let cleanDomain = "";
+// Known affiliate networks/providers
+const KNOWN_NETWORKS: { domain: string; name: string }[] = [
+  { domain: "partnerstack.com", name: "PartnerStack" },
+  { domain: "impact.com", name: "Impact" },
+  { domain: "shareasale.com", name: "ShareASale" },
+  { domain: "awin.com", name: "Awin" },
+  { domain: "cj.com", name: "CJ Affiliate" },
+  { domain: "commission-junction.com", name: "CJ Affiliate" },
+  { domain: "rakutenadvertising.com", name: "Rakuten Advertising" },
+  { domain: "rewardful.com", name: "Rewardful" },
+  { domain: "firstpromoter.com", name: "FirstPromoter" },
+  { domain: "tapfiliate.com", name: "Tapfiliate" },
+  { domain: "tolt.io", name: "Tolt" },
+  { domain: "everflow.io", name: "Everflow" },
+  { domain: "refersion.com", name: "Refersion" },
+  { domain: "uppromote.com", name: "UpPromote" },
+  { domain: "goaffpro.com", name: "GoAffPro" },
+  { domain: "leaddyno.com", name: "LeadDyno" },
+];
+
+const CANDIDATE_PATH_KEYWORDS = [
+  "/affiliate", "/affiliates", "/affiliate-program", "/affiliate-programs",
+  "/partner", "/partners", "/partner-program", "/partner-programs",
+  "/referral", "/referrals", "/refer", "/rewards",
+  "/ambassador", "/ambassadors", "/creator", "/creators",
+  "/community", "/monetize", "/earn", "/earn-money",
+  "/advertise", "/advertising", "/influencer", "/influencers"
+];
+
+interface DiscoveryCandidateResult {
+  candidateUrl: string;
+  network: string;
+  programName: string;
+  source: string;
+  confidence: number;
+}
+
+// Fetch helper with AbortController timeout
+async function safeFetch(url: string, timeoutMs = 5000): Promise<{ ok: boolean; status: number; text: string; finalUrl: string } | null> {
   try {
-    const parsed = new URL(domainUrl.startsWith("http") ? domainUrl : `https://${domainUrl}`);
-    cleanDomain = parsed.hostname.replace("www.", "").toLowerCase();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+    const res = await fetch(url, {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "AI-Vault-Affiliate-Discovery/1.0 (+https://www.aivault.pp.ua)",
+      },
+    });
+
+    clearTimeout(timeout);
+
+    if (!res.ok && res.status >= 400) {
+      return null;
+    }
+
+    const text = await res.text();
+    return { ok: true, status: res.status, text, finalUrl: res.url || url };
   } catch {
-    cleanDomain = domainUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
+    return null;
   }
+}
 
-  const publicPaths = ["/affiliates", "/partner", "/partners", "/referral", "/affiliate"];
+// Calculate evidence-based confidence score
+function calculateConfidence(pageText: string, targetUrl: string): number {
+  let score = 0;
+  const lowerText = pageText.toLowerCase();
+  const lowerUrl = targetUrl.toLowerCase();
 
-  for (const path of publicPaths) {
-    try {
-      const targetCheck = `https://${cleanDomain}${path}`;
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3500);
+  // Strong Signals
+  if (lowerText.includes("affiliate program")) score += 35;
+  if (lowerText.includes("affiliate")) score += 20;
+  if (lowerText.includes("commission")) score += 15;
+  if (lowerText.includes("referral program")) score += 30;
+  if (lowerText.includes("partner program")) score += 25;
+  if (lowerText.includes("affiliate dashboard")) score += 35;
+  if (lowerText.includes("join our affiliate")) score += 35;
+  if (lowerText.includes("earn commission")) score += 30;
+  if (lowerText.includes("recurring commission")) score += 35;
+  if (lowerText.includes("become a partner")) score += 25;
+  if (lowerText.includes("ambassador program")) score += 20;
 
-      const res = await fetch(targetCheck, {
-        method: "GET",
-        signal: controller.signal,
-        headers: { "User-Agent": "AI-Vault-PublicDiscovery/1.0" },
-      });
+  // URL Signals
+  if (lowerUrl.includes("/affiliate")) score += 20;
+  if (lowerUrl.includes("/affiliates")) score += 25;
+  if (lowerUrl.includes("/partner")) score += 15;
+  if (lowerUrl.includes("/partners")) score += 20;
+  if (lowerUrl.includes("/referral")) score += 20;
+  if (lowerUrl.includes("/ambassador")) score += 20;
 
-      clearTimeout(timeout);
-
-      if (res.status >= 200 && res.status < 400) {
-        const pageText = (await res.text()).toLowerCase();
-        
-        // Content verification: Ensure page explicitly mentions partner or affiliate program terms
-        const hasAffiliateContext = 
-          pageText.includes("affiliate") || 
-          pageText.includes("partner program") || 
-          pageText.includes("commission") || 
-          pageText.includes("referral") ||
-          pageText.includes("join program");
-
-        if (hasAffiliateContext) {
-          return {
-            candidateUrl: targetCheck,
-            network: "Direct Public Program",
-            programName: `${cleanDomain} Public Partner Portal`,
-          };
-        }
-      }
-    } catch {
-      // Continue inspecting next path safely without crashing batch execution
+  // Third-party Network URL Match
+  for (const net of KNOWN_NETWORKS) {
+    if (lowerUrl.includes(net.domain)) {
+      score += 30;
+      break;
     }
   }
 
-  return null;
+  return Math.min(100, score);
+}
+
+// Discover candidates from a single tool domain
+async function discoverToolAffiliate(toolName: string, websiteUrl: string): Promise<DiscoveryCandidateResult | null> {
+  let cleanDomain = "";
+  try {
+    const parsed = new URL(websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`);
+    cleanDomain = parsed.hostname.replace("www.", "").toLowerCase();
+  } catch {
+    cleanDomain = websiteUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
+  }
+
+  if (!cleanDomain) return null;
+
+  const baseOrigin = `https://${cleanDomain}`;
+  const candidateUrlsToVerify = new Set<string>();
+
+  // Stage 1: Add candidate path guesses
+  for (const p of CANDIDATE_PATH_KEYWORDS) {
+    candidateUrlsToVerify.add(`${baseOrigin}${p}`);
+  }
+
+  // Stage 2: Homepage inspection & internal link discovery
+  const homepage = await safeFetch(baseOrigin, 5000);
+  if (homepage && homepage.text) {
+    try {
+      const $ = cheerio.load(homepage.text);
+      $("script, style, noscript").remove();
+
+      $("a[href]").each((_, el) => {
+        const href = $(el).attr("href");
+        const anchorText = $(el).text().toLowerCase();
+        const title = $(el).attr("title")?.toLowerCase() || "";
+        const ariaLabel = $(el).attr("aria-label")?.toLowerCase() || "";
+
+        if (!href) return;
+
+        const isAffiliateKeyword =
+          anchorText.includes("affiliate") || anchorText.includes("partner") ||
+          anchorText.includes("referral") || anchorText.includes("ambassador") ||
+          anchorText.includes("earn") || anchorText.includes("commission") ||
+          title.includes("affiliate") || ariaLabel.includes("affiliate");
+
+        if (isAffiliateKeyword) {
+          try {
+            const absoluteUrl = new URL(href, baseOrigin).toString();
+            candidateUrlsToVerify.add(absoluteUrl);
+          } catch {
+            // Ignore invalid URLs
+          }
+        }
+      });
+    } catch {
+      // Non-blocking parsing error
+    }
+  }
+
+  // Stage 3: Sitemap inspection (limited to 5 relevant candidates)
+  const sitemap = await safeFetch(`${baseOrigin}/sitemap.xml`, 4000);
+  if (sitemap && sitemap.text) {
+    const lowerSitemap = sitemap.text.toLowerCase();
+    const locMatches = lowerSitemap.match(/<loc>(.*?)<\/loc>/g) || [];
+    let addedCount = 0;
+
+    for (const locTag of locMatches) {
+      if (addedCount >= 5) break;
+      const cleanLoc = locTag.replace("<loc>", "").replace("</loc>", "").trim();
+      if (CANDIDATE_PATH_KEYWORDS.some((kw) => cleanLoc.includes(kw))) {
+        candidateUrlsToVerify.add(cleanLoc);
+        addedCount++;
+      }
+    }
+  }
+
+  // Stage 4: Verification & Confidence Scoring
+  let bestCandidate: DiscoveryCandidateResult | null = null;
+  const verifiedList = Array.from(candidateUrlsToVerify).slice(0, 10); // Limit to top 10 candidate URLs per tool
+
+  for (const targetUrl of verifiedList) {
+    const page = await safeFetch(targetUrl, 4500);
+    if (!page || !page.text) continue;
+
+    const confidence = calculateConfidence(page.text, page.finalUrl || targetUrl);
+
+    // Filter by network provider
+    let detectedNetwork = "Direct Public Program";
+    for (const net of KNOWN_NETWORKS) {
+      if (page.finalUrl.toLowerCase().includes(net.domain) || targetUrl.toLowerCase().includes(net.domain) || page.text.toLowerCase().includes(net.domain)) {
+        detectedNetwork = net.name;
+        break;
+      }
+    }
+
+    // Require minimum threshold score of 55
+    if (confidence >= 55) {
+      const candidate: DiscoveryCandidateResult = {
+        candidateUrl: page.finalUrl || targetUrl,
+        network: detectedNetwork,
+        programName: `${toolName} ${detectedNetwork !== "Direct Public Program" ? detectedNetwork : "Partner"} Program`,
+        source: "Multi-Stage Domain Engine",
+        confidence,
+      };
+
+      if (!bestCandidate || candidate.confidence > bestCandidate.confidence) {
+        bestCandidate = candidate;
+        if (bestCandidate.confidence >= 90) break; // Early exit on high confidence match
+      }
+    }
+  }
+
+  return bestCandidate;
 }
 
 export async function POST(request: NextRequest) {
@@ -78,21 +240,21 @@ export async function POST(request: NextRequest) {
       if (body.batchSize) batchSize = parseInt(body.batchSize, 10);
       if (body.offset) offset = parseInt(body.offset, 10);
     } catch {
-      // Fallback to defaults if empty request body
+      // Default batch offset
     }
 
     console.log(`[affiliate-discovery] started batchSize=${batchSize} offset=${offset}`);
 
-    // 1. Load active network credentials
+    // Load active network publisher settings
     const { data: enabledNetworks } = await supabase
       .from("affiliate_settings")
-      .select("network_name, publisher_id, api_key_encrypted, is_enabled")
+      .select("network_name, publisher_id, is_enabled")
       .eq("is_enabled", true);
 
     const activeNetworks = (enabledNetworks || []).filter((n) => n.publisher_id && n.publisher_id.trim() !== "");
     const isAuthMode = activeNetworks.length > 0;
 
-    // 2. Load schema-safe tools batch from public.ai_tools
+    // Schema-safe selection from public.ai_tools
     const { data: tools, count: totalTools } = await supabase
       .from("ai_tools")
       .select("id, name, slug, category, website_url", { count: "exact" })
@@ -114,7 +276,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 3. Load active affiliate records to skip already monetized tools
+    // Load active affiliate records to preserve verified candidates
     const { data: existingLinks } = await supabase
       .from("affiliate_links")
       .select("tool_id, status");
@@ -125,13 +287,23 @@ export async function POST(request: NextRequest) {
         .map((l) => l.tool_id)
     );
 
+    // Load existing pending candidates to avoid overwriting
+    const { data: existingCandidates } = await supabase
+      .from("affiliate_candidates")
+      .select("tool_id")
+      .eq("status", "PENDING_REVIEW");
+
+    const pendingToolIds = new Set((existingCandidates || []).map((c) => c.tool_id));
+
     let scannedCount = 0;
     let candidatesCount = 0;
     let noProgramCount = 0;
 
-    // Process batch tools with isolated try-catch to prevent a single tool failure from halting the batch
+    // Process tools sequentially with per-tool isolation
     for (const tool of tools) {
-      if (activeToolIds.has(tool.id)) continue;
+      if (activeToolIds.has(tool.id) || pendingToolIds.has(tool.id)) {
+        continue;
+      }
       scannedCount++;
 
       try {
@@ -150,17 +322,16 @@ export async function POST(request: NextRequest) {
 
         let candidateFound = false;
 
-        // MODE 1: AUTHENTICATED NETWORK SCAN
+        // MODE 1: AUTHENTICATED MODE (If network credentials configured)
         if (isAuthMode) {
-          // Placeholder for official network API endpoints (Impact, PartnerStack, CJ API sync)
-          // Avoid fabricating guessed URLs when network APIs return no confirmed records
+          // Placeholder for direct network API integrations (Impact, PartnerStack, CJ API sync)
         }
 
-        // MODE 2: PUBLIC DOMAIN VERIFICATION
+        // MODE 2: MULTI-STAGE PUBLIC DISCOVERY ENGINE
         if (!candidateFound) {
-          const publicProgram = await verifyPublicAffiliateProgram(websiteUrl);
+          const discoveredCandidate = await discoverToolAffiliate(tool.name, websiteUrl);
 
-          if (publicProgram) {
+          if (discoveredCandidate) {
             candidateFound = true;
             candidatesCount++;
 
@@ -170,12 +341,12 @@ export async function POST(request: NextRequest) {
                 tool_name: tool.name,
                 tool_slug: tool.slug,
                 official_url: websiteUrl,
-                network: publicProgram.network,
-                program_name: publicProgram.programName,
+                network: discoveredCandidate.network,
+                program_name: discoveredCandidate.programName,
                 destination_url: websiteUrl,
-                candidate_url: publicProgram.candidateUrl,
-                source: "Public Domain Verification",
-                confidence: 80,
+                candidate_url: discoveredCandidate.candidateUrl,
+                source: discoveredCandidate.source,
+                confidence: discoveredCandidate.confidence,
                 status: "PENDING_REVIEW",
                 discovered_at: new Date().toISOString(),
               },
@@ -185,8 +356,8 @@ export async function POST(request: NextRequest) {
             await supabase.from("affiliate_links").upsert(
               {
                 tool_id: tool.id,
-                network_name: publicProgram.network,
-                program_name: publicProgram.programName,
+                network_name: discoveredCandidate.network,
+                program_name: discoveredCandidate.programName,
                 status: "PENDING_REVIEW",
                 last_checked_at: new Date().toISOString(),
               },
@@ -207,7 +378,7 @@ export async function POST(request: NextRequest) {
           );
         }
       } catch (toolErr) {
-        console.error(`[affiliate-discovery][TOOL_ERR] Failed processing tool ${tool.slug}:`, toolErr);
+        console.warn(`[affiliate-discovery] Failed tool=${tool.slug}:`, toolErr);
         // Continue to next tool in batch
       }
     }
@@ -220,13 +391,13 @@ export async function POST(request: NextRequest) {
       success: true,
       mode: isAuthMode ? "Authenticated API Mode" : "Public Discovery Mode",
       scanned: scannedCount,
-      candidatesFound: candidatesCount, // Mapping correctly to candidatesCount
+      candidatesFound: candidatesCount,
       noProgramFound: noProgramCount,
       offset,
       batchSize,
       total: totalTools || 0,
       hasMore,
-      message: `Batch scan complete (${offset + 1}–${offset + scannedCount} of ${totalTools}). Discovered ${candidatesCount} candidates. ${noProgramCount} marked No Program.`,
+      message: `Public Discovery complete. Scanned ${scannedCount} tools. Found ${candidatesCount} verified affiliate candidates. ${noProgramCount} have no verified affiliate program.`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unhandled discovery exception";
