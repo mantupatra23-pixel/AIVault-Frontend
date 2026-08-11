@@ -5,10 +5,10 @@ import crypto from "crypto";
 export const dynamic = "force-dynamic";
 
 function getSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
-  if (!supabaseUrl || !supabaseAnonKey) return null;
-  return createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || "";
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
 }
 
 function generateVisitorHash(ip: string, userAgent: string): string {
@@ -32,10 +32,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   try {
-    // Schema-Safe Selection: ONLY query verified columns
+    // 1. Fetch tool by REAL slug column
     const { data: tool } = await supabase
       .from("ai_tools")
-      .select("id, slug, website_url, affiliate_url, affiliate_status")
+      .select("id, slug, website_url")
       .ilike("slug", cleanSlug)
       .maybeSingle();
 
@@ -43,15 +43,22 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(new URL("/", request.url));
     }
 
-    const rawTarget = (tool.affiliate_status === "ACTIVE" && tool.affiliate_url)
-      ? tool.affiliate_url
+    // 2. Query active link from affiliate_links
+    const { data: affLink } = await supabase
+      .from("affiliate_links")
+      .select("id, affiliate_url, status")
+      .eq("tool_id", tool.id)
+      .maybeSingle();
+
+    const rawTarget = (affLink?.status === "ACTIVE" && affLink.affiliate_url)
+      ? affLink.affiliate_url
       : tool.website_url;
 
     if (!rawTarget) {
       return NextResponse.redirect(new URL(`/tool/${tool.slug}`, request.url));
     }
 
-    // Strict Protocol Security
+    // 3. Validate URL Protocol
     let targetUrl: URL;
     try {
       const formatted = rawTarget.startsWith("http") ? rawTarget : `https://${rawTarget}`;
@@ -63,7 +70,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.redirect(new URL(`/tool/${tool.slug}`, request.url));
     }
 
-    // Asynchronous Click Logging
+    // 4. Record click telemetry asynchronously
     const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
     const userAgent = request.headers.get("user-agent") || "unknown";
     const referrer = request.headers.get("referer") || "direct";
@@ -73,6 +80,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .from("affiliate_clicks")
       .insert({
         tool_id: tool.id,
+        affiliate_link_id: affLink?.id || null,
         visitor_hash: visitorHash,
         referrer,
         landing_page: `/tool/${tool.slug}`,

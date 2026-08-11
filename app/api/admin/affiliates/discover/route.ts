@@ -22,17 +22,15 @@ export async function POST(request: NextRequest) {
 
     console.log("[affiliate-discovery] started", { targetSlug: targetSlug || "all" });
 
-    // Schema-Safe Selection: ONLY query verified columns from public.ai_tools
+    // Schema-Safe Selection: Select ONLY verified columns from public.ai_tools
     let query = supabase
       .from("ai_tools")
-      .select("id, name, slug, category, website_url, affiliate_url, affiliate_status");
+      .select("id, name, slug, category, website_url");
 
     if (targetSlug) {
       query = query.ilike("slug", targetSlug.trim());
     } else {
-      query = query
-        .or("affiliate_url.is.null,affiliate_status.eq.DISCOVERY_REQUIRED,affiliate_status.eq.NO_LINK")
-        .limit(100);
+      query = query.limit(100);
     }
 
     const { data: tools, error: fetchErr } = await query;
@@ -43,114 +41,132 @@ export async function POST(request: NextRequest) {
     }
 
     if (!tools || tools.length === 0) {
-      console.log("[affiliate-discovery] completed - no tools pending discovery");
+      console.log("[affiliate-discovery] completed - 0 tools loaded");
       return NextResponse.json({
         success: true,
         scanned: 0,
-        candidates: 0,
+        candidatesFound: 0,
+        pendingReview: 0,
+        active: 0,
         noProgramFound: 0,
-        message: targetSlug
-          ? `Tool '${targetSlug}' already processed or not found.`
-          : "No unmonetized tools pending discovery.",
+        errors: 0,
+        message: "No unmonetized tools pending discovery.",
       });
     }
 
-    // Read active publisher settings from affiliate_settings table safely
+    // Load existing affiliate records from public.affiliate_links
+    const { data: existingLinks } = await supabase
+      .from("affiliate_links")
+      .select("tool_id, affiliate_url, status");
+
+    const activeToolIds = new Set(
+      (existingLinks || [])
+        .filter((l) => l.status === "ACTIVE" && l.affiliate_url)
+        .map((l) => l.tool_id)
+    );
+
+    // Load publisher settings
     const { data: enabledNetworks } = await supabase
       .from("affiliate_settings")
-      .select("id, network_name, publisher_id, is_enabled")
+      .select("network_name, publisher_id")
       .eq("is_enabled", true);
 
     const activeSettings = enabledNetworks || [];
 
-    let scannedCount = 0;
-    let candidatesCount = 0;
-    let noProgramCount = 0;
+    let scanned = 0;
+    let candidatesFound = 0;
+    let noProgramFound = 0;
 
     for (const tool of tools) {
-      scannedCount++;
-      const domainUrl = tool.website_url; // Use ONLY website_url (official_url removed)
+      if (activeToolIds.has(tool.id)) continue; // Skip already verified active links
+      scanned++;
 
-      if (!domainUrl) {
-        await supabase
-          .from("ai_tools")
-          .update({
-            affiliate_status: "DISCOVERY_REQUIRED",
+      const websiteUrl = tool.website_url;
+      if (!websiteUrl) {
+        await supabase.from("affiliate_links").upsert(
+          {
+            tool_id: tool.id,
+            status: "DISCOVERY_REQUIRED",
             last_checked_at: new Date().toISOString(),
-          })
-          .eq("id", tool.id);
+          },
+          { onConflict: "tool_id" }
+        );
         continue;
       }
 
       let cleanDomain = "";
       try {
-        const parsed = new URL(domainUrl.startsWith("http") ? domainUrl : `https://${domainUrl}`);
+        const parsed = new URL(websiteUrl.startsWith("http") ? websiteUrl : `https://${websiteUrl}`);
         cleanDomain = parsed.hostname.replace("www.", "").toLowerCase();
       } catch {
-        // Fallback for simple domain strings
-        cleanDomain = domainUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
+        cleanDomain = websiteUrl.replace(/https?:\/\//, "").replace("www.", "").split("/")[0].toLowerCase();
       }
 
-      let candidateFound = false;
+      let candidateMatched = false;
 
-      // Match against active server publisher settings
       for (const setting of activeSettings) {
         if (setting.publisher_id) {
-          candidateFound = true;
-          candidatesCount++;
+          candidateMatched = true;
+          candidatesFound++;
 
-          const candidateUrl = `https://${setting.network_name.toLowerCase()}.com/c/${setting.publisher_id}/aivault?u=${encodeURIComponent(domainUrl)}`;
+          const candidateUrl = `https://${setting.network_name.toLowerCase()}.com/c/${setting.publisher_id}/aivault?u=${encodeURIComponent(websiteUrl)}`;
 
           await supabase.from("affiliate_candidates").upsert(
             {
               tool_id: tool.id,
               tool_name: tool.name,
               tool_slug: tool.slug,
-              official_url: domainUrl,
+              official_url: websiteUrl,
               network: setting.network_name,
               program_name: `${tool.name} Affiliate Program`,
               candidate_url: candidateUrl,
-              evidence_url: `https://${cleanDomain}/affiliates`,
               confidence: 85,
               status: "PENDING_REVIEW",
             },
             { onConflict: "tool_id,candidate_url" }
           );
 
-          await supabase
-            .from("ai_tools")
-            .update({
-              affiliate_status: "PENDING_REVIEW",
+          await supabase.from("affiliate_links").upsert(
+            {
+              tool_id: tool.id,
+              network_name: setting.network_name,
+              status: "PENDING_REVIEW",
               last_checked_at: new Date().toISOString(),
-            })
-            .eq("id", tool.id);
+            },
+            { onConflict: "tool_id" }
+          );
 
           break;
         }
       }
 
-      if (!candidateFound) {
-        noProgramCount++;
-        await supabase
-          .from("ai_tools")
-          .update({
-            affiliate_status: tool.affiliate_url ? "ACTIVE" : "NO_AFFILIATE_PROGRAM",
+      if (!candidateMatched) {
+        noProgramFound++;
+        await supabase.from("affiliate_links").upsert(
+          {
+            tool_id: tool.id,
+            status: "NO_AFFILIATE_PROGRAM",
             last_checked_at: new Date().toISOString(),
-          })
-          .eq("id", tool.id);
+          },
+          { onConflict: "tool_id" }
+        );
       }
     }
 
-    console.log(`[affiliate-discovery] scanned=${scannedCount}`);
-    console.log(`[affiliate-discovery] candidates=${candidatesCount}`);
+    console.log(`[affiliate-discovery] tools_loaded=${tools.length}`);
+    console.log(`[affiliate-discovery] scanned=${scanned}`);
+    console.log(`[affiliate-discovery] candidates_found=${candidatesFound}`);
     console.log(`[affiliate-discovery] completed`);
 
     return NextResponse.json({
       success: true,
-      scanned: scannedCount,
-      candidates: candidatesCount,
-      noProgramFound: noProgramCount,
-      message: `Scanned ${scannedCount} tools. Found ${candidatesCount} candidates pending review. ${noProgramCount} tools marked NO_AFFILIATE_PROGRAM.`,
+      scanned,
+      candidatesFound,
+      pendingReview: candidatesFound,
+      active: activeToolIds.size,
+      noProgramFound,
+      errors: 0,
+      message: `Scanned ${scanned} tools. Discovered ${candidatesFound} candidates. ${noProgramFound} marked No Program.`,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unhandled discovery exception";
