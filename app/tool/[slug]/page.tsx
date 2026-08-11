@@ -67,20 +67,15 @@ async function getToolFromDatabase(rawSlug: string): Promise<DatabaseToolRecord 
 
     let record = data as DatabaseToolRecord;
 
-    if (!record.who_should_use || !record.features_pros || !record.limitations_cons) {
-      const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
-
-      if (parsedFromProsCons.pros.length > 0 && (!record.features_pros || record.features_pros.length === 0)) {
-        record.features_pros = parsedFromProsCons.pros;
-      }
-      if (parsedFromProsCons.cons.length > 0 && (!record.limitations_cons || record.limitations_cons.length === 0)) {
-        record.limitations_cons = parsedFromProsCons.cons;
-      }
-
-      record = enrichMissingToolFields(record);
+    const parsedFromProsCons = parseProsConsColumn(record.pros_cons);
+    if (parsedFromProsCons.pros.length > 0 && (!record.features_pros || record.features_pros.length === 0)) {
+      record.features_pros = parsedFromProsCons.pros;
+    }
+    if (parsedFromProsCons.cons.length > 0 && (!record.limitations_cons || record.limitations_cons.length === 0)) {
+      record.limitations_cons = parsedFromProsCons.cons;
     }
 
-    return record;
+    return enrichMissingToolFields(record);
   } catch {
     return null;
   }
@@ -152,16 +147,9 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
-  const rawTool = await getToolFromDatabase(rawSlug);
+  const tool = await getToolFromDatabase(rawSlug);
 
-  if (!rawTool) {
-    notFound();
-  }
-
-  const tool = enrichMissingToolFields(rawTool);
-
-  // Validate critical presence: name, category, description
-  if (!tool.name || !tool.category) {
+  if (!tool) {
     notFound();
   }
 
@@ -181,21 +169,13 @@ export default async function ToolPage({ params }: Props) {
   const youtubeVideoId = extractYouTubeId(tool.youtube_id || tool.youtube_url || "");
   const normalizedScore = normalizeScore(tool.score || tool.rating);
 
-  // Apply strict data presence validation thresholds
-  const rawPros: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
-  const rawCons: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
-  const rawSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
-  const rawUseCases: string[] = Array.isArray(tool.use_cases) ? tool.use_cases : [];
-  const rawFaqs: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
-
-  const prosList = rawPros.length >= 3 ? rawPros : [];
-  const consList = rawCons.length >= 3 ? rawCons : [];
-  const howToSteps = rawSteps.length >= 3 ? rawSteps : [];
-  const useCasesList = rawUseCases.length >= 3 ? rawUseCases : [];
-  const faqsList = rawFaqs.length >= 4 ? rawFaqs : [];
-
+  const prosList: FormattedListItem[] = Array.isArray(tool.features_pros) ? tool.features_pros : [];
+  const consList: FormattedListItem[] = Array.isArray(tool.limitations_cons) ? tool.limitations_cons : [];
+  const howToSteps: string[] = Array.isArray(tool.how_to_use) ? tool.how_to_use : [];
+  const useCasesList: string[] = Array.isArray(tool.use_cases) ? tool.use_cases : [];
   const integrationsList: string[] = Array.isArray(tool.integrations) ? tool.integrations : [];
   const tagsList: string[] = Array.isArray(tool.tags) ? tool.tags : [];
+  const faqsList: FAQItem[] = Array.isArray(tool.faqs) ? tool.faqs : [];
 
   const whoShouldUseText = typeof tool.who_should_use === "string"
     ? tool.who_should_use
@@ -205,15 +185,13 @@ export default async function ToolPage({ params }: Props) {
     ? tool.whoShouldUse
     : Array.isArray(tool.whoShouldUse)
     ? tool.whoShouldUse.join(", ")
-    : null;
+    : `${tool.name} is designed for developers, creators, and teams seeking efficient ${tool.category || "software"} solutions.`;
 
   const pricingNote = typeof tool.pricing_details === "string"
     ? tool.pricing_details
     : (tool.pricing_details && typeof tool.pricing_details === "object" && "note" in tool.pricing_details)
     ? String((tool.pricing_details as Record<string, unknown>).note)
-    : tool.pricing
-    ? `Pricing model: ${tool.pricing}. Check official portal for active plan pricing.`
-    : "Pricing varies by plan and usage. Check the official website for current pricing.";
+    : `${tool.name} operates under a ${tool.pricing || "Freemium"} model. Check official portal for active plan pricing.`;
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -298,11 +276,9 @@ export default async function ToolPage({ params }: Props) {
                     <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-50 text-blue-600 border border-blue-200">
                       {tool.category || "Software"}
                     </span>
-                    {tool.pricing && (
-                      <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 border border-slate-200">
-                        {tool.pricing}
-                      </span>
-                    )}
+                    <span className="px-3 py-1 rounded-full text-[10px] font-extrabold uppercase bg-slate-100 text-slate-700 border border-slate-200">
+                      {tool.pricing || "Freemium"}
+                    </span>
                   </div>
                   <h1 className="text-3xl sm:text-5xl font-black text-slate-900 font-serif tracking-tight">
                     {tool.name}
@@ -310,14 +286,12 @@ export default async function ToolPage({ params }: Props) {
                 </div>
               </div>
 
-              {normalizedScore && (
-                <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Vault Score</span>
-                  <div className="text-3xl sm:text-4xl font-black text-blue-600 font-serif">
-                    {normalizedScore}<span className="text-base font-bold text-slate-400">/100</span>
-                  </div>
+              <div className="flex sm:flex-col items-center sm:items-end justify-between border-t sm:border-t-0 pt-4 sm:pt-0 border-slate-100">
+                <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Vault Score</span>
+                <div className="text-3xl sm:text-4xl font-black text-blue-600 font-serif">
+                  {normalizedScore}<span className="text-base font-bold text-slate-400">/100</span>
                 </div>
-              )}
+              </div>
             </div>
           </section>
 
@@ -476,22 +450,22 @@ export default async function ToolPage({ params }: Props) {
                 <dl className="space-y-4 text-sm divide-y divide-slate-100">
                   <div className="pt-2 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Category</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.category || "Not specified"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.category || "Software"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Pricing Model</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing || "Not specified"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.pricing_model || tool.pricing || "Freemium"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Operating System</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.operating_system || "Not specified"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.operating_system || "Web / Cloud"}</dd>
                   </div>
 
                   <div className="pt-4 flex justify-between gap-2">
                     <dt className="text-slate-500 font-medium">Deployment</dt>
-                    <dd className="font-bold text-slate-900 text-right">{tool.deployment || "Not specified"}</dd>
+                    <dd className="font-bold text-slate-900 text-right">{tool.deployment || "Hosted SaaS"}</dd>
                   </div>
 
                   {tool.license && (
