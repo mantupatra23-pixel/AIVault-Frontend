@@ -17,6 +17,34 @@ interface FormattedListItem {
   description: string;
 }
 
+/**
+ * Sanitizes raw tool descriptions by removing legacy template strings,
+ * analyst intros, Visora AI references, and outdated year markers.
+ */
+function sanitizeDescription(rawText: string = "", toolName: string = ""): string {
+  if (!rawText) return "";
+
+  let cleaned = rawText
+    // Remove legacy analyst and template boilerplate phrases
+    .replace(/As a Senior SEO &? AI Analyst( for Visora AI)?\.*/gi, "")
+    .replace(/Our Professional Review:?\.*/gi, "")
+    .replace(/Visora AI network intelligence identifies\.*/gi, "")
+    .replace(/AI Vault network intelligence identifies\.*/gi, "")
+    .replace(/I have conducted a thorough analysis\.*/gi, "")
+    .replace(/Our analysis aims to provide\.*/gi, "")
+    .replace(/Our research shows\.*/gi, "")
+    .replace(/Pricing 2026/gi, "Pricing")
+    .replace(new RegExp(`${toolName} Pricing 2026`, "gi"), `${toolName} Pricing`)
+    .replace(/Best \w+ alternatives/gi, "Alternatives")
+    .replace(/(<([^>]+)>)/gi, "") // Strip HTML tags
+    .trim();
+
+  // Remove leading punctuation leftover from sentence stripping
+  cleaned = cleaned.replace(/^[\s,.:;—–-]+/, "");
+
+  return cleaned;
+}
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
@@ -81,6 +109,13 @@ function parseStructuredList(input: any): FormattedListItem[] {
     let line = rawLines[i].replace(/^\d+\.\s*/, "").trim();
     if (!line) continue;
 
+    // Filter out residual legacy titles inside pros/cons lists
+    if (
+      /Visora AI|Senior SEO|Professional Review|Pricing 2026/i.test(line)
+    ) {
+      continue;
+    }
+
     if (line.includes(":") || line.includes(" - ")) {
       const parts = line.split(/:(.+)| - (.+)/).filter(Boolean);
       if (parts.length >= 2) {
@@ -110,13 +145,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     };
   }
 
+  const cleanDesc = sanitizeDescription(tool.description, tool.name);
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
   const title = tool.meta_title || `${tool.name}: Features, Pricing & Alternatives | AI Vault`;
-
-  const cleanDesc = tool.description ? tool.description.replace(/(<([^>]+)>)/gi, "").slice(0, 155) : "";
   const description =
     tool.meta_description ||
-    cleanDesc ||
+    cleanDesc.slice(0, 155) ||
     `Learn what ${tool.name} does, its key features, pricing model, pros and cons, and top alternatives on AI Vault.`;
 
   const logoUrl = tool.image_url || tool.logo_url || `${SITE_URL}/og-image.png`;
@@ -153,6 +187,7 @@ export default async function ToolPage({ params }: Props) {
     notFound();
   }
 
+  const cleanDescription = sanitizeDescription(tool.description, tool.name);
   const relatedTools = await getRelatedTools(tool.category || "", tool.slug);
 
   let prosItems = parseStructuredList(tool.pros);
@@ -172,7 +207,7 @@ export default async function ToolPage({ params }: Props) {
   const officialUrl = tool.website_url || tool.official_url || "#";
   const canonicalUrl = `${SITE_URL}/tool/${tool.slug}`;
 
-  // Split into alternatives (first 3) and related tools (next 4-5)
+  // Divide category matches into Best Alternatives (first 3) and Related Tools (next 4-5)
   const alternativesList = relatedTools.slice(0, 3);
   const generalRelated = relatedTools.slice(3, 8);
 
@@ -202,27 +237,27 @@ export default async function ToolPage({ params }: Props) {
     ],
   };
 
-  // Tool-Specific, Concise FAQs
+  // Tool-Specific FAQs
   const faqItems = [
     {
-      q: `What is ${tool.name} used for?`,
-      a: `${tool.name} provides software solutions designed for ${tool.category || "digital operations"} workflows.`,
+      q: `What primary purpose does ${tool.name} serve?`,
+      a: `${tool.name} is a software platform built for ${tool.category || "digital operations"} workflows.`,
     },
     {
-      q: `Is ${tool.name} free?`,
+      q: `Is ${tool.name} free to use?`,
       a: tool.pricing
-        ? `${tool.name} is available under a ${tool.pricing} pricing model. Pricing can change; visit the official website for active tier plans.`
-        : `Pricing for ${tool.name} can change. Visit the official website for current plans and pricing details.`,
+        ? `${tool.name} operates under a ${tool.pricing} model. Pricing varies by plan; visit the official website for active tier rates.`
+        : `Pricing varies by plan. Check the official website for current pricing and plan details.`,
     },
     {
       q: `Who should use ${tool.name}?`,
-      a: `${tool.name} is best suited for teams, developers, and professionals managing projects in the ${tool.category || "technology"} domain.`,
+      a: `${tool.name} is intended for professionals, creators, developers, and teams managing tasks in ${tool.category || "software automation"}.`,
     },
     {
       q: `What are the best alternatives to ${tool.name}?`,
       a: alternativesList.length > 0
-        ? `Popular alternatives include ${alternativesList.map((a) => a.name).join(", ")}.`
-        : `Similar tools can be found under the ${tool.category || "AI software"} category on AI Vault.`,
+        ? `Key alternatives in the directory include ${alternativesList.map((a) => a.name).join(", ")}.`
+        : `Explore other tools under the ${tool.category || "AI software"} section on AI Vault.`,
     },
   ];
 
@@ -237,6 +272,25 @@ export default async function ToolPage({ params }: Props) {
         text: item.a,
       },
     })),
+  };
+
+  // Dynamic persona profiling based on tool category
+  const getTargetUserDescription = (category?: string) => {
+    if (!category) return "professionals and teams seeking specialized software automation.";
+    const cat = category.toLowerCase();
+    if (cat.includes("code") || cat.includes("dev")) {
+      return "software engineers, DevOps professionals, and developers streamlining technical workflows.";
+    }
+    if (cat.includes("chat") || cat.includes("bot")) {
+      return "customer support teams, researchers, and creators automating conversational interactions.";
+    }
+    if (cat.includes("image") || cat.includes("video") || cat.includes("design")) {
+      return "digital artists, designers, video editors, and marketing teams producing visual media.";
+    }
+    if (cat.includes("market") || cat.includes("seo")) {
+      return "content strategists, digital marketers, and growth managers building campaigns.";
+    }
+    return `professionals and teams operating within the ${category} domain.`;
   };
 
   return (
@@ -272,7 +326,7 @@ export default async function ToolPage({ params }: Props) {
         </header>
 
         <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16 space-y-12">
-          {/* Breadcrumbs Navigation */}
+          {/* Breadcrumb Navigation */}
           <nav aria-label="Breadcrumb" className="text-xs font-semibold text-slate-400">
             <ol className="flex items-center gap-2 flex-wrap">
               <li>
@@ -319,14 +373,14 @@ export default async function ToolPage({ params }: Props) {
               What is {tool.name}?
             </h2>
             <div className="prose prose-slate max-w-none text-slate-700 text-base leading-relaxed whitespace-pre-line">
-              {tool.description || `${tool.name} is a software platform built for ${tool.category || "software automation"} workflows.`}
+              {cleanDescription || `${tool.name} is a software platform designed to manage ${tool.category || "digital operations"} tasks.`}
             </div>
           </section>
 
-          {/* Core Grid */}
+          {/* Core Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
             <div className="lg:col-span-2 space-y-8">
-              {/* 2. Pricing */}
+              {/* 2. Pricing Section */}
               <section className="bg-white border border-slate-100 rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
                 <h2 className="text-xl font-black text-slate-950 font-serif">
                   Pricing & Plans
@@ -334,10 +388,10 @@ export default async function ToolPage({ params }: Props) {
                 <p className="text-slate-700 text-sm leading-relaxed">
                   {tool.pricing ? (
                     <>
-                      {tool.name} is currently categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> tier model.
+                      {tool.name} is categorized under a <strong className="text-slate-900 font-bold">{tool.pricing}</strong> pricing model.
                     </>
                   ) : (
-                    <>Pricing can change. Visit the official website for the latest plans and current pricing.</>
+                    <>Pricing varies by plan. Check the official website for current pricing and plan details.</>
                   )}
                 </p>
                 <div className="pt-2">
@@ -347,12 +401,12 @@ export default async function ToolPage({ params }: Props) {
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700"
                   >
-                    Check Latest Plans on Official Website →
+                    Check Pricing on Official Website →
                   </a>
                 </div>
               </section>
 
-              {/* 3. Pros & Cons */}
+              {/* 3. Key Features & Limitations (Pros & Cons) */}
               <section className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="bg-white border border-emerald-100/80 rounded-3xl p-6 shadow-sm space-y-4">
                   <h2 className="text-xs font-extrabold uppercase tracking-widest text-emerald-700">
@@ -414,7 +468,9 @@ export default async function ToolPage({ params }: Props) {
                       >
                         <div>
                           <h3 className="font-bold text-sm text-slate-900">{alt.name}</h3>
-                          <p className="text-xs text-slate-500 line-clamp-2 mt-1">{alt.description}</p>
+                          <p className="text-xs text-slate-500 line-clamp-2 mt-1">
+                            {sanitizeDescription(alt.description, alt.name) || "Verified software listing."}
+                          </p>
                         </div>
                         <span className="text-[11px] font-bold text-blue-600 mt-3 block">View Details →</span>
                       </Link>
@@ -429,9 +485,7 @@ export default async function ToolPage({ params }: Props) {
                   Who Should Use {tool.name}?
                 </h2>
                 <p className="text-sm text-slate-600 leading-relaxed">
-                  {tool.name} is suitable for users, developers, and organisations working within the{" "}
-                  <strong className="text-slate-900">{tool.category || "AI software"}</strong> field looking for a{" "}
-                  <strong className="text-slate-900">{tool.pricing || "Freemium"}</strong> solution.
+                  {tool.name} is primarily used by {getTargetUserDescription(tool.category)}
                 </p>
               </section>
 
@@ -441,10 +495,10 @@ export default async function ToolPage({ params }: Props) {
                   How to Use {tool.name}
                 </h2>
                 <ol className="list-decimal list-inside space-y-3 text-sm text-slate-700 leading-relaxed">
-                  <li>Visit the official portal via the destination link on this page.</li>
-                  <li>Set up or authenticate your user account.</li>
-                  <li>Configure your project or tool parameters.</li>
-                  <li>Run your required tasks and export results.</li>
+                  <li>Navigate to the official portal via the destination link on this page.</li>
+                  <li>Set up or authenticate your account on the vendor site.</li>
+                  <li>Configure your workflow parameters according to your technical requirements.</li>
+                  <li>Run your tasks and export or integrate generated outputs.</li>
                 </ol>
               </section>
 
@@ -537,7 +591,7 @@ export default async function ToolPage({ params }: Props) {
                           {rel.name}
                         </h3>
                         <p className="text-xs text-slate-500 line-clamp-2 mt-1">
-                          {rel.description || "Verified AI software listing."}
+                          {sanitizeDescription(rel.description, rel.name) || "Verified software listing."}
                         </p>
                       </div>
                     </div>
