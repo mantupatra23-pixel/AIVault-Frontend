@@ -1,838 +1,509 @@
-import { Metadata } from "next";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-
 import ToolLogo from "@/components/ToolLogo";
-import { SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PageProps = {
-  params: Promise<{
+  params: {
     slug: string;
-  }>;
-  searchParams: Promise<{
+  };
+  searchParams?: {
     q?: string;
-    search?: string;
     pricing?: string;
-    page?: string;
-  }>;
+  };
 };
 
 type ToolRecord = {
-  id: string | number;
-  name: string;
-  slug: string;
+  id?: string | number;
+  name?: string | null;
+  slug?: string | null;
+
   category?: string | null;
-  pricing?: string | null;
+
   description?: string | null;
-  image_url?: string | null;
-  logo_url?: string | null;
+  short_description?: string | null;
+  overview?: string | null;
+
+  pricing?: string | null;
+  pricing_model?: string | null;
+
   score?: number | string | null;
+  ai_vault_score?: number | string | null;
+
+  logo_url?: string | null;
+  logo?: string | null;
+  image_url?: string | null;
+
+  website_url?: string | null;
+  official_url?: string | null;
+  url?: string | null;
+
+  [key: string]: unknown;
 };
 
-function getSupabaseClient() {
-  const supabaseUrl =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ||
-    process.env.SUPABASE_URL ||
-    "";
+function getSupabase() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  const supabaseKey =
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-    "";
-
-  if (!supabaseUrl || !supabaseKey) {
-    return null;
+  if (!url || !key) {
+    throw new Error("Supabase environment variables are missing.");
   }
 
-  return createClient(supabaseUrl, supabaseKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  });
+  return createClient(url, key);
 }
 
-function formatCategoryTitle(slug: string): string {
-  const decoded = decodeURIComponent(slug || "")
-    .replace(/[-_]+/g, " ")
-    .trim();
-
-  if (!decoded) return "AI Tools";
-
-  return decoded
-    .split(/\s+/)
-    .map((word) => {
-      if (word.length <= 3) {
-        return word.toUpperCase();
-      }
-
-      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-    })
-    .join(" ");
+function normalizeText(value: unknown): string {
+  if (typeof value !== "string") return "";
+  return value.trim();
 }
 
-function normalizeSlug(value: string): string {
-  return decodeURIComponent(value || "")
-    .trim()
+function decodeSlug(slug: string): string {
+  try {
+    return decodeURIComponent(slug);
+  } catch {
+    return slug;
+  }
+}
+
+function makeSlug(value: string): string {
+  return value
     .toLowerCase()
-    .replace(/\s+/g, "-");
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-function getCategoryAliases(rawCategory: string, categoryName: string) {
-  const key = rawCategory.trim().toLowerCase();
+function getToolSlug(tool: ToolRecord): string {
+  const existingSlug = normalizeText(tool.slug);
 
-  const categoryAliases: Record<string, string[]> = {
-    productivity: [
-      "productivity",
-      "productivity tools",
-      "productivity software",
-    ],
+  if (existingSlug) {
+    return existingSlug;
+  }
 
-    marketing: [
-      "marketing",
-      "marketing & sales",
-      "marketing and sales",
-    ],
+  return makeSlug(normalizeText(tool.name) || "tool");
+}
 
-    coding: [
-      "coding",
-      "developer",
-      "development",
-      "developer tools",
-    ],
+function getToolName(tool: ToolRecord): string {
+  return normalizeText(tool.name) || "AI Tool";
+}
 
-    chatbot: [
-      "chatbot",
-      "chatbots",
-      "chat",
-      "conversational ai",
-    ],
+function getDescription(tool: ToolRecord): string {
+  const description =
+    normalizeText(tool.description) ||
+    normalizeText(tool.short_description) ||
+    normalizeText(tool.overview);
 
-    "video-gen": [
-      "video gen",
-      "video",
-      "video generation",
-      "video editing",
-    ],
+  if (!description) {
+    return "Explore this AI software platform and discover its features, pricing, and use cases.";
+  }
 
-    video: [
-      "video",
-      "video gen",
-      "video generation",
-      "video editing",
-    ],
+  return description;
+}
 
-    "image-gen": [
-      "image gen",
-      "image",
-      "images",
-      "image generation",
-    ],
+function getPricing(tool: ToolRecord): string {
+  const value =
+    normalizeText(tool.pricing_model) ||
+    normalizeText(tool.pricing) ||
+    "";
 
-    image: [
-      "image",
-      "images",
-      "image gen",
-      "image generation",
-    ],
+  if (!value) {
+    return "Unknown";
+  }
 
-    writing: [
-      "writing",
-      "copywriting",
-      "content writing",
-    ],
+  const lower = value.toLowerCase();
 
-    design: [
-      "design",
-      "graphic design",
-    ],
+  if (lower.includes("freemium")) {
+    return "Freemium";
+  }
 
-    business: [
-      "business",
-    ],
+  if (lower.includes("free")) {
+    return "Free";
+  }
 
-    education: [
-      "education",
-      "learning",
-    ],
+  if (lower.includes("paid") || lower.includes("subscription")) {
+    return "Paid";
+  }
 
-    research: [
-      "research",
-    ],
+  return value;
+}
 
-    seo: [
-      "seo",
-      "search engine optimization",
-    ],
+function getScore(tool: ToolRecord): number {
+  const raw =
+    tool.ai_vault_score !== null &&
+    tool.ai_vault_score !== undefined
+      ? tool.ai_vault_score
+      : tool.score;
 
-    audio: [
-      "audio",
-      "music",
-    ],
-  };
+  const parsed = Number(raw);
 
+  if (!Number.isFinite(parsed)) {
+    return 90;
+  }
+
+  return Math.max(0, Math.min(100, parsed));
+}
+
+function getLogoUrl(tool: ToolRecord): string | null {
   return (
-    categoryAliases[key] || [
-      rawCategory,
-      categoryName,
-    ]
+    normalizeText(tool.logo_url) ||
+    normalizeText(tool.logo) ||
+    normalizeText(tool.image_url) ||
+    null
   );
 }
 
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
-  const resolvedParams = await params;
+function getWebsiteUrl(tool: ToolRecord): string | null {
+  return (
+    normalizeText(tool.website_url) ||
+    normalizeText(tool.official_url) ||
+    normalizeText(tool.url) ||
+    null
+  );
+}
 
-  const rawCategory = decodeURIComponent(resolvedParams.slug || "");
-  const categoryName = formatCategoryTitle(rawCategory);
+function pricingMatches(tool: ToolRecord, selectedPricing: string): boolean {
+  if (!selectedPricing || selectedPricing === "All Pricing") {
+    return true;
+  }
 
-  const canonicalUrl = `${SITE_URL}/category/${encodeURIComponent(
-    rawCategory
-  )}`;
+  const pricing = getPricing(tool).toLowerCase();
+  const selected = selectedPricing.toLowerCase();
 
-  return {
-    title: `Best ${categoryName} AI Tools | AI Vault`,
-    description: `Discover and compare the best ${categoryName} AI tools, software, pricing models, features, reviews and alternatives on AI Vault.`,
-    alternates: {
-      canonical: canonicalUrl,
-    },
-    openGraph: {
-      title: `Best ${categoryName} AI Tools | AI Vault`,
-      description: `Explore verified ${categoryName} AI tools, software, pricing and alternatives.`,
-      url: canonicalUrl,
-      siteName: "AI Vault",
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `Best ${categoryName} AI Tools | AI Vault`,
-      description: `Explore the best ${categoryName} AI tools on AI Vault.`,
-    },
-  };
+  if (selected === "free") {
+    return pricing === "free";
+  }
+
+  if (selected === "freemium") {
+    return pricing === "freemium";
+  }
+
+  if (selected === "paid") {
+    return pricing === "paid";
+  }
+
+  return pricing.includes(selected);
 }
 
 export default async function CategoryPage({
   params,
   searchParams,
 }: PageProps) {
-  const resolvedParams = await params;
-  const resolvedSearchParams = await searchParams;
+  const supabase = getSupabase();
 
-  const rawCategory = decodeURIComponent(resolvedParams.slug || "");
-  const categoryName = formatCategoryTitle(rawCategory);
+  const categorySlug = decodeSlug(params.slug);
+  const categoryName =
+    categorySlug
+      .replace(/-/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || "AI Tools";
 
-  const searchQuery = (
-    resolvedSearchParams.q ||
-    resolvedSearchParams.search ||
-    ""
-  ).trim();
+  const queryText = normalizeText(searchParams?.q);
+  const selectedPricing =
+    normalizeText(searchParams?.pricing) || "All Pricing";
 
-  const pricingFilter = (
-    resolvedSearchParams.pricing || ""
-  ).trim();
+  let tools: ToolRecord[] = [];
+  let databaseError: string | null = null;
 
-  const parsedPage = Number.parseInt(
-    resolvedSearchParams.page || "1",
-    10
-  );
+  try {
+    /*
+     * IMPORTANT:
+     * Do not select individual columns here.
+     * select("*") keeps compatibility with your current ai_tools table
+     * and preserves all existing fields.
+     */
+    const { data, error } = await supabase
+      .from("ai_tools")
+      .select("*")
+      .ilike("category", categoryName)
+      .order("name", { ascending: true });
 
-  const page =
-    Number.isFinite(parsedPage) && parsedPage > 0
-      ? parsedPage
-      : 1;
-
-  const pageSize = 24;
-
-  const supabase = getSupabaseClient();
-
-  /*
-   * ============================================================
-   * DATABASE
-   * ============================================================
-   */
-
-  if (!supabase) {
-    return (
-      <CategoryError
-        categoryName={categoryName}
-        message="The AI Vault database configuration is missing."
-      />
-    );
+    if (error) {
+      databaseError = error.message;
+    } else {
+      tools = (data ?? []) as ToolRecord[];
+    }
+  } catch (error) {
+    databaseError =
+      error instanceof Error
+        ? error.message
+        : "Unable to load AI tools.";
   }
 
-  const aliases = getCategoryAliases(
-    rawCategory,
-    categoryName
-  );
-
   /*
-   * IMPORTANT:
-   * We use category aliases instead of assuming that the URL title
-   * exactly matches the database value.
-   *
-   * Example:
-   * /category/Productivity
-   *
-   * can match:
-   * Productivity
-   * productivity
-   * Productivity Tools
+   * If exact category matching returns nothing, try the original slug.
+   * This protects category pages where database capitalization differs.
    */
+  if (!databaseError && tools.length === 0) {
+    try {
+      const { data, error } = await supabase
+        .from("ai_tools")
+        .select("*")
+        .ilike("category", categorySlug)
+        .order("name", { ascending: true });
 
-  const categoryFilter = aliases
-    .filter(Boolean)
-    .map(
-      (value) =>
-        `category.ilike.%${value.replace(/[%_,]/g, "")}%`
-    )
-    .join(",");
-
-  /*
-   * ============================================================
-   * QUERY
-   * ============================================================
-   */
-
-  let query = supabase
-    .from("ai_tools")
-    .select(
-      "id,name,slug,category,pricing,description,image_url,logo_url,score",
-      {
-        count: "exact",
+      if (!error && data) {
+        tools = data as ToolRecord[];
       }
-    );
-
-  if (categoryFilter) {
-    query = query.or(categoryFilter);
-  } else {
-    query = query.ilike("category", `%${categoryName}%`);
+    } catch {
+      // Keep the first successful/empty result.
+    }
   }
 
-  if (searchQuery) {
-    const safeSearch = searchQuery.replace(/[%_,]/g, "");
+  const filteredTools = tools.filter((tool) => {
+    const matchesPricing = pricingMatches(tool, selectedPricing);
 
-    query = query.or(
-      `name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`
-    );
-  }
+    if (!matchesPricing) {
+      return false;
+    }
 
-  if (pricingFilter) {
-    const safePricing = pricingFilter.replace(/[%_,]/g, "");
+    if (!queryText) {
+      return true;
+    }
 
-    query = query.ilike(
-      "pricing",
-      `%${safePricing}%`
-    );
-  }
+    const search = queryText.toLowerCase();
 
-  const fromIndex = (page - 1) * pageSize;
-  const toIndex = fromIndex + pageSize - 1;
+    const searchableText = [
+      getToolName(tool),
+      getDescription(tool),
+      normalizeText(tool.category),
+      getPricing(tool),
+    ]
+      .join(" ")
+      .toLowerCase();
 
-  const result = await query
-    .range(fromIndex, toIndex)
-    .order("score", {
-      ascending: false,
-      nullsFirst: false,
-    })
-    .order("name", {
-      ascending: true,
-    });
+    return searchableText.includes(search);
+  });
 
-  const tools = (result.data || []) as ToolRecord[];
-  const count = result.count || 0;
-  const error = result.error;
+  const totalTools = tools.length;
 
-  /*
-   * ============================================================
-   * DATABASE ERROR
-   * ============================================================
-   *
-   * NEVER throw the Supabase error from this page.
-   * Otherwise a category request becomes a generic Vercel 500.
-   */
+  const pageTitle = `Best ${categoryName} AI Tools`;
 
-  if (error) {
-    console.error("[CATEGORY_DATABASE_ERROR]", {
-      category: categoryName,
-      slug: rawCategory,
-      code: error.code,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-    });
+  const description = `Explore verified software platforms, pricing models, features, reviews, and alternatives in the ${categoryName} domain.`;
 
-    return (
-      <CategoryError
-        categoryName={categoryName}
-        message="The AI Vault database returned an error while loading this category."
-      />
-    );
-  }
+  const buildUrl = (nextQuery: string, nextPricing: string) => {
+    const params = new URLSearchParams();
 
-  const totalPages = Math.max(
-    1,
-    Math.ceil(count / pageSize)
-  );
+    if (nextQuery) {
+      params.set("q", nextQuery);
+    }
 
-  /*
-   * ============================================================
-   * BREADCRUMB SEO
-   * ============================================================
-   */
+    if (nextPricing && nextPricing !== "All Pricing") {
+      params.set("pricing", nextPricing);
+    }
 
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: categoryName,
-        item: `${SITE_URL}/category/${encodeURIComponent(
-          rawCategory
-        )}`,
-      },
-    ],
+    const query = params.toString();
+
+    return `/category/${encodeURIComponent(categorySlug)}${
+      query ? `?${query}` : ""
+    }`;
   };
 
-  /*
-   * ============================================================
-   * UI
-   * ============================================================
-   */
-
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbSchema),
-        }}
-      />
-
-      <div className="min-h-screen bg-white text-slate-950">
-
-        {/* =====================================================
-            HEADER
-        ====================================================== */}
-
-        <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-
-            <Link
-              href="/"
-              className="text-xl font-bold tracking-tight text-slate-950"
-            >
-              AI Vault
-            </Link>
-
-            <Link
-              href="/categories"
-              className="rounded-full bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-700 transition hover:bg-slate-100"
-            >
-              Browse All Categories
-            </Link>
-
-          </div>
-        </header>
-
-        {/* =====================================================
-            MAIN
-        ====================================================== */}
-
-        <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-
-          {/* Breadcrumb */}
-
-          <nav
-            aria-label="Breadcrumb"
-            className="mb-6 text-xs"
-          >
-            <ol className="flex flex-wrap items-center gap-2 text-slate-400">
-              <li>
-                <Link
-                  href="/"
-                  className="hover:text-blue-600"
-                >
-                  Home
-                </Link>
-              </li>
-
-              <li>/</li>
-
-              <li className="font-semibold text-slate-900">
-                {categoryName}
-              </li>
-            </ol>
-          </nav>
-
-          {/* =================================================
-              HERO
-          ================================================== */}
-
-          <section className="space-y-4 py-2">
-
-            <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              Best {categoryName} AI Tools
-            </h1>
-
-            <p className="max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-              Explore verified software platforms, pricing models,
-              features, reviews, and alternatives in the{" "}
-              {categoryName} domain.
-            </p>
-
-            <div className="text-xs font-bold text-blue-600">
-              Showing {count} Verified Tools
-            </div>
-
-          </section>
-
-          {/* =================================================
-              FILTERS
-          ================================================== */}
-
-          <section className="mt-8 rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
-
-            <form
-              method="GET"
-              className="grid gap-3 sm:grid-cols-[1fr_200px_auto]"
-            >
-
-              <input
-                type="search"
-                name="q"
-                defaultValue={searchQuery}
-                placeholder={`Search ${categoryName} tools...`}
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
-
-              <select
-                name="pricing"
-                defaultValue={pricingFilter}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500"
-              >
-                <option value="">
-                  All Pricing
-                </option>
-                <option value="Free">
-                  Free
-                </option>
-                <option value="Freemium">
-                  Freemium
-                </option>
-                <option value="Paid">
-                  Paid
-                </option>
-                <option value="Free Trial">
-                  Free Trial
-                </option>
-              </select>
-
-              <button
-                type="submit"
-                className="rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
-              >
-                Search
-              </button>
-
-            </form>
-
-          </section>
-
-          {/* =================================================
-              DIRECTORY
-          ================================================== */}
-
-          <section className="mt-8">
-
-            {tools.length > 0 ? (
-              <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-
-                {tools.map((tool) => {
-
-                  const toolSlug =
-                    typeof tool.slug === "string"
-                      ? tool.slug.trim()
-                      : "";
-
-                  const toolName =
-                    tool.name?.trim() ||
-                    "AI Tool";
-
-                  const toolDescription =
-                    tool.description?.trim() ||
-                    "Explore this AI tool and discover its features, pricing, integrations, and alternatives.";
-
-                  const score =
-                    tool.score === null ||
-                    tool.score === undefined ||
-                    tool.score === ""
-                      ? null
-                      : Number(tool.score);
-
-                  const validScore =
-                    score !== null &&
-                    Number.isFinite(score)
-                      ? score
-                      : null;
-
-                  const logoUrl =
-                    typeof tool.logo_url === "string" &&
-                    tool.logo_url.trim()
-                      ? tool.logo_url.trim()
-                      : null;
-
-                  const imageUrl =
-                    typeof tool.image_url === "string" &&
-                    tool.image_url.trim()
-                      ? tool.image_url.trim()
-                      : null;
-
-                  return (
-                    <Link
-                      key={String(tool.id || toolSlug || toolName)}
-                      href={
-                        toolSlug
-                          ? `/tool/${encodeURIComponent(toolSlug)}`
-                          : "#"
-                      }
-                      className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md"
-                    >
-
-                      <div className="flex items-start justify-between gap-4">
-
-                        {/* REAL LOGO
-                            No onError here.
-                            ToolLogo handles it internally.
-                        */}
-
-                        <ToolLogo
-                          src={logoUrl}
-                          fallbackSrc={imageUrl}
-                          name={toolName}
-                          size="md"
-                        />
-
-                        <div className="rounded-full bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-600">
-                          {tool.pricing || "Free"}
-                        </div>
-
-                      </div>
-
-                      <div className="mt-5">
-
-                        <h2 className="text-lg font-bold text-slate-900 group-hover:text-blue-600">
-                          {toolName}
-                        </h2>
-
-                        <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
-                          {toolDescription}
-                        </p>
-
-                      </div>
-
-                      <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-
-                        <span className="text-xs font-medium text-slate-500">
-                          {tool.category || categoryName}
-                        </span>
-
-                        {validScore !== null ? (
-                          <span className="text-xs font-bold text-blue-600">
-                            {validScore}
-                            <span className="font-normal text-slate-400">
-                              /10
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="text-xs font-semibold text-blue-600">
-                            Inspect →
-                          </span>
-                        )}
-
-                      </div>
-
-                    </Link>
-                  );
-                })}
-
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
-
-                <h2 className="text-lg font-bold text-slate-900">
-                  No tools found
-                </h2>
-
-                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                  No AI tools match the selected criteria in
-                  this category.
-                </p>
-
-                <Link
-                  href={`/category/${encodeURIComponent(
-                    rawCategory
-                  )}`}
-                  className="mt-5 inline-block text-sm font-bold text-blue-600 hover:text-blue-700"
-                >
-                  Clear Filters →
-                </Link>
-
-              </div>
-            )}
-
-          </section>
-
-          {/* =================================================
-              PAGINATION
-          ================================================== */}
-
-          {totalPages > 1 && (
-            <nav
-              aria-label="Category pagination"
-              className="mt-10 flex flex-wrap justify-center gap-2"
-            >
-
-              {Array.from(
-                { length: totalPages },
-                (_, index) => index + 1
-              ).map((pageNumber) => {
-
-                const isCurrent =
-                  pageNumber === page;
-
-                const params = new URLSearchParams();
-
-                if (searchQuery) {
-                  params.set("q", searchQuery);
-                }
-
-                if (pricingFilter) {
-                  params.set(
-                    "pricing",
-                    pricingFilter
-                  );
-                }
-
-                if (pageNumber > 1) {
-                  params.set(
-                    "page",
-                    String(pageNumber)
-                  );
-                }
-
-                const queryString =
-                  params.toString();
-
-                const href =
-                  `/category/${encodeURIComponent(
-                    rawCategory
-                  )}` +
-                  (queryString
-                    ? `?${queryString}`
-                    : "");
-
-                return (
-                  <Link
-                    key={pageNumber}
-                    href={href}
-                    className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
-                      isCurrent
-                        ? "bg-blue-600 text-white"
-                        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    {pageNumber}
-                  </Link>
-                );
-              })}
-
-            </nav>
-          )}
-
-        </main>
-      </div>
-    </>
-  );
-}
-
-/*
- * ============================================================
- * ERROR UI
- * ============================================================
- */
-
-function CategoryError({
-  categoryName,
-  message,
-}: {
-  categoryName: string;
-  message: string;
-}) {
-  return (
-    <div className="min-h-screen bg-white text-slate-950">
-
+    <main className="min-h-screen bg-white text-slate-950">
+      {/* Header */}
       <header className="border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-
           <Link
             href="/"
-            className="text-xl font-bold"
+            className="text-xl font-bold tracking-tight text-slate-950"
           >
-            AI Vault
+            AI Vault.
           </Link>
 
           <Link
             href="/categories"
-            className="rounded-full bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide"
+            className="rounded-full bg-slate-50 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-600 transition hover:bg-slate-100"
           >
             Browse All Categories
           </Link>
-
         </div>
       </header>
 
-      <main className="mx-auto flex min-h-[70vh] max-w-4xl items-center justify-center px-4">
-
-        <div className="w-full rounded-2xl border border-slate-100 bg-white p-10 text-center shadow-sm">
-
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
-            !
-          </div>
-
-          <h1 className="text-xl font-bold text-slate-900">
-            Unable to load this category
-          </h1>
-
-          <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-slate-500">
-            {message}
-          </p>
-
-          <p className="mt-3 text-xs font-semibold text-red-600">
-            Category: {categoryName}
-          </p>
-
-          <Link
-            href="/categories"
-            className="mt-6 inline-block rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
-          >
-            Browse Categories →
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Breadcrumb */}
+        <nav className="mb-6 flex items-center gap-2 text-xs text-slate-400">
+          <Link href="/" className="hover:text-slate-700">
+            Home
           </Link>
 
-        </div>
+          <span>/</span>
 
-      </main>
-    </div>
+          <span className="font-medium text-slate-700">
+            {categoryName}
+          </span>
+        </nav>
+
+        {/* Hero */}
+        <section className="mb-8">
+          <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+            {pageTitle}
+          </h1>
+
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500 sm:text-base">
+            {description}
+          </p>
+
+          <div className="mt-4 text-xs font-semibold text-blue-600">
+            Showing {filteredTools.length.toLocaleString()}{" "}
+            {filteredTools.length === 1 ? "Verified Tool" : "Verified Tools"}
+          </div>
+        </section>
+
+        {/* Search / Filter */}
+        <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+          <form
+            action={`/category/${encodeURIComponent(categorySlug)}`}
+            method="GET"
+            className="grid gap-3 md:grid-cols-[1fr_190px_auto]"
+          >
+            <input
+              type="search"
+              name="q"
+              defaultValue={queryText}
+              placeholder={`Search ${categoryName} tools...`}
+              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            />
+
+            <select
+              name="pricing"
+              defaultValue={selectedPricing}
+              className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            >
+              <option>All Pricing</option>
+              <option>Free</option>
+              <option>Freemium</option>
+              <option>Paid</option>
+            </select>
+
+            <button
+              type="submit"
+              className="h-12 rounded-xl bg-slate-950 px-7 text-sm font-bold text-white transition hover:bg-slate-800"
+            >
+              Search
+            </button>
+          </form>
+        </section>
+
+        {/* Database error */}
+        {databaseError ? (
+          <section className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
+            <h2 className="text-lg font-bold text-red-900">
+              Unable to load this category
+            </h2>
+
+            <p className="mt-2 text-sm text-red-700">
+              The AI Vault database returned an error while loading this
+              category.
+            </p>
+
+            <Link
+              href={`/category/${encodeURIComponent(categorySlug)}`}
+              className="mt-5 inline-flex rounded-lg bg-white px-5 py-3 text-sm font-bold text-red-700 shadow-sm"
+            >
+              Try Again →
+            </Link>
+          </section>
+        ) : filteredTools.length === 0 ? (
+          /* Empty state */
+          <section className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-xl">
+              🔎
+            </div>
+
+            <h2 className="mt-5 text-lg font-bold text-slate-900">
+              No tools found
+            </h2>
+
+            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+              Try another search term or change the pricing filter.
+            </p>
+
+            <Link
+              href={`/category/${encodeURIComponent(categorySlug)}`}
+              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
+            >
+              View All Tools
+            </Link>
+          </section>
+        ) : (
+          /* Tool Grid */
+          <section className="grid gap-5 md:grid-cols-2">
+            {filteredTools.map((tool, index) => {
+              const toolName = getToolName(tool);
+              const toolSlug = getToolSlug(tool);
+              const toolDescription = getDescription(tool);
+              const toolPricing = getPricing(tool);
+              const toolScore = getScore(tool);
+              const logoUrl = getLogoUrl(tool);
+              const websiteUrl = getWebsiteUrl(tool);
+
+              return (
+                <Link
+                  key={
+                    tool.id !== undefined && tool.id !== null
+                      ? String(tool.id)
+                      : `${toolSlug}-${index}`
+                  }
+                  href={`/tool/${encodeURIComponent(toolSlug)}`}
+                  className="group block"
+                >
+                  <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+                    {/* Card top */}
+                    <div className="flex items-start justify-between gap-4">
+                      <ToolLogo
+                        src={logoUrl}
+                        websiteUrl={websiteUrl}
+                        name={toolName}
+                        size="md"
+                      />
+
+                      <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                        {toolPricing}
+                      </span>
+                    </div>
+
+                    {/* Name */}
+                    <h2 className="mt-4 line-clamp-1 text-lg font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600">
+                      {toolName}
+                    </h2>
+
+                    {/* Description */}
+                    <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
+                      {toolDescription}
+                    </p>
+
+                    {/* Bottom */}
+                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
+                      <span className="text-[11px] font-bold uppercase tracking-wide text-blue-600">
+                        {normalizeText(tool.category) || categoryName}
+                      </span>
+
+                      <span className="text-xs font-bold text-blue-600">
+                        {toolScore}/100
+                      </span>
+                    </div>
+                  </article>
+                </Link>
+              );
+            })}
+          </section>
+        )}
+
+        {/* Bottom information */}
+        {!databaseError && tools.length > 0 && (
+          <div className="mt-10 border-t border-slate-100 pt-6 text-center">
+            <p className="text-xs text-slate-400">
+              AI Vault has verified{" "}
+              <span className="font-semibold text-slate-600">
+                {totalTools.toLocaleString()}
+              </span>{" "}
+              tools in the {categoryName} category.
+            </p>
+          </div>
+        )}
+      </div>
+    </main>
   );
 }

@@ -2,224 +2,99 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-export type ToolLogoInput = {
-  id?: string | number | null;
-  name?: string | null;
-  slug?: string | null;
-
-  logo_url?: string | null;
-  image_url?: string | null;
-  icon_url?: string | null;
-
-  website?: string | null;
-  website_url?: string | null;
-  url?: string | null;
-  domain?: string | null;
-};
-
 type ToolLogoProps = {
-  /*
-   * Existing API.
-   *
-   * IMPORTANT:
-   * Keep this broad enough so existing DatabaseToolRecord
-   * objects can be passed without TypeScript index-signature errors.
-   */
-  tool?: ToolLogoInput | Record<string, unknown> | null;
-
-  /*
-   * Direct logo API
-   */
   src?: string | null;
   fallbackSrc?: string | null;
-  name?: string | null;
-
-  /*
-   * Sizes
-   */
+  websiteUrl?: string | null;
+  name: string;
   size?: "sm" | "md" | "lg" | "xl";
-
-  /*
-   * Optional custom classes
-   */
   className?: string;
 };
 
-/* ============================================================
-   HELPERS
-   ============================================================ */
+const sizeClasses: Record<NonNullable<ToolLogoProps["size"]>, string> = {
+  sm: "h-10 w-10 rounded-xl text-sm",
+  md: "h-16 w-16 rounded-2xl text-lg",
+  lg: "h-20 w-20 rounded-2xl text-2xl",
+  xl: "h-24 w-24 rounded-2xl text-3xl",
+};
 
-function readString(
-  value: unknown
-): string {
-  return typeof value === "string"
-    ? value.trim()
-    : "";
-}
+function normalizeUrl(value?: string | null): string | null {
+  if (!value) return null;
 
-function getToolValue(
-  tool: ToolLogoInput | Record<string, unknown> | null | undefined,
-  key: string
-): string {
-  if (!tool) return "";
+  const trimmed = value.trim();
 
-  return readString(
-    (tool as Record<string, unknown>)[key]
-  );
-}
-
-function normalizeUrl(
-  value: string
-): string | null {
-  const input = value.trim();
-
-  if (!input) {
-    return null;
-  }
+  if (!trimmed) return null;
 
   if (
-    input.startsWith("/") ||
-    input.startsWith("./") ||
-    input.startsWith("../")
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("//")
   ) {
-    return input;
+    return trimmed.startsWith("//")
+      ? `https:${trimmed}`
+      : trimmed;
   }
 
-  if (
-    input.startsWith("https://") ||
-    input.startsWith("http://")
-  ) {
-    return input;
+  if (trimmed.startsWith("/")) {
+    return trimmed;
   }
 
-  if (input.startsWith("//")) {
-    return `https:${input}`;
-  }
-
-  /*
-   * Domain such as:
-   * example.com
-   */
-  return `https://${input}`;
+  return `https://${trimmed}`;
 }
 
-function getDomain(
-  value: string
-): string | null {
-  const normalized = normalizeUrl(value);
-
-  if (!normalized) {
-    return null;
-  }
+function getHostname(value?: string | null): string | null {
+  if (!value) return null;
 
   try {
-    const parsed = new URL(normalized);
+    const normalized = normalizeUrl(value);
 
-    return parsed.hostname
-      .replace(/^www\./i, "")
-      .toLowerCase();
+    if (!normalized || normalized.startsWith("/")) {
+      return null;
+    }
+
+    const url = new URL(normalized);
+
+    return url.hostname.replace(/^www\./i, "");
   } catch {
     return null;
   }
 }
 
-/* ============================================================
-   LOGO RESOLVER
-   ============================================================ */
+function buildLogoCandidates(
+  src?: string | null,
+  fallbackSrc?: string | null,
+  websiteUrl?: string | null
+): string[] {
+  const candidates: string[] = [];
 
-export function resolveToolLogo(
-  tool?: ToolLogoInput | Record<string, unknown> | null,
-  directSrc?: string | null,
-  directFallbackSrc?: string | null
-): string | null {
-  /*
-   * 1. Direct src
-   */
-  const direct = normalizeUrl(
-    readString(directSrc)
-  );
+  const primary = normalizeUrl(src);
+  const fallback = normalizeUrl(fallbackSrc);
+  const hostname = getHostname(websiteUrl);
 
-  if (direct) {
-    return direct;
+  if (primary) {
+    candidates.push(primary);
   }
 
-  /*
-   * 2. Official/database logo_url
-   */
-  const logoUrl = normalizeUrl(
-    getToolValue(tool, "logo_url")
-  );
-
-  if (logoUrl) {
-    return logoUrl;
+  if (fallback && !candidates.includes(fallback)) {
+    candidates.push(fallback);
   }
 
-  /*
-   * 3. image_url
-   */
-  const imageUrl = normalizeUrl(
-    getToolValue(tool, "image_url")
-  );
+  if (hostname) {
+    // Official website favicon
+    candidates.push(`https://${hostname}/favicon.ico`);
 
-  if (imageUrl) {
-    return imageUrl;
+    // Google favicon resolver as a second automatic fallback.
+    candidates.push(
+      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
+        hostname
+      )}&sz=128`
+    );
   }
 
-  /*
-   * 4. icon_url
-   */
-  const iconUrl = normalizeUrl(
-    getToolValue(tool, "icon_url")
-  );
-
-  if (iconUrl) {
-    return iconUrl;
-  }
-
-  /*
-   * 5. Explicit fallback
-   */
-  const explicitFallback = normalizeUrl(
-    readString(directFallbackSrc)
-  );
-
-  if (explicitFallback) {
-    return explicitFallback;
-  }
-
-  /*
-   * 6. Website/domain fallback
-   */
-  const website =
-    getToolValue(tool, "website_url") ||
-    getToolValue(tool, "website") ||
-    getToolValue(tool, "url") ||
-    getToolValue(tool, "domain");
-
-  const domain = getDomain(website);
-
-  if (domain) {
-    /*
-     * Google favicon fallback.
-     *
-     * This is only used when an actual logo URL
-     * is not available.
-     */
-    return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
-      domain
-    )}&sz=128`;
-  }
-
-  return null;
+  return [...new Set(candidates)];
 }
 
-/* ============================================================
-   INITIALS
-   ============================================================ */
-
-function getInitials(
-  name: string
-): string {
+function getInitials(name: string): string {
   const cleanName = name.trim();
 
   if (!cleanName) {
@@ -228,143 +103,76 @@ function getInitials(
 
   const words = cleanName
     .split(/\s+/)
-    .filter(Boolean);
+    .filter(Boolean)
+    .slice(0, 2);
 
-  if (words.length === 1) {
-    return words[0]
-      .slice(0, 2)
-      .toUpperCase();
-  }
-
-  return words
-    .slice(0, 2)
-    .map(
-      (word) =>
-        word.charAt(0).toUpperCase()
-    )
+  const initials = words
+    .map((word) => word.charAt(0).toUpperCase())
     .join("");
+
+  return initials || "AI";
 }
 
-/* ============================================================
-   SIZE SYSTEM
-   ============================================================ */
-
-const sizeClasses: Record<
-  NonNullable<ToolLogoProps["size"]>,
-  string
-> = {
-  sm: "h-10 w-10 rounded-xl text-sm",
-  md: "h-16 w-16 rounded-2xl text-lg",
-  lg: "h-20 w-20 rounded-2xl text-2xl",
-  xl: "h-24 w-24 rounded-2xl text-3xl",
-};
-
-/* ============================================================
-   TOOL LOGO
-   ============================================================ */
-
-export const ToolLogo: React.FC<
-  ToolLogoProps
-> = ({
-  tool,
+export const ToolLogo: React.FC<ToolLogoProps> = ({
   src,
   fallbackSrc,
+  websiteUrl,
   name,
   size = "md",
   className = "",
 }) => {
-  const [failed, setFailed] =
-    useState(false);
+  const [candidateIndex, setCandidateIndex] = useState(0);
 
-  /*
-   * Resolve name from direct prop first,
-   * then database/tool object.
-   */
-  const toolName =
-    readString(name) ||
-    getToolValue(tool, "name") ||
-    "AI Tool";
-
-  /*
-   * Resolve logo.
-   */
-  const resolvedUrl = useMemo(
-    () =>
-      resolveToolLogo(
-        tool,
-        src,
-        fallbackSrc
-      ),
-    [tool, src, fallbackSrc]
+  const candidates = useMemo(
+    () => buildLogoCandidates(src, fallbackSrc, websiteUrl),
+    [src, fallbackSrc, websiteUrl]
   );
 
-  /*
-   * Reset error when a different tool/logo
-   * is rendered during navigation.
-   */
   useEffect(() => {
-    setFailed(false);
-  }, [resolvedUrl]);
+    setCandidateIndex(0);
+  }, [src, fallbackSrc, websiteUrl]);
 
-  const initials =
-    getInitials(toolName);
+  const currentImage = candidates[candidateIndex] ?? null;
+  const initials = getInitials(name);
 
-  const dimensions =
-    sizeClasses[size] ||
-    sizeClasses.md;
+  const baseClasses = sizeClasses[size];
 
-  /* ==========================================================
-     FALLBACK
-     ========================================================== */
+  const fallbackLogo = (
+    <div
+      className={`${baseClasses} flex shrink-0 items-center justify-center bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 font-bold text-white shadow-sm ${className}`}
+      aria-label={`${name} logo`}
+      title={name}
+    >
+      {initials}
+    </div>
+  );
 
-  if (!resolvedUrl || failed) {
-    return (
-      <div
-        className={[
-          dimensions,
-          "flex shrink-0 items-center justify-center",
-          "overflow-hidden select-none",
-          "bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600",
-          "font-bold text-white shadow-sm",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        aria-label={`${toolName} logo`}
-        title={toolName}
-      >
-        {initials}
-      </div>
-    );
+  if (!currentImage) {
+    return fallbackLogo;
   }
-
-  /* ==========================================================
-     REAL LOGO
-     ========================================================== */
 
   return (
     <div
-      className={[
-        dimensions,
-        "flex shrink-0 items-center justify-center",
-        "overflow-hidden",
-        "border border-slate-100",
-        "bg-white shadow-sm",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      title={toolName}
+      className={`${baseClasses} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm ${className}`}
+      aria-label={`${name} logo`}
+      title={name}
     >
       <img
-        src={resolvedUrl}
-        alt={`${toolName} logo`}
+        key={currentImage}
+        src={currentImage}
+        alt={`${name} logo`}
         className="h-full w-full object-contain p-2"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
         onError={() => {
-          setFailed(true);
+          setCandidateIndex((current) => {
+            if (current < candidates.length - 1) {
+              return current + 1;
+            }
+
+            return candidates.length;
+          });
         }}
       />
     </div>
