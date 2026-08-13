@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
-import { createClient } from "@/lib/supabase-server";
+import { getDirectSupabaseClient } from "@/lib/supabase-server";
 import ToolLogo from "@/components/ToolLogo";
 import AdSlot from "@/components/AdSlot";
 
@@ -106,7 +106,7 @@ function isToolIndexable(tool: DatabaseToolRecord): boolean {
 
 async function getSupabaseClient() {
   try {
-    return await createClient();
+    return getDirectSupabaseClient();
   } catch {
     return null;
   }
