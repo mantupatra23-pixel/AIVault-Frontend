@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 import { SITE_URL } from "@/lib/site-url";
@@ -9,7 +8,9 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 interface Props {
-  params: Promise<{ slug: string }>;
+  params: Promise<{
+    slug: string;
+  }>;
   searchParams: Promise<{
     q?: string;
     search?: string;
@@ -47,13 +48,15 @@ interface ToolRow {
 ========================================================= */
 
 function getSupabaseClient(): SupabaseClient | null {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseUrl =
+    process.env.NEXT_PUBLIC_SUPABASE_URL;
+
   const supabaseAnonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseAnonKey) {
     console.error(
-      "[CATEGORY_SUPABASE_ENV_MISSING]"
+      "[CATEGORY] Missing Supabase environment variables"
     );
 
     return null;
@@ -234,7 +237,19 @@ function getCategoryAliases(
 }
 
 /* =========================================================
-   SAFE TOOL CONVERSION
+   SAFE STRING
+========================================================= */
+
+function safeString(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
+}
+
+/* =========================================================
+   TOOL CLEANER
 ========================================================= */
 
 function cleanTool(
@@ -243,21 +258,39 @@ function cleanTool(
   if (
     row.id === null ||
     row.id === undefined ||
-    !row.name ||
-    !row.slug
+    !safeString(row.name) ||
+    !safeString(row.slug)
   ) {
     return null;
   }
 
   return {
     id: row.id,
-    name: row.name,
-    slug: row.slug,
-    category: row.category,
-    pricing: row.pricing,
-    description: row.description,
-    image_url: row.image_url,
-    logo_url: row.logo_url,
+
+    name: safeString(row.name),
+
+    slug: safeString(row.slug),
+
+    category:
+      safeString(row.category) ||
+      null,
+
+    pricing:
+      safeString(row.pricing) ||
+      null,
+
+    description:
+      safeString(row.description) ||
+      null,
+
+    image_url:
+      safeString(row.image_url) ||
+      null,
+
+    logo_url:
+      safeString(row.logo_url) ||
+      null,
+
     score:
       typeof row.score === "number"
         ? row.score
@@ -266,8 +299,12 @@ function cleanTool(
 }
 
 /* =========================================================
-   LOGO COMPONENT
-   NO EXTERNAL ToolLogo IMPORT
+   REAL LOGO COMPONENT
+   ---------------------------------------------------------
+   Priority:
+   1. logo_url
+   2. image_url
+   3. first letter
 ========================================================= */
 
 function InlineToolLogo({
@@ -275,39 +312,65 @@ function InlineToolLogo({
 }: {
   tool: Tool;
 }) {
-  const logo =
-    tool.logo_url ||
-    tool.image_url ||
-    "";
+  const realLogo =
+    safeString(tool.logo_url);
 
-  const letter =
+  const fallbackImage =
+    safeString(tool.image_url);
+
+  const firstLetter =
     tool.name
       .trim()
       .charAt(0)
       .toUpperCase() || "A";
 
+  /*
+   * Use real logo first.
+   * If it fails, browser hides it and
+   * the image_url fallback becomes visible.
+   */
+
   return (
     <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-lg font-black text-white shadow-sm">
-      {logo ? (
-        <Image
-          src={logo}
+
+      {/* First-letter fallback */}
+      <span className="relative z-0">
+        {firstLetter}
+      </span>
+
+      {/* REAL LOGO */}
+      {realLogo && (
+        <img
+          src={realLogo}
           alt={`${tool.name} logo`}
-          fill
-          sizes="48px"
-          className="object-contain bg-white p-1"
-          unoptimized
+          className="absolute inset-0 z-10 h-full w-full bg-white object-contain p-1"
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
           onError={(event) => {
             event.currentTarget.style.display =
               "none";
           }}
         />
-      ) : (
-        <span>{letter}</span>
       )}
 
-      <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-lg font-black text-white">
-        {letter}
-      </span>
+      {/* IMAGE FALLBACK */}
+      {!realLogo &&
+        fallbackImage && (
+          <img
+            src={fallbackImage}
+            alt={`${tool.name} image`}
+            className="absolute inset-0 z-10 h-full w-full bg-white object-contain p-1"
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={(event) => {
+              event.currentTarget.style.display =
+                "none";
+            }}
+          />
+        )}
+
     </div>
   );
 }
@@ -329,7 +392,7 @@ export async function generateMetadata({
   const rawCategory =
     decodeSlug(
       resolvedParams.slug
-    );
+    ).trim();
 
   const categoryName =
     formatCategoryTitle(
@@ -337,9 +400,12 @@ export async function generateMetadata({
     );
 
   const searchQuery =
-    resolvedSearchParams.q?.trim() ||
-    resolvedSearchParams.search?.trim() ||
-    "";
+    safeString(
+      resolvedSearchParams.q
+    ) ||
+    safeString(
+      resolvedSearchParams.search
+    );
 
   const title = searchQuery
     ? `Best ${categoryName} AI Tools for "${searchQuery}" | AI Vault`
@@ -355,6 +421,7 @@ export async function generateMetadata({
 
   return {
     title,
+
     description,
 
     alternates: {
@@ -407,18 +474,23 @@ export default async function CategoryPage({
     );
 
   const searchQuery =
-    resolvedSearchParams.q?.trim() ||
-    resolvedSearchParams.search?.trim() ||
-    "";
+    safeString(
+      resolvedSearchParams.q
+    ) ||
+    safeString(
+      resolvedSearchParams.search
+    );
 
   const pricingFilter =
-    resolvedSearchParams.pricing?.trim() ||
-    "";
+    safeString(
+      resolvedSearchParams.pricing
+    );
 
   const parsedPage =
     Number.parseInt(
-      resolvedSearchParams.page ||
-        "1",
+      safeString(
+        resolvedSearchParams.page
+      ) || "1",
       10
     );
 
@@ -430,18 +502,20 @@ export default async function CategoryPage({
 
   const pageSize = 24;
 
+  /* =======================================================
+     SUPABASE CLIENT
+  ======================================================= */
+
   const supabase =
     getSupabaseClient();
 
-  /* =======================================================
-     SUPABASE ERROR
-  ======================================================= */
-
   if (!supabase) {
     return (
-      <main className="min-h-screen bg-white text-slate-950">
+      <div className="min-h-screen bg-white text-slate-950">
+
         <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+
             <Link
               href="/"
               className="text-xl font-black tracking-tight"
@@ -455,18 +529,21 @@ export default async function CategoryPage({
             >
               Browse All Categories
             </Link>
+
           </div>
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+
           <div className="rounded-2xl border border-red-100 p-10 text-center shadow-sm">
+
             <h1 className="text-xl font-bold">
               Unable to load this category
             </h1>
 
             <p className="mt-3 text-sm text-slate-500">
-              The AI Vault database configuration
-              is unavailable.
+              The AI Vault database
+              configuration is unavailable.
             </p>
 
             <Link
@@ -475,14 +552,17 @@ export default async function CategoryPage({
             >
               Return to Directory →
             </Link>
+
           </div>
+
         </main>
-      </main>
+
+      </div>
     );
   }
 
   /* =======================================================
-     CATEGORY FILTER
+     CATEGORY ALIASES
   ======================================================= */
 
   const aliases =
@@ -491,31 +571,25 @@ export default async function CategoryPage({
       categoryName
     );
 
-  const categoryFilter =
-    aliases
-      .filter(Boolean)
-      .map((value) => {
-        const escaped =
-          value
-            .replace(
-              /\\/g,
-              "\\\\"
-            )
-            .replace(
-              /,/g,
-              "\\,"
-            )
-            .replace(
-              /%/g,
-              "\\%"
-            )
-            .replace(
-              /_/g,
-              "\\_"
-            );
+  /*
+   * IMPORTANT:
+   * Do not compare formatted title only.
+   *
+   * Example:
+   * URL = /category/Marketing
+   *
+   * Database can contain:
+   * Marketing
+   * Marketing & Sales
+   * Marketing and Sales
+   */
 
-        return `category.ilike.%${escaped}%`;
-      })
+  const categoryConditions =
+    aliases
+      .map(
+        (value) =>
+          `category.ilike.%${value}%`
+      )
       .join(",");
 
   /* =======================================================
@@ -540,62 +614,27 @@ export default async function CategoryPage({
         count: "exact",
       }
     )
-    .or(categoryFilter);
+    .or(categoryConditions);
 
   /* =======================================================
-     SEARCH
+     SEARCH FILTER
   ======================================================= */
 
   if (searchQuery) {
-    const escapedSearch =
-      searchQuery
-        .replace(
-          /\\/g,
-          "\\\\"
-        )
-        .replace(
-          /,/g,
-          "\\,"
-        )
-        .replace(
-          /%/g,
-          "\\%"
-        )
-        .replace(
-          /_/g,
-          "\\_"
-        );
-
     query = query.or(
-      `name.ilike.%${escapedSearch}%,description.ilike.%${escapedSearch}%`
+      `name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`
     );
   }
 
   /* =======================================================
-     PRICING
+     PRICING FILTER
   ======================================================= */
 
   if (pricingFilter) {
-    const escapedPricing =
-      pricingFilter
-        .replace(
-          /\\/g,
-          "\\\\"
-        )
-        .replace(
-          /%/g,
-          "\\%"
-        )
-        .replace(
-          /_/g,
-          "\\_"
-        );
-
-    query =
-      query.ilike(
-        "pricing",
-        `%${escapedPricing}%`
-      );
+    query = query.ilike(
+      "pricing",
+      `%${pricingFilter}%`
+    );
   }
 
   /* =======================================================
@@ -610,6 +649,10 @@ export default async function CategoryPage({
     fromIndex +
     pageSize -
     1;
+
+  /* =======================================================
+     EXECUTE QUERY
+  ======================================================= */
 
   const result =
     await query
@@ -631,28 +674,57 @@ export default async function CategoryPage({
 
   if (result.error) {
     console.error(
-      "[CATEGORY_DATABASE_ERROR]",
-      {
-        slug: rawCategory,
-        category: categoryName,
-        code:
-          result.error.code,
-        message:
-          result.error.message,
-        details:
-          result.error.details,
-        hint:
-          result.error.hint,
-      }
+      "================================================="
+    );
+
+    console.error(
+      "[AI VAULT CATEGORY DATABASE ERROR]"
+    );
+
+    console.error(
+      "Slug:",
+      rawCategory
+    );
+
+    console.error(
+      "Category:",
+      categoryName
+    );
+
+    console.error(
+      "Code:",
+      result.error.code
+    );
+
+    console.error(
+      "Message:",
+      result.error.message
+    );
+
+    console.error(
+      "Details:",
+      result.error.details
+    );
+
+    console.error(
+      "Hint:",
+      result.error.hint
+    );
+
+    console.error(
+      "================================================="
     );
 
     return (
-      <main className="min-h-screen bg-white text-slate-950">
+      <div className="min-h-screen bg-white text-slate-950">
+
         <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
+
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
+
             <Link
               href="/"
-              className="text-xl font-black"
+              className="text-xl font-black tracking-tight"
             >
               AI Vault.
             </Link>
@@ -663,18 +735,22 @@ export default async function CategoryPage({
             >
               Browse All Categories
             </Link>
+
           </div>
+
         </header>
 
         <main className="mx-auto max-w-7xl px-4 py-16 sm:px-6">
+
           <div className="rounded-2xl border border-red-100 p-10 text-center shadow-sm">
+
             <h1 className="text-xl font-bold">
               Unable to load this category
             </h1>
 
             <p className="mt-3 text-sm text-slate-500">
-              The AI Vault database returned an
-              error while loading this category.
+              The AI Vault database returned
+              an error while loading this category.
             </p>
 
             <p className="mt-3 text-xs font-semibold text-red-500">
@@ -689,76 +765,88 @@ export default async function CategoryPage({
             >
               Try Again →
             </Link>
+
           </div>
+
         </main>
-      </main>
+
+      </div>
     );
   }
 
   /* =======================================================
-     SAFE TYPESCRIPT CONVERSION
+     SAFE DATA
   ======================================================= */
 
-  const rawRows: ToolRow[] =
+  const rawRows =
     Array.isArray(result.data)
       ? result.data
-          .filter(
-            (row): row is ToolRow =>
-              !!row &&
-              typeof row ===
-                "object" &&
-              "id" in row &&
-              "name" in row &&
-              "slug" in row
-          )
-          .map((row) => ({
-            id: row.id,
-            name:
-              typeof row.name ===
-              "string"
-                ? row.name
-                : null,
-            slug:
-              typeof row.slug ===
-              "string"
-                ? row.slug
-                : null,
-            category:
-              typeof row.category ===
-              "string"
-                ? row.category
-                : null,
-            pricing:
-              typeof row.pricing ===
-              "string"
-                ? row.pricing
-                : null,
-            description:
-              typeof row.description ===
-              "string"
-                ? row.description
-                : null,
-            image_url:
-              typeof row.image_url ===
-              "string"
-                ? row.image_url
-                : null,
-            logo_url:
-              typeof row.logo_url ===
-              "string"
-                ? row.logo_url
-                : null,
-            score:
-              typeof row.score ===
-              "number"
-                ? row.score
-                : null,
-          }))
       : [];
 
   const tools: Tool[] =
     rawRows
-      .map(cleanTool)
+      .map((row) => {
+        const data =
+          row as Partial<ToolRow>;
+
+        if (
+          data.id ===
+            null ||
+          data.id ===
+            undefined ||
+          !safeString(
+            data.name
+          ) ||
+          !safeString(
+            data.slug
+          )
+        ) {
+          return null;
+        }
+
+        return {
+          id: data.id,
+
+          name: safeString(
+            data.name
+          ),
+
+          slug: safeString(
+            data.slug
+          ),
+
+          category:
+            safeString(
+              data.category
+            ) || null,
+
+          pricing:
+            safeString(
+              data.pricing
+            ) || null,
+
+          description:
+            safeString(
+              data.description
+            ) || null,
+
+          image_url:
+            safeString(
+              data.image_url
+            ) || null,
+
+          logo_url:
+            safeString(
+              data.logo_url
+            ) || null,
+
+          score:
+            typeof data.score ===
+            "number"
+              ? data.score
+              : null,
+        } satisfies Tool;
+      })
       .filter(
         (
           tool
@@ -780,12 +868,13 @@ export default async function CategoryPage({
       : 1;
 
   /* =======================================================
-     SEO BREADCRUMB
+     BREADCRUMB SEO SCHEMA
   ======================================================= */
 
   const breadcrumbSchema = {
     "@context":
       "https://schema.org",
+
     "@type":
       "BreadcrumbList",
 
@@ -793,16 +882,22 @@ export default async function CategoryPage({
       {
         "@type":
           "ListItem",
+
         position: 1,
+
         name: "Home",
+
         item: SITE_URL,
       },
 
       {
         "@type":
           "ListItem",
+
         position: 2,
+
         name: categoryName,
+
         item:
           `${SITE_URL}/category/${encodeURIComponent(
             rawCategory
@@ -812,11 +907,16 @@ export default async function CategoryPage({
   };
 
   /* =======================================================
-     RENDER
+     PAGE
   ======================================================= */
 
   return (
     <>
+
+      {/* ===================================================
+          SEO JSON-LD
+      =================================================== */}
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -834,6 +934,7 @@ export default async function CategoryPage({
         ================================================= */}
 
         <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
+
           <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6">
 
             <Link
@@ -845,12 +946,13 @@ export default async function CategoryPage({
 
             <Link
               href="/categories"
-              className="rounded-full bg-slate-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 hover:bg-slate-200"
+              className="rounded-full bg-slate-100 px-4 py-2 text-[10px] font-bold uppercase tracking-wide text-slate-700 transition hover:bg-slate-200"
             >
               Browse All Categories
             </Link>
 
           </div>
+
         </header>
 
         {/* =================================================
@@ -859,12 +961,15 @@ export default async function CategoryPage({
 
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
 
-          {/* Breadcrumb */}
+          {/* =================================================
+              BREADCRUMB
+          ================================================= */}
 
           <nav
             aria-label="Breadcrumb"
             className="mb-5 text-xs text-slate-500"
           >
+
             <ol className="flex flex-wrap items-center gap-2">
 
               <li>
@@ -883,16 +988,17 @@ export default async function CategoryPage({
               </li>
 
             </ol>
+
           </nav>
 
-          {/* Hero */}
+          {/* =================================================
+              HERO
+          ================================================= */}
 
           <section className="space-y-4 py-4">
 
             <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">
-              Best{" "}
-              {categoryName}{" "}
-              AI Tools
+              Best {categoryName} AI Tools
             </h1>
 
             <p className="max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
@@ -903,30 +1009,29 @@ export default async function CategoryPage({
             </p>
 
             <div className="text-xs font-bold text-blue-600">
-              Showing{" "}
-              {count}{" "}
-              Verified Tools
+              Showing {count} Verified Tools
             </div>
 
           </section>
 
-          {/* Filters */}
+          {/* =================================================
+              ACTIVE FILTERS
+          ================================================= */}
 
           {(searchQuery ||
             pricingFilter) && (
+
             <div className="mb-5 flex flex-wrap gap-2">
 
               {searchQuery && (
                 <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-                  Search:{" "}
-                  {searchQuery}
+                  Search: {searchQuery}
                 </span>
               )}
 
               {pricingFilter && (
                 <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
-                  Pricing:{" "}
-                  {pricingFilter}
+                  Pricing: {pricingFilter}
                 </span>
               )}
 
@@ -943,7 +1048,7 @@ export default async function CategoryPage({
           )}
 
           {/* =================================================
-              TOOLS
+              TOOL GRID
           ================================================= */}
 
           {tools.length > 0 ? (
@@ -965,7 +1070,9 @@ export default async function CategoryPage({
 
                     <div className="space-y-4">
 
-                      {/* Logo */}
+                      {/* =================================================
+                          LOGO + PRICING
+                      ================================================= */}
 
                       <div className="flex items-center justify-between gap-4">
 
@@ -980,7 +1087,9 @@ export default async function CategoryPage({
 
                       </div>
 
-                      {/* Content */}
+                      {/* =================================================
+                          TOOL CONTENT
+                      ================================================= */}
 
                       <div>
 
@@ -995,7 +1104,9 @@ export default async function CategoryPage({
 
                       </div>
 
-                      {/* Footer */}
+                      {/* =================================================
+                          CARD FOOTER
+                      ================================================= */}
 
                       <div className="flex items-center justify-between border-t border-slate-100 pt-4">
 
@@ -1022,7 +1133,7 @@ export default async function CategoryPage({
           ) : (
 
             /* =================================================
-               EMPTY
+               EMPTY STATE
             ================================================= */
 
             <div className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
@@ -1032,8 +1143,8 @@ export default async function CategoryPage({
               </h2>
 
               <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-slate-500">
-                No tools match the selected criteria
-                in this category.
+                No tools match the selected
+                criteria in this category.
               </p>
 
               <Link
@@ -1071,18 +1182,14 @@ export default async function CategoryPage({
                   const params =
                     new URLSearchParams();
 
-                  if (
-                    searchQuery
-                  ) {
+                  if (searchQuery) {
                     params.set(
                       "q",
                       searchQuery
                     );
                   }
 
-                  if (
-                    pricingFilter
-                  ) {
+                  if (pricingFilter) {
                     params.set(
                       "pricing",
                       pricingFilter
@@ -1133,9 +1240,7 @@ export default async function CategoryPage({
                           : undefined
                       }
                     >
-                      {
-                        pageNumber
-                      }
+                      {pageNumber}
                     </Link>
                   );
                 }
@@ -1148,6 +1253,7 @@ export default async function CategoryPage({
         </main>
 
       </div>
+
     </>
   );
 }
