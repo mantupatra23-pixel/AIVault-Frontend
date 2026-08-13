@@ -21,7 +21,6 @@ type ToolRecord = {
   pricing?: string | null;
   website_url?: string | null;
   website?: string | null;
-  updated_at?: string | null;
   created_at?: string | null;
 };
 
@@ -208,7 +207,6 @@ function mapTool(record: ToolRecord): ToolData {
   );
 
   const updatedAt =
-    clean(record.updated_at) ||
     clean(record.created_at) ||
     undefined;
 
@@ -244,7 +242,7 @@ async function getTool(
   }
 
   const fields =
-    "id,name,slug,description,category,pricing,website_url,website,updated_at,created_at";
+    "id,name,slug,description,category,pricing,website_url,website,created_at";
 
   /* -------------------------------------------------------
      1. Exact match
@@ -327,7 +325,7 @@ async function getRelatedTools(
   let query = supabase
     .from("ai_tools")
     .select(
-      "id,name,slug,description,category,pricing,website_url,website,updated_at,created_at"
+      "id,name,slug,description,category,pricing,website_url,website,created_at"
     )
     .eq("category", category)
     .limit(12);
