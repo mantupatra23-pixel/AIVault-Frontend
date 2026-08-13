@@ -1,17 +1,13 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
-import ToolLogo from "@/components/ToolLogo";
 
 const SITE_URL = "https://aivault.pp.ua";
 const SITE_NAME = "AI Vault";
 
-type PageProps = {
-  params: Promise<{
-    slug: string;
-  }>;
-};
+/* =========================================================
+   TYPES
+========================================================= */
 
 type ToolRecord = {
   id?: string | number | null;
@@ -25,14 +21,18 @@ type ToolRecord = {
 };
 
 type ToolPageData = {
+  id?: string | number | null;
   name: string;
   slug: string;
   description: string;
   category: string;
   pricing: string;
   websiteUrl: string;
-  score: number;
 };
+
+/* =========================================================
+   SUPABASE
+========================================================= */
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -44,6 +44,10 @@ function getSupabase() {
 
   return createClient(url, key);
 }
+
+/* =========================================================
+   TEXT HELPERS
+========================================================= */
 
 function clean(value: unknown): string {
   return String(value ?? "")
@@ -58,6 +62,14 @@ function slugify(value: unknown): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function titleCase(value: string): string {
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function normalizeWebsite(value: unknown): string {
   const raw = clean(value);
 
@@ -66,8 +78,8 @@ function normalizeWebsite(value: unknown): string {
   }
 
   if (
-    raw.startsWith("http://") ||
-    raw.startsWith("https://")
+    raw.startsWith("https://") ||
+    raw.startsWith("http://")
   ) {
     return raw;
   }
@@ -86,31 +98,26 @@ function shortDescription(value: unknown): string {
     return text;
   }
 
-  return `${text.slice(0, 157)}...`;
-}
-
-function titleCase(value: string): string {
-  return value
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return `${text.slice(0, 157).trim()}...`;
 }
 
 function pricingLabel(value: unknown): string {
   const pricing = clean(value).toLowerCase();
 
-  if (!pricing) return "Freemium";
+  if (!pricing) {
+    return "Not specified";
+  }
 
   if (
-    pricing.includes("free") &&
-    pricing.includes("paid")
+    pricing.includes("freemium") ||
+    (pricing.includes("free") &&
+      pricing.includes("paid"))
   ) {
     return "Freemium";
   }
 
-  if (pricing.includes("freemium")) {
-    return "Freemium";
+  if (pricing === "free" || pricing.includes("free")) {
+    return "Free";
   }
 
   if (pricing.includes("paid")) {
@@ -118,33 +125,42 @@ function pricingLabel(value: unknown): string {
   }
 
   if (
-    pricing.includes("contact") ||
-    pricing.includes("custom")
+    pricing.includes("custom") ||
+    pricing.includes("contact")
   ) {
     return "Custom";
   }
 
-  if (pricing.includes("free")) {
-    return "Free";
+  return titleCase(pricing);
+}
+
+/* =========================================================
+   LOGO HELPERS
+========================================================= */
+
+function getInitials(name: string): string {
+  const words = name
+    .replace(/[^a-zA-Z0-9 ]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (words.length === 0) {
+    return "AI";
   }
 
-  return titleCase(clean(value));
+  if (words.length === 1) {
+    return words[0].slice(0, 2).toUpperCase();
+  }
+
+  return (
+    words[0][0] +
+    words[1][0]
+  ).toUpperCase();
 }
 
-function getScore(
-  name: string,
-  description: string,
-  category: string
-): number {
-  let score = 82;
-
-  if (name.length > 3) score += 1;
-  if (description.length > 120) score += 1;
-  if (description.length > 300) score += 1;
-  if (category) score += 1;
-
-  return Math.min(95, Math.max(80, score));
-}
+/* =========================================================
+   TOOL LOOKUP
+========================================================= */
 
 async function getTool(
   requestedSlug: string
@@ -157,31 +173,47 @@ async function getTool(
 
   const normalizedSlug = clean(requestedSlug);
 
+  if (!normalizedSlug) {
+    return null;
+  }
+
   const fields =
     "id,name,slug,description,category,pricing,website_url,website";
 
-  let data: ToolRecord | null = null;
+  /* -------------------------------------------------------
+     Exact slug
+  ------------------------------------------------------- */
 
-  const exact = await supabase
+  const exactResult = await supabase
     .from("ai_tools")
     .select(fields)
     .eq("slug", normalizedSlug)
     .maybeSingle();
 
-  if (!exact.error && exact.data) {
-    data = exact.data as ToolRecord;
+  let data: ToolRecord | null = null;
+
+  if (!exactResult.error && exactResult.data) {
+    data = exactResult.data as ToolRecord;
   }
 
+  /* -------------------------------------------------------
+     Fallback slug
+  ------------------------------------------------------- */
+
   if (!data) {
-    const fallback = await supabase
+    const fallbackResult = await supabase
       .from("ai_tools")
       .select(fields)
       .ilike("slug", normalizedSlug)
       .limit(1)
       .maybeSingle();
 
-    if (!fallback.error && fallback.data) {
-      data = fallback.data as ToolRecord;
+    if (
+      !fallbackResult.error &&
+      fallbackResult.data
+    ) {
+      data =
+        fallbackResult.data as ToolRecord;
     }
   }
 
@@ -198,7 +230,9 @@ async function getTool(
     clean(data.category) ||
     "AI Software";
 
-  const description = clean(data.description);
+  const description =
+    clean(data.description) ||
+    `Explore ${name}, an AI software solution in the ${category} category. Discover its features, pricing, use cases, capabilities, and alternatives on AI Vault.`;
 
   const finalSlug =
     slugify(data.slug) ||
@@ -206,179 +240,236 @@ async function getTool(
     slugify(normalizedSlug);
 
   const websiteUrl = normalizeWebsite(
-    data.website_url || data.website
+    data.website_url ||
+      data.website
   );
 
-  const pricing = pricingLabel(data.pricing);
-
   return {
+    id: data.id,
+
     name,
+
     slug: finalSlug,
-    description:
-      description ||
-      `Explore ${name}, an AI software solution in the ${category} category. Discover its features, pricing, use cases, and capabilities on AI Vault.`,
-    category,
-    pricing,
-    websiteUrl,
-    score: getScore(
-      name,
-      description,
-      category
-    ),
-  };
-}
 
-/* =========================================================
-   METADATA
-========================================================= */
-
-export async function generateMetadata({
-  params,
-}: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-
-  const tool = await getTool(slug);
-
-  if (!tool) {
-    return {
-      title: "AI Tool | AI Vault",
-      description:
-        "Discover AI software and tools on AI Vault.",
-      robots: {
-        index: false,
-        follow: false,
-      },
-    };
-  }
-
-  const title = `${tool.name} — ${tool.category} AI Tool`;
-
-  const description =
-    shortDescription(tool.description);
-
-  const canonical =
-    `${SITE_URL}/tool/${tool.slug}`;
-
-  return {
-    title,
     description,
 
-    metadataBase: new URL(SITE_URL),
+    category,
 
-    keywords: [
-      tool.name,
-      `${tool.name} AI`,
-      `${tool.name} alternatives`,
-      `${tool.name} pricing`,
-      `${tool.name} review`,
-      `${tool.name} features`,
-      `${tool.category} AI tools`,
-      "AI tools",
-      "AI software",
-      "AI SaaS",
-      "AI Vault",
-    ],
+    pricing: pricingLabel(
+      data.pricing
+    ),
 
-    alternates: {
-      canonical,
-    },
-
-    robots: {
-      index: true,
-      follow: true,
-
-      googleBot: {
-        index: true,
-        follow: true,
-        "max-image-preview": "large",
-        "max-snippet": -1,
-        "max-video-preview": -1,
-      },
-    },
-
-    openGraph: {
-      type: "website",
-      siteName: SITE_NAME,
-      url: canonical,
-      title,
-      description,
-      locale: "en_US",
-    },
-
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
+    websiteUrl,
   };
 }
 
 /* =========================================================
-   HELPERS
+   RELATED TOOLS
+========================================================= */
+
+async function getRelatedTools(
+  category: string,
+  currentId?: string | number | null
+): Promise<ToolRecord[]> {
+  const supabase = getSupabase();
+
+  if (!supabase) {
+    return [];
+  }
+
+  let query = supabase
+    .from("ai_tools")
+    .select(
+      "id,name,slug,description,category,pricing,website_url,website"
+    )
+    .eq("category", category)
+    .limit(12);
+
+  if (
+    currentId !== undefined &&
+    currentId !== null
+  ) {
+    query = query.neq(
+      "id",
+      currentId
+    );
+  }
+
+  const { data } = await query;
+
+  return (
+    (data as ToolRecord[] | null) ??
+    []
+  );
+}
+
+/* =========================================================
+   SCORE
+========================================================= */
+
+function calculateScore(
+  tool: ToolPageData
+): number {
+  let score = 82;
+
+  if (tool.name.length >= 4) {
+    score += 1;
+  }
+
+  if (tool.description.length >= 120) {
+    score += 1;
+  }
+
+  if (tool.description.length >= 300) {
+    score += 1;
+  }
+
+  if (tool.category) {
+    score += 1;
+  }
+
+  if (tool.websiteUrl) {
+    score += 1;
+  }
+
+  return Math.min(
+    95,
+    Math.max(80, score)
+  );
+}
+
+/* =========================================================
+   FEATURES
 ========================================================= */
 
 function getFeatures(
   tool: ToolPageData
-): string[] {
+) {
   const category =
     tool.category.toLowerCase();
 
   if (category.includes("coding")) {
     return [
-      `Streamlined coding workflow for ${tool.name}.`,
-      "Developer-focused productivity features.",
-      "Supports faster development and workflow optimization.",
+      {
+        title: "Coding workflow",
+        text: `${tool.name} is designed to support coding and software development workflows.`,
+      },
+      {
+        title: "Developer productivity",
+        text: "Useful for reducing repetitive development work and improving workflow efficiency.",
+      },
+      {
+        title: "Project workflows",
+        text: "Can be evaluated for development, automation, and technical project workflows.",
+      },
     ];
   }
 
-  if (category.includes("image")) {
+  if (
+    category.includes("image") ||
+    category.includes("design")
+  ) {
     return [
-      "AI-powered image creation and visual workflows.",
-      "Fast creative generation and experimentation.",
-      "Useful for designers, creators, and marketing teams.",
+      {
+        title: "Visual creation",
+        text: `${tool.name} supports workflows related to visual content and creative production.`,
+      },
+      {
+        title: "Creative workflow",
+        text: "Useful for designers, creators, marketers, and teams working with visual content.",
+      },
+      {
+        title: "Faster experimentation",
+        text: "Helps users explore ideas and accelerate creative workflows.",
+      },
     ];
   }
 
   if (category.includes("video")) {
     return [
-      "AI-assisted video creation and editing workflows.",
-      "Faster content production for creators and teams.",
-      "Useful for marketing, social media, and creative projects.",
+      {
+        title: "Video workflow",
+        text: `${tool.name} supports workflows related to video creation, editing, or production.`,
+      },
+      {
+        title: "Content production",
+        text: "Useful for creators, marketers, social media teams, and businesses.",
+      },
+      {
+        title: "Productivity",
+        text: "Designed to help reduce repetitive work during content production.",
+      },
     ];
   }
 
-  if (category.includes("writing")) {
+  if (
+    category.includes("writing") ||
+    category.includes("content")
+  ) {
     return [
-      "AI-assisted writing and content workflows.",
-      "Helps accelerate drafting and content production.",
-      "Useful for creators, marketers, and professional teams.",
+      {
+        title: "Content workflow",
+        text: `${tool.name} supports writing and content-related workflows.`,
+      },
+      {
+        title: "Faster drafting",
+        text: "Can help accelerate drafting, editing, and content production.",
+      },
+      {
+        title: "Professional use",
+        text: "Useful for creators, marketers, writers, and professional teams.",
+      },
     ];
   }
 
   if (category.includes("marketing")) {
     return [
-      "Marketing workflow automation and optimization.",
-      "Helps teams improve content and campaign productivity.",
-      "Useful for marketers, agencies, and businesses.",
+      {
+        title: "Marketing workflows",
+        text: `${tool.name} provides capabilities relevant to marketing and growth workflows.`,
+      },
+      {
+        title: "Workflow optimization",
+        text: "Can help teams streamline repetitive marketing tasks.",
+      },
+      {
+        title: "Business productivity",
+        text: "Useful for marketers, agencies, startups, and businesses.",
+      },
     ];
   }
 
   return [
-    `AI-powered workflows focused on ${tool.category.toLowerCase()}.`,
-    "Designed to simplify repetitive tasks and improve productivity.",
-    "Useful for individuals, creators, professionals, and teams.",
+    {
+      title: "AI-powered workflow",
+      text: `${tool.name} is designed for workflows related to ${tool.category.toLowerCase()}.`,
+    },
+    {
+      title: "Productivity",
+      text: "Designed to simplify tasks and improve workflow efficiency.",
+    },
+    {
+      title: "Flexible use cases",
+      text: "Can be evaluated by individuals, creators, professionals, and teams.",
+    },
   ];
 }
 
-function getLimitations(
-  tool: ToolPageData
-): string[] {
+/* =========================================================
+   LIMITATIONS
+========================================================= */
+
+function getLimitations() {
   return [
-    "Some advanced features may require time to learn.",
-    "Feature availability can vary by pricing plan.",
-    "Third-party integrations and capabilities may change over time.",
+    "Features and capabilities may change as the provider updates the product.",
+    "Pricing and plan limits should be confirmed on the official website.",
+    "Some advanced features may only be available on selected plans.",
   ];
 }
+
+/* =========================================================
+   USE CASES
+========================================================= */
 
 function getUseCases(
   tool: ToolPageData
@@ -391,13 +482,18 @@ function getUseCases(
       "Coding Automation",
       "Developer Productivity",
       "Workflow Optimization",
+      "Software Development",
     ];
   }
 
-  if (category.includes("image")) {
+  if (
+    category.includes("image") ||
+    category.includes("design")
+  ) {
     return [
-      "Visual Content Creation",
+      "Visual Content",
       "Design Workflow",
+      "Creative Production",
       "Marketing Content",
     ];
   }
@@ -405,16 +501,21 @@ function getUseCases(
   if (category.includes("video")) {
     return [
       "Video Creation",
-      "Social Media Content",
-      "Marketing Production",
+      "Content Production",
+      "Social Media",
+      "Marketing",
     ];
   }
 
-  if (category.includes("writing")) {
+  if (
+    category.includes("writing") ||
+    category.includes("content")
+  ) {
     return [
       "Content Creation",
       "Copywriting",
-      "Productivity Enhancement",
+      "Writing Assistance",
+      "Productivity",
     ];
   }
 
@@ -423,6 +524,7 @@ function getUseCases(
       "Marketing Automation",
       "Campaign Optimization",
       "Growth Workflows",
+      "Business Productivity",
     ];
   }
 
@@ -430,51 +532,221 @@ function getUseCases(
     `${tool.category} Workflows`,
     "Workflow Optimization",
     "Productivity Enhancement",
+    "AI-Assisted Tasks",
   ];
 }
 
-function getSteps(
-  tool: ToolPageData
-): string[] {
-  return [
-    `Visit the official platform portal for ${tool.name}.`,
-    "Create or authenticate your user account.",
-    "Configure the available workspace or project settings.",
-    "Start your workflow and evaluate the generated results.",
-  ];
-}
+/* =========================================================
+   FAQ
+========================================================= */
 
 function getFaqs(
   tool: ToolPageData
 ) {
   return [
     {
-      question: `What is ${tool.name} used for?`,
+      question:
+        `What is ${tool.name} used for?`,
+
       answer:
-        `${tool.name} is an AI software platform in the ${tool.category.toLowerCase()} category. It is designed to help users improve workflows and productivity.`,
+        `${tool.name} is an AI software platform listed in the ${tool.category.toLowerCase()} category. Its exact capabilities depend on the current product offering.`,
     },
+
     {
-      question: `Is ${tool.name} free to use?`,
+      question:
+        `Is ${tool.name} free to use?`,
+
       answer:
-        `${tool.name} currently appears to use a ${tool.pricing.toLowerCase()} pricing model. Check the official portal for the latest plans and pricing.`,
+        `${tool.name} is currently listed on AI Vault with a ${tool.pricing.toLowerCase()} pricing model. Check the official portal for the latest plans and pricing.`,
     },
+
     {
-      question: `Does ${tool.name} require software installation?`,
+      question:
+        `Who should use ${tool.name}?`,
+
       answer:
-        `${tool.name} can generally be accessed through its official platform. Availability of desktop, mobile, API, or browser features may depend on the provider.`,
+        `${tool.name} may be useful for individuals, creators, professionals, developers, teams, and businesses looking for ${tool.category.toLowerCase()} solutions.`,
     },
+
     {
-      question: `Who should use ${tool.name}?`,
+      question:
+        `What are the alternatives to ${tool.name}?`,
+
       answer:
-        `${tool.name} is suitable for users, creators, developers, professionals, or teams looking for solutions related to ${tool.category.toLowerCase()}.`,
+        `AI Vault lists related tools from the same category so you can compare similar software and find an option that fits your workflow.`,
     },
+
     {
-      question: `Where can I access ${tool.name}?`,
-      answer: tool.websiteUrl
-        ? `You can access ${tool.name} through its official platform portal.`
-        : `Search for the official ${tool.name} website before using the service.`,
+      question:
+        `Does ${tool.name} require installation?`,
+
+      answer:
+        `Access and installation requirements can change. Check the official ${tool.name} website for the latest platform and access information.`,
     },
   ];
+}
+
+/* =========================================================
+   JSON-LD
+========================================================= */
+
+function createSoftwareSchema(
+  tool: ToolPageData,
+  canonicalUrl: string
+) {
+  return {
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "SoftwareApplication",
+
+    name:
+      tool.name,
+
+    description:
+      shortDescription(
+        tool.description
+      ),
+
+    applicationCategory:
+      tool.category,
+
+    operatingSystem:
+      "Web",
+
+    url:
+      canonicalUrl,
+
+    isPartOf: {
+      "@type":
+        "WebSite",
+
+      name:
+        SITE_NAME,
+
+      url:
+        SITE_URL,
+    },
+
+    publisher: {
+      "@type":
+        "Organization",
+
+      name:
+        SITE_NAME,
+
+      url:
+        SITE_URL,
+    },
+  };
+}
+
+function createBreadcrumbSchema(
+  tool: ToolPageData,
+  canonicalUrl: string
+) {
+  return {
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "BreadcrumbList",
+
+    itemListElement: [
+      {
+        "@type":
+          "ListItem",
+
+        position:
+          1,
+
+        name:
+          "Home",
+
+        item:
+          SITE_URL,
+      },
+
+      {
+        "@type":
+          "ListItem",
+
+        position:
+          2,
+
+        name:
+          "AI Tools",
+
+        item:
+          SITE_URL,
+      },
+
+      {
+        "@type":
+          "ListItem",
+
+        position:
+          3,
+
+        name:
+          tool.category,
+
+        item:
+          `${SITE_URL}/?category=${encodeURIComponent(
+            tool.category
+          )}`,
+      },
+
+      {
+        "@type":
+          "ListItem",
+
+        position:
+          4,
+
+        name:
+          tool.name,
+
+        item:
+          canonicalUrl,
+      },
+    ],
+  };
+}
+
+function createFaqSchema(
+  faqs: {
+    question: string;
+    answer: string;
+  }[]
+) {
+  return {
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "FAQPage",
+
+    mainEntity:
+      faqs.map(
+        (faq) => ({
+          "@type":
+            "Question",
+
+          name:
+            faq.question,
+
+          acceptedAnswer: {
+            "@type":
+              "Answer",
+
+            text:
+              faq.answer,
+          },
+        })
+      ),
+  };
 }
 
 /* =========================================================
@@ -483,147 +755,93 @@ function getFaqs(
 
 export default async function ToolPage({
   params,
-}: PageProps) {
+}: {
+  params: Promise<{
+    slug: string;
+  }>;
+}) {
   const { slug } = await params;
 
-  const tool = await getTool(slug);
+  const tool =
+    await getTool(slug);
 
   if (!tool) {
     notFound();
   }
 
-  const canonical =
+  const canonicalUrl =
     `${SITE_URL}/tool/${tool.slug}`;
+
+  const score =
+    calculateScore(tool);
 
   const features =
     getFeatures(tool);
 
   const limitations =
-    getLimitations(tool);
+    getLimitations();
 
   const useCases =
     getUseCases(tool);
 
-  const steps =
-    getSteps(tool);
-
   const faqs =
     getFaqs(tool);
 
-  /* =====================================================
-     STRUCTURED DATA
-  ===================================================== */
-
-  const softwareSchema = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-
-    name: tool.name,
-
-    description:
-      tool.description,
-
-    applicationCategory:
+  const relatedTools =
+    await getRelatedTools(
       tool.category,
+      tool.id
+    );
 
-    operatingSystem:
-      "Web",
+  const softwareSchema =
+    createSoftwareSchema(
+      tool,
+      canonicalUrl
+    );
 
-    url: canonical,
+  const breadcrumbSchema =
+    createBreadcrumbSchema(
+      tool,
+      canonicalUrl
+    );
 
-    isPartOf: {
-      "@type": "WebSite",
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
-
-    offers: {
-      "@type": "Offer",
-      category: tool.pricing,
-      url: tool.websiteUrl || canonical,
-    },
-  };
-
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: "AI Tools",
-        item: `${SITE_URL}/`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: tool.category,
-        item: `${SITE_URL}/?cat=${encodeURIComponent(
-          tool.category
-        )}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 4,
-        name: tool.name,
-        item: canonical,
-      },
-    ],
-  };
-
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-
-    mainEntity: faqs.map((faq) => ({
-      "@type": "Question",
-      name: faq.question,
-
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
-    })),
-  };
+  const faqSchema =
+    createFaqSchema(faqs);
 
   return (
     <main className="min-h-screen bg-[#fcfcfc] text-slate-900">
 
       {/* =================================================
-          JSON-LD
+          STRUCTURED DATA
       ================================================= */}
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            softwareSchema
-          ),
+          __html:
+            JSON.stringify(
+              softwareSchema
+            ),
         }}
       />
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            breadcrumbSchema
-          ),
+          __html:
+            JSON.stringify(
+              breadcrumbSchema
+            ),
         }}
       />
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            faqSchema
-          ),
+          __html:
+            JSON.stringify(
+              faqSchema
+            ),
         }}
       />
 
@@ -632,6 +850,7 @@ export default async function ToolPage({
       ================================================= */}
 
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
+
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
 
           <Link
@@ -643,30 +862,33 @@ export default async function ToolPage({
 
           {tool.websiteUrl ? (
             <a
-              href={tool.websiteUrl}
+              href={
+                tool.websiteUrl
+              }
               target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-xl bg-slate-950 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-blue-600"
+              rel="noopener noreferrer nofollow"
+              className="rounded-xl bg-slate-950 px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:px-5"
             >
               Visit Official Portal ↗
             </a>
           ) : (
             <Link
               href="/"
-              className="rounded-xl bg-slate-950 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white"
+              className="rounded-xl bg-slate-950 px-4 py-3 text-[11px] font-bold uppercase tracking-wide text-white"
             >
               Explore AI Tools
             </Link>
           )}
 
         </div>
+
       </header>
 
       {/* =================================================
           CONTENT
       ================================================= */}
 
-      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6">
 
         {/* =================================================
             BREADCRUMB
@@ -674,8 +896,9 @@ export default async function ToolPage({
 
         <nav
           aria-label="Breadcrumb"
-          className="mb-6 flex flex-wrap items-center gap-2 text-xs text-slate-500"
+          className="flex flex-wrap items-center gap-2 py-6 text-xs text-slate-500"
         >
+
           <Link
             href="/"
             className="hover:text-blue-600"
@@ -703,6 +926,7 @@ export default async function ToolPage({
           <span className="font-semibold text-slate-900">
             {tool.name}
           </span>
+
         </nav>
 
         {/* =================================================
@@ -713,14 +937,22 @@ export default async function ToolPage({
 
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
 
-            <ToolLogo
-              tool={tool}
-              size="lg"
-            />
+            {/* LOGO */}
+
+            <div
+              className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-violet-600 text-2xl font-black text-white shadow-lg"
+              aria-label={`${tool.name} logo`}
+            >
+              {getInitials(
+                tool.name
+              )}
+            </div>
+
+            {/* INFO */}
 
             <div className="min-w-0 flex-1">
 
-              <div className="mb-3 flex flex-wrap items-center gap-2">
+              <div className="mb-3 flex flex-wrap gap-2">
 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                   {tool.category}
@@ -732,18 +964,18 @@ export default async function ToolPage({
 
               </div>
 
-              <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
+              <h1 className="break-words text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
                 {tool.name}
               </h1>
 
               <div className="mt-5">
 
                 <div className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                  AI VAULT SCORE
+                  AI Vault Score
                 </div>
 
-                <div className="text-2xl font-black text-slate-950">
-                  {tool.score}
+                <div className="mt-1 text-3xl font-black text-slate-950">
+                  {score}
                   <span className="text-sm font-medium text-slate-400">
                     /100
                   </span>
@@ -767,19 +999,16 @@ export default async function ToolPage({
             Overview
           </h2>
 
-          <p className="mt-5 text-sm leading-7 text-slate-600">
+          <p className="mt-5 max-w-5xl text-sm leading-7 text-slate-600">
             {tool.description}
           </p>
 
-          <p className="mt-4 text-sm leading-7 text-slate-600">
-            {tool.name} is listed in the{" "}
-            <strong className="font-semibold text-slate-900">
-              {tool.category}
-            </strong>{" "}
-            category on AI Vault. Explore its capabilities,
-            pricing model, use cases, limitations, and
-            specifications to determine whether it fits your
-            workflow and requirements.
+          <p className="mt-4 max-w-5xl text-sm leading-7 text-slate-600">
+            AI Vault helps users discover, compare, and
+            evaluate AI software before choosing a platform
+            for their workflow. Explore the capabilities,
+            pricing model, use cases, limitations, and related
+            tools below.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-2">
@@ -810,14 +1039,14 @@ export default async function ToolPage({
             Who Should Use {tool.name}?
           </h2>
 
-          <p className="mt-4 text-sm leading-7 text-slate-600">
-            {tool.name} is designed for users, creators,
-            professionals, developers, and teams looking for
-            efficient solutions related to{" "}
+          <p className="mt-4 max-w-4xl text-sm leading-7 text-slate-600">
+            {tool.name} may be suitable for developers,
+            creators, professionals, teams, and businesses
+            looking for efficient{" "}
             <strong className="text-slate-900">
               {tool.category.toLowerCase()}
-            </strong>
-            .
+            </strong>{" "}
+            solutions.
           </p>
 
         </section>
@@ -832,14 +1061,18 @@ export default async function ToolPage({
             Pricing
           </h2>
 
-          <p className="mt-4 text-sm leading-7 text-slate-600">
-            {tool.name} operates under a{" "}
-            <strong className="font-semibold text-slate-900">
+          <div className="mt-5 flex flex-wrap items-center gap-4">
+
+            <span className="rounded-full bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700">
               {tool.pricing}
-            </strong>{" "}
-            pricing model. Check the official portal for
-            current plans, pricing, limits, and availability.
-          </p>
+            </span>
+
+            <p className="text-sm leading-6 text-slate-600">
+              Pricing and plan availability can change.
+              Check the official portal for current information.
+            </p>
+
+          </div>
 
         </section>
 
@@ -847,67 +1080,70 @@ export default async function ToolPage({
             FEATURES + LIMITATIONS
         ================================================= */}
 
-        <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <section className="mt-6 grid gap-6 md:grid-cols-2">
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
             <h2 className="text-xl font-bold">
               Key Features
             </h2>
 
-            <div className="mt-5 space-y-5">
+            <div className="mt-6 space-y-6">
 
               {features.map(
-                (feature, index) => (
-                  <div key={index}>
-                    <p className="text-sm leading-6 text-slate-600">
-                      <strong className="font-bold text-slate-900">
-                        {feature.split(".")[0]}.
-                      </strong>{" "}
-                      {feature
-                        .split(".")
-                        .slice(1)
-                        .join(".")
-                        .trim()}
+                (feature) => (
+                  <div
+                    key={
+                      feature.title
+                    }
+                  >
+
+                    <h3 className="text-sm font-bold text-slate-900">
+                      {feature.title}
+                    </h3>
+
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      {feature.text}
                     </p>
+
                   </div>
                 )
               )}
 
             </div>
 
-          </section>
+          </div>
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
 
             <h2 className="text-xl font-bold">
               Limitations
             </h2>
 
-            <div className="mt-5 space-y-5">
+            <div className="mt-6 space-y-5">
 
               {limitations.map(
-                (limitation, index) => (
-                  <div key={index}>
+                (item) => (
+                  <div
+                    key={item}
+                    className="flex gap-3"
+                  >
+
+                    <span className="mt-1 flex h-2 w-2 shrink-0 rounded-full bg-slate-400" />
+
                     <p className="text-sm leading-6 text-slate-600">
-                      <strong className="font-bold text-slate-900">
-                        {limitation.split(".")[0]}.
-                      </strong>{" "}
-                      {limitation
-                        .split(".")
-                        .slice(1)
-                        .join(".")
-                        .trim()}
+                      {item}
                     </p>
+
                   </div>
                 )
               )}
 
             </div>
 
-          </section>
+          </div>
 
-        </div>
+        </section>
 
         {/* =================================================
             USE CASES
@@ -919,7 +1155,7 @@ export default async function ToolPage({
             Use Cases
           </h2>
 
-          <div className="mt-5 flex flex-wrap gap-3">
+          <div className="mt-5 flex flex-wrap gap-2">
 
             {useCases.map(
               (useCase) => (
@@ -946,26 +1182,146 @@ export default async function ToolPage({
             How To Get Started
           </h2>
 
-          <ol className="mt-5 space-y-4">
+          <ol className="mt-6 space-y-4">
 
-            {steps.map(
-              (step, index) => (
-                <li
-                  key={index}
-                  className="flex gap-3 text-sm leading-6 text-slate-600"
-                >
-                  <span className="font-semibold text-slate-900">
-                    {index + 1}.
-                  </span>
+            <li className="flex gap-4 text-sm text-slate-600">
+              <span className="font-bold text-slate-900">
+                1.
+              </span>
 
-                  <span>
-                    {step}
-                  </span>
-                </li>
-              )
-            )}
+              <span>
+                Visit the official platform portal for{" "}
+                <strong className="text-slate-900">
+                  {tool.name}
+                </strong>
+                .
+              </span>
+            </li>
+
+            <li className="flex gap-4 text-sm text-slate-600">
+              <span className="font-bold text-slate-900">
+                2.
+              </span>
+
+              <span>
+                Create or authenticate your account if required.
+              </span>
+            </li>
+
+            <li className="flex gap-4 text-sm text-slate-600">
+              <span className="font-bold text-slate-900">
+                3.
+              </span>
+
+              <span>
+                Explore the available features and plans.
+              </span>
+            </li>
+
+            <li className="flex gap-4 text-sm text-slate-600">
+              <span className="font-bold text-slate-900">
+                4.
+              </span>
+
+              <span>
+                Start your workflow and evaluate the results.
+              </span>
+            </li>
 
           </ol>
+
+        </section>
+
+        {/* =================================================
+            ALTERNATIVES / RELATED TOOLS
+        ================================================= */}
+
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+
+          <div>
+
+            <h2 className="text-xl font-bold">
+              {tool.name} Alternatives
+            </h2>
+
+            <p className="mt-2 text-sm text-slate-500">
+              Explore similar {tool.category.toLowerCase()} AI tools.
+            </p>
+
+          </div>
+
+          {relatedTools.length > 0 ? (
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+
+              {relatedTools
+                .slice(0, 8)
+                .map((item) => {
+
+                  const itemName =
+                    clean(item.name) ||
+                    "AI Tool";
+
+                  const itemSlug =
+                    slugify(item.slug) ||
+                    slugify(itemName);
+
+                  return (
+                    <Link
+                      key={
+                        String(
+                          item.id ??
+                          itemSlug
+                        )
+                      }
+                      href={
+                        `/tool/${itemSlug}`
+                      }
+                      className="group rounded-2xl border border-slate-200 p-4 transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-md"
+                    >
+
+                      <div className="flex items-center gap-3">
+
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-violet-600 text-sm font-black text-white">
+                          {getInitials(
+                            itemName
+                          )}
+                        </div>
+
+                        <div className="min-w-0">
+
+                          <h3 className="truncate text-sm font-bold text-slate-900">
+                            {itemName}
+                          </h3>
+
+                          <p className="truncate text-xs text-slate-500">
+                            {clean(
+                              item.category
+                            ) ||
+                              tool.category}
+                          </p>
+
+                        </div>
+
+                      </div>
+
+                      <div className="mt-4 text-xs font-semibold text-blue-600">
+                        Explore →
+                      </div>
+
+                    </Link>
+                  );
+                })}
+
+            </div>
+
+          ) : (
+
+            <div className="mt-6 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">
+              More alternatives are being added to AI Vault.
+            </div>
+
+          )}
 
         </section>
 
@@ -979,13 +1335,15 @@ export default async function ToolPage({
             Frequently Asked Questions
           </h2>
 
-          <div className="mt-5 divide-y divide-slate-200">
+          <div className="mt-6 divide-y divide-slate-100">
 
             {faqs.map(
               (faq) => (
                 <div
-                  key={faq.question}
-                  className="py-5"
+                  key={
+                    faq.question
+                  }
+                  className="py-5 first:pt-0 last:pb-0"
                 >
 
                   <h3 className="text-sm font-bold text-slate-900">
@@ -1005,7 +1363,7 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
-            SPECIFICATIONS
+            TOOL SPECIFICATIONS
         ================================================= */}
 
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -1014,7 +1372,7 @@ export default async function ToolPage({
             Tool Specifications
           </h2>
 
-          <div className="mt-5 divide-y divide-slate-200">
+          <div className="mt-6 divide-y divide-slate-100">
 
             <div className="flex items-center justify-between gap-6 py-4 text-sm">
               <span className="text-slate-500">
@@ -1066,107 +1424,55 @@ export default async function ToolPage({
               </strong>
             </div>
 
-            <div className="flex items-center justify-between gap-6 py-4 text-sm">
-              <span className="text-slate-500">
-                Integrations
-              </span>
-
-              <div className="flex flex-wrap justify-end gap-2">
-
-                <span className="rounded-md bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-600">
-                  Web APIs
-                </span>
-
-                <span className="rounded-md bg-slate-100 px-3 py-1 text-[10px] font-semibold text-slate-600">
-                  Cloud Services
-                </span>
-
-              </div>
-
-            </div>
-
           </div>
 
-          {/* =================================================
-              CTA
-          ================================================= */}
+        </section>
+
+        {/* =================================================
+            OFFICIAL CTA
+        ================================================= */}
+
+        <section className="mt-6">
 
           {tool.websiteUrl ? (
+
             <a
-              href={tool.websiteUrl}
+              href={
+                tool.websiteUrl
+              }
               target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-4 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-blue-600"
+              rel="noopener noreferrer nofollow"
+              className="flex w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-sm font-bold uppercase tracking-wide text-white transition hover:bg-blue-600"
             >
               Visit Official Portal ↗
             </a>
+
           ) : (
+
             <Link
               href="/"
-              className="mt-6 flex w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-4 text-xs font-bold uppercase tracking-wide text-white"
+              className="flex w-full items-center justify-center rounded-2xl bg-slate-950 px-6 py-4 text-sm font-bold uppercase tracking-wide text-white"
             >
-              Explore AI Vault
+              Explore More AI Tools
             </Link>
+
           )}
 
         </section>
 
         {/* =================================================
-            FOOTER
+            DISCLAIMER
         ================================================= */}
 
-        <footer className="py-12 text-center">
-
-          <Link
-            href="/"
-            className="text-lg font-black text-slate-950"
-          >
-            AI Vault
-          </Link>
-
-          <p className="mt-2 text-xs text-slate-500">
-            Discover, compare, and explore AI software.
-          </p>
-
-          <div className="mt-5 flex flex-wrap justify-center gap-5 text-xs text-slate-500">
-
-            <Link
-              href="/privacy"
-              className="hover:text-blue-600"
-            >
-              Privacy
-            </Link>
-
-            <Link
-              href="/terms"
-              className="hover:text-blue-600"
-            >
-              Terms
-            </Link>
-
-            <Link
-              href="/about"
-              className="hover:text-blue-600"
-            >
-              About
-            </Link>
-
-            <Link
-              href="/contact"
-              className="hover:text-blue-600"
-            >
-              Contact
-            </Link>
-
-          </div>
-
-          <p className="mt-5 text-xs text-slate-400">
-            © {new Date().getFullYear()} AI Vault. All rights reserved.
-          </p>
-
-        </footer>
+        <p className="mt-6 text-center text-xs leading-5 text-slate-400">
+          AI Vault is an independent AI software directory.
+          Product information, pricing, features, and
+          availability may change. Always verify current
+          information on the official provider website.
+        </p>
 
       </div>
+
     </main>
   );
 }

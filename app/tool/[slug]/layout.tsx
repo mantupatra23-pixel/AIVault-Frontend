@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SITE_URL = "https://aivault.pp.ua";
@@ -11,18 +12,12 @@ type ToolRecord = {
   description?: string | null;
   category?: string | null;
   pricing?: string | null;
-};
-
-type ToolLayoutProps = {
-  children: React.ReactNode;
-  params: Promise<{
-    slug: string;
-  }>;
+  website_url?: string | null;
 };
 
 /* =========================================================
    SUPABASE
-========================================================= */
+   ========================================================= */
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -37,7 +32,7 @@ function getSupabase() {
 
 /* =========================================================
    TEXT HELPERS
-========================================================= */
+   ========================================================= */
 
 function clean(value: unknown): string {
   return String(value ?? "")
@@ -57,19 +52,39 @@ function makeDescription(value: unknown): string {
   const text = clean(value);
 
   if (!text) {
-    return "Explore this AI tool on AI Vault, including features, pricing, use cases, specifications, reviews, and alternatives.";
+    return "Discover this AI tool on AI Vault. Explore features, pricing, use cases, alternatives, and more.";
   }
 
-  if (text.length <= 155) {
+  if (text.length <= 160) {
     return text;
   }
 
-  return `${text.slice(0, 152).trim()}...`;
+  return `${text.slice(0, 157).trim()}...`;
+}
+
+function getToolName(
+  tool: ToolRecord | null,
+  requestedSlug: string
+): string {
+  return (
+    clean(tool?.name) ||
+    clean(requestedSlug) ||
+    "AI Tool"
+  );
+}
+
+function getCategory(
+  tool: ToolRecord | null
+): string {
+  return (
+    clean(tool?.category) ||
+    "AI Software"
+  );
 }
 
 /* =========================================================
    TOOL LOOKUP
-========================================================= */
+   ========================================================= */
 
 async function getTool(
   slug: string
@@ -87,12 +102,13 @@ async function getTool(
   }
 
   /*
-   * First try exact slug.
+   * First: exact slug match
    */
+
   const exactResult = await supabase
     .from("ai_tools")
     .select(
-      "id,name,slug,description,category,pricing"
+      "id,name,slug,description,category,pricing,website_url"
     )
     .eq("slug", normalizedSlug)
     .maybeSingle();
@@ -102,12 +118,13 @@ async function getTool(
   }
 
   /*
-   * Fallback for older/inconsistent slug records.
+   * Second: case-insensitive fallback
    */
+
   const fallbackResult = await supabase
     .from("ai_tools")
     .select(
-      "id,name,slug,description,category,pricing"
+      "id,name,slug,description,category,pricing,website_url"
     )
     .ilike("slug", normalizedSlug)
     .limit(1)
@@ -117,12 +134,16 @@ async function getTool(
     return fallbackResult.data as ToolRecord;
   }
 
+  /*
+   * No tool found
+   */
+
   return null;
 }
 
 /* =========================================================
    CANONICAL SLUG
-========================================================= */
+   ========================================================= */
 
 function getCanonicalSlug(
   tool: ToolRecord | null,
@@ -144,8 +165,8 @@ function getCanonicalSlug(
 }
 
 /* =========================================================
-   DYNAMIC SEO METADATA
-========================================================= */
+   DYNAMIC METADATA
+   ========================================================= */
 
 export async function generateMetadata({
   params,
@@ -158,14 +179,8 @@ export async function generateMetadata({
 
   const tool = await getTool(slug);
 
-  const name =
-    clean(tool?.name) ||
-    clean(slug) ||
-    "AI Tool";
-
-  const category =
-    clean(tool?.category) ||
-    "AI Software";
+  const name = getToolName(tool, slug);
+  const category = getCategory(tool);
 
   const description = makeDescription(
     tool?.description
@@ -185,44 +200,47 @@ export async function generateMetadata({
       ? `${name} — ${category} AI Tool`
       : `${name} — AI Tool`;
 
+  const keywords = [
+    name,
+    `${name} AI`,
+    `${name} tool`,
+    `${name} review`,
+    `${name} pricing`,
+    `${name} alternatives`,
+    `${name} features`,
+    `best ${name} alternatives`,
+    category,
+    "AI tools",
+    "AI software",
+    "AI tools directory",
+    "AI Vault",
+  ].filter(Boolean);
+
   return {
-    /*
-     * Page title
-     */
+    metadataBase: new URL(SITE_URL),
+
     title,
 
-    /*
-     * Meta description
-     */
     description,
 
-    /*
-     * Search keywords
-     */
-    keywords: [
-      name,
-      `${name} AI`,
-      `${name} tool`,
-      `${name} review`,
-      `${name} pricing`,
-      `${name} alternatives`,
-      category,
-      "AI tools",
-      "AI software",
-      "AI tools directory",
-      "AI Vault",
+    keywords,
+
+    applicationName: SITE_NAME,
+
+    authors: [
+      {
+        name: SITE_NAME,
+      },
     ],
 
-    /*
-     * Canonical URL
-     */
+    creator: SITE_NAME,
+
+    publisher: SITE_NAME,
+
     alternates: {
       canonical: canonicalUrl,
     },
 
-    /*
-     * Robots
-     */
     robots: {
       index: true,
       follow: true,
@@ -230,15 +248,13 @@ export async function generateMetadata({
       googleBot: {
         index: true,
         follow: true,
+
         "max-image-preview": "large",
         "max-snippet": -1,
         "max-video-preview": -1,
       },
     },
 
-    /*
-     * Open Graph
-     */
     openGraph: {
       type: "website",
 
@@ -257,14 +273,11 @@ export async function generateMetadata({
           url: `${SITE_URL}/og-image.png`,
           width: 1200,
           height: 630,
-          alt: `${name} — AI Tool`,
+          alt: `${name} - AI Vault`,
         },
       ],
     },
 
-    /*
-     * Twitter / X
-     */
     twitter: {
       card: "summary_large_image",
 
@@ -276,19 +289,14 @@ export async function generateMetadata({
         `${SITE_URL}/og-image.png`,
       ],
     },
-
-    /*
-     * Browser metadata
-     */
-    category: "technology",
   };
 }
 
 /* =========================================================
-   TOOL PAGE JSON-LD
-========================================================= */
+   SOFTWARE APPLICATION SCHEMA
+   ========================================================= */
 
-function createToolSchema({
+function createSoftwareSchema({
   tool,
   name,
   category,
@@ -316,66 +324,166 @@ function createToolSchema({
 
     operatingSystem: "Web",
 
-    isAccessibleForFree:
-      clean(tool?.pricing).toLowerCase() ===
-      "free",
+    isPartOf: {
+      "@type": "WebSite",
 
-    publisher: {
-      "@type": "Organization",
       name: SITE_NAME,
+
       url: SITE_URL,
     },
 
-    isPartOf: {
-      "@type": "WebSite",
+    publisher: {
+      "@type": "Organization",
+
       name: SITE_NAME,
+
       url: SITE_URL,
     },
   };
 
   /*
-   * Add pricing only when available.
+   * Only add free-access information when
+   * database explicitly says "free".
    */
-  const pricing = clean(tool?.pricing);
 
-  if (pricing) {
-    schema.offers = {
-      "@type": "Offer",
+  const pricing = clean(tool?.pricing).toLowerCase();
 
-      url: canonicalUrl,
-
-      priceCurrency: "USD",
-
-      availability:
-        "https://schema.org/InStock",
-
-      description: `${name} pricing: ${pricing}`,
-    };
+  if (pricing === "free") {
+    schema.isAccessibleForFree = true;
   }
 
   return schema;
 }
 
 /* =========================================================
+   BREADCRUMB SCHEMA
+   ========================================================= */
+
+function createBreadcrumbSchema({
+  name,
+  category,
+  canonicalUrl,
+}: {
+  name: string;
+  category: string;
+  canonicalUrl: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+
+    "@type": "BreadcrumbList",
+
+    itemListElement: [
+      {
+        "@type": "ListItem",
+
+        position: 1,
+
+        name: SITE_NAME,
+
+        item: SITE_URL,
+      },
+
+      {
+        "@type": "ListItem",
+
+        position: 2,
+
+        name: "AI Tools",
+
+        item: SITE_URL,
+      },
+
+      {
+        "@type": "ListItem",
+
+        position: 3,
+
+        name: category,
+
+        item:
+          `${SITE_URL}/category/${slugify(category)}`,
+      },
+
+      {
+        "@type": "ListItem",
+
+        position: 4,
+
+        name,
+
+        item: canonicalUrl,
+      },
+    ],
+  };
+}
+
+/* =========================================================
+   FAQ / WEBPAGE SCHEMA
+   ========================================================= */
+
+function createWebPageSchema({
+  name,
+  description,
+  canonicalUrl,
+}: {
+  name: string;
+  description: string;
+  canonicalUrl: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+
+    "@type": "WebPage",
+
+    name,
+
+    description,
+
+    url: canonicalUrl,
+
+    isPartOf: {
+      "@type": "WebSite",
+
+      name: SITE_NAME,
+
+      url: SITE_URL,
+    },
+
+    publisher: {
+      "@type": "Organization",
+
+      name: SITE_NAME,
+
+      url: SITE_URL,
+    },
+  };
+}
+
+/* =========================================================
    LAYOUT
-========================================================= */
+   ========================================================= */
 
 export default async function ToolLayout({
   children,
   params,
-}: ToolLayoutProps) {
+}: {
+  children: ReactNode;
+
+  params: Promise<{
+    slug: string;
+  }>;
+}) {
   const { slug } = await params;
 
   const tool = await getTool(slug);
 
-  const name =
-    clean(tool?.name) ||
-    clean(slug) ||
-    "AI Tool";
+  const name = getToolName(
+    tool,
+    slug
+  );
 
-  const category =
-    clean(tool?.category) ||
-    "AI Software";
+  const category = getCategory(tool);
 
   const description = makeDescription(
     tool?.description
@@ -389,7 +497,11 @@ export default async function ToolLayout({
   const canonicalUrl =
     `${SITE_URL}/tool/${canonicalSlug}`;
 
-  const schema = createToolSchema({
+  /* =======================================================
+     STRUCTURED DATA
+     ======================================================= */
+
+  const softwareSchema = createSoftwareSchema({
     tool,
     name,
     category,
@@ -397,16 +509,58 @@ export default async function ToolLayout({
     canonicalUrl,
   });
 
+  const breadcrumbSchema =
+    createBreadcrumbSchema({
+      name,
+      category,
+      canonicalUrl,
+    });
+
+  const webPageSchema =
+    createWebPageSchema({
+      name,
+      description,
+      canonicalUrl,
+    });
+
   return (
     <>
-      {/* =================================================
-          STRUCTURED DATA
-      ================================================= */}
+      {/* ===================================================
+          SOFTWARE APPLICATION JSON-LD
+          =================================================== */}
 
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(schema),
+          __html: JSON.stringify(
+            softwareSchema
+          ),
+        }}
+      />
+
+      {/* ===================================================
+          BREADCRUMB JSON-LD
+          =================================================== */}
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            breadcrumbSchema
+          ),
+        }}
+      />
+
+      {/* ===================================================
+          WEBPAGE JSON-LD
+          =================================================== */}
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(
+            webPageSchema
+          ),
         }}
       />
 
