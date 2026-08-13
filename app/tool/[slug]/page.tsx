@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 
 import { getDirectSupabaseClient } from "@/lib/supabase-server";
-import ToolLogo from "@/components/ToolLogo";
+import { ToolLogo } from "@/components/ToolLogo";
 import AdSlot from "@/components/AdSlot";
 
 import { SITE_URL } from "@/lib/site-url";
