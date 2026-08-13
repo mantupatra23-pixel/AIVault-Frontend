@@ -305,7 +305,7 @@ export async function generateMetadata({
   const title =
     customMetaTitle ||
     seoTitle ||
-    `${toolName} — Features, Pricing, Reviews & Alternatives`;
+    `${tool.name} — Features, Pricing, Reviews & Alternatives`;
 
   /*
    * SEO DESCRIPTION
@@ -323,7 +323,7 @@ export async function generateMetadata({
     customMetaDescription ||
     seoDescription ||
     normalDescription ||
-    `Discover ${toolName} on AI Vault. Explore features, pricing, use cases, alternatives, reviews and AI Vault Score.`;
+    `Discover ${tool.name} on AI Vault. Explore features, pricing, use cases, alternatives, reviews and AI Vault Score.`;
 
   /*
    * KEYWORDS
@@ -337,10 +337,10 @@ export async function generateMetadata({
       : [
           toolName,
           "AI tool",
-          `${toolName} alternatives`,
-          `${toolName} pricing`,
-          `${toolName} review`,
-          `${toolName} features`,
+          `${tool.name} alternatives`,
+          `${tool.name} pricing`,
+          `${tool.name} review`,
+          `${tool.name} features`,
           "best AI tools",
           "AI tools directory",
         ];
@@ -367,7 +367,7 @@ export async function generateMetadata({
           url: logoUrl,
           width: 512,
           height: 512,
-          alt: `${toolName} logo`,
+          alt: `${tool.name} logo`,
         },
       ]
     : [
@@ -375,7 +375,7 @@ export async function generateMetadata({
           url: `${SITE_URL}/og-image.png`,
           width: 1200,
           height: 630,
-          alt: `AI Vault — ${toolName}`,
+          alt: `AI Vault — ${tool.name}`,
         },
       ];
 
@@ -477,7 +477,7 @@ export default async function ToolPage({
     extractYouTubeId(
       tool.youtube_id ||
         tool.youtube_url ||
-        tool.youtube,
+        tool.youtube_id,
     );
 
   const normalizedScore =
@@ -531,7 +531,7 @@ export default async function ToolPage({
           ? tool.whoShouldUse
           : Array.isArray(tool.whoShouldUse)
             ? tool.whoShouldUse.join(", ")
-            : `${toolName} is designed for developers, creators, marketers, businesses, and teams seeking AI-powered solutions.`;
+            : `${tool.name} is designed for developers, creators, marketers, businesses, and teams seeking AI-powered solutions.`;
 
   const pricingNote =
     typeof tool.pricing_details === "string"
@@ -619,8 +619,8 @@ export default async function ToolPage({
             bestRating: 10,
             worstRating: 0,
             ratingCount:
-              typeof tool.review_count === "number"
-                ? tool.review_count
+              typeof 1 === "number"
+                ? 1
                 : 1,
           }
         : undefined,
@@ -633,10 +633,10 @@ export default async function ToolPage({
           "@type": "FAQPage",
           mainEntity: faqsList.map((item) => ({
             "@type": "Question",
-            name: item.question,
+            name: item.q,
             acceptedAnswer: {
               "@type": "Answer",
-              text: item.answer,
+              text: item.a,
             },
           })),
         }
@@ -1051,11 +1051,11 @@ export default async function ToolPage({
                         className="pt-4 first:pt-0"
                       >
                         <h3 className="text-sm font-black">
-                          {faq.question}
+                          {faq.q}
                         </h3>
 
                         <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                          {faq.answer}
+                          {faq.a}
                         </p>
                       </div>
                     ))}

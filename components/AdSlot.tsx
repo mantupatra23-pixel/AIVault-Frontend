@@ -42,3 +42,5 @@ export function AdSlot({ slotId = "default-slot", format = "auto", className = "
     </div>
   );
 }
+
+export default AdSlot;
