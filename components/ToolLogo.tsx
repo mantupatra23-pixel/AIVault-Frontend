@@ -1,254 +1,103 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useState } from "react";
 
-type ToolData = {
-  id?: string | number | null;
-  name?: string | null;
-  slug?: string | null;
+type ToolLogoProps = {
+  tool?: {
+    name?: string | null;
+    logo_url?: string | null;
+    logoUrl?: string | null;
+    website_url?: string | null;
+    websiteUrl?: string | null;
+  } | null;
 
-  logo_url?: string | null;
-  logo?: string | null;
-  image_url?: string | null;
-  icon_url?: string | null;
-  websiteUrl?: string | null;
-  website_url?: string | null;
-
-  [key: string]: unknown;
-};
-
-export type ToolLogoProps = {
-  /*
-   * Modern direct props
-   */
   src?: string | null;
   fallbackSrc?: string | null;
+
   name?: string | null;
 
-  /*
-   * Backward compatibility
-   *
-   * Existing code can continue using:
-   *
-   * <ToolLogo tool={tool} />
-   */
-  tool?: ToolData | null;
-
-  /*
-   * Some existing pages may already pass this.
-   * It is intentionally accepted so TypeScript does not
-   * break existing pages.
-   */
-  websiteUrl?: string | null;
-
-  /*
-   * Supported sizes
-   */
   size?: "sm" | "md" | "lg" | "xl";
 
-  /*
-   * Optional custom classes
-   */
   className?: string;
 };
 
-const SIZE_CLASSES: Record<
-  NonNullable<ToolLogoProps["size"]>,
-  string
-> = {
-  sm: "h-10 w-10 rounded-xl text-xs",
-  md: "h-16 w-16 rounded-2xl text-lg",
-  lg: "h-20 w-20 rounded-2xl text-2xl",
-  xl: "h-24 w-24 rounded-3xl text-3xl",
+const sizeClasses = {
+  sm: "h-10 w-10 text-sm rounded-xl",
+  md: "h-14 w-14 text-base rounded-2xl",
+  lg: "h-20 w-20 text-xl rounded-2xl",
+  xl: "h-24 w-24 text-2xl rounded-2xl",
 };
 
-function getString(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
+function initialsFromName(name: string): string {
+  const clean = name
+    .replace(/^\/+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const cleaned = value.trim();
+  if (!clean) return "AI";
 
-  return cleaned.length > 0 ? cleaned : null;
-}
-
-function getInitials(name: string): string {
-  const cleaned = name.trim();
-
-  if (!cleaned) {
-    return "AI";
-  }
-
-  const words = cleaned
-    .split(/\s+/)
-    .map((word) => word.trim())
-    .filter(Boolean);
-
-  if (words.length === 0) {
-    return "AI";
-  }
-
-  if (words.length === 1) {
-    return words[0].charAt(0).toUpperCase();
-  }
-
-  return words
+  return clean
+    .split(" ")
     .slice(0, 2)
     .map((word) => word.charAt(0).toUpperCase())
-    .join("")
-    .toUpperCase();
+    .join("");
 }
 
-export function ToolLogo({
+export const ToolLogo: React.FC<ToolLogoProps> = ({
+  tool,
   src,
   fallbackSrc,
   name,
-  tool,
-  websiteUrl: _websiteUrl,
   size = "md",
   className = "",
-}: ToolLogoProps) {
-  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+}) => {
+  const [failed, setFailed] = useState(false);
 
-  /*
-   * Resolve the tool name from all supported formats.
-   */
-  const resolvedName = useMemo(() => {
-    return (
-      getString(name) ||
-      getString(tool?.name) ||
-      "AI Tool"
-    );
-  }, [name, tool?.name]);
+  const toolName =
+    name ||
+    tool?.name ||
+    "AI Tool";
 
-  /*
-   * Resolve logo URL.
-   *
-   * Priority:
-   *
-   * 1. src
-   * 2. fallbackSrc
-   * 3. tool.logo_url
-   * 4. tool.logo
-   * 5. tool.image_url
-   * 6. tool.icon_url
-   */
-  const resolvedLogo = useMemo(() => {
-    const candidates = [
-      src,
-      fallbackSrc,
-      tool?.logo_url,
-      tool?.logo,
-      tool?.image_url,
-      tool?.icon_url,
-    ];
+  const logo =
+    src ||
+    tool?.logo_url ||
+    tool?.logoUrl ||
+    fallbackSrc ||
+    null;
 
-    for (const candidate of candidates) {
-      const value = getString(candidate);
+  const classes =
+    `${sizeClasses[size]} flex shrink-0 items-center justify-center overflow-hidden border border-slate-100 bg-white shadow-sm ${className}`;
 
-      if (value) {
-        return value;
-      }
-    }
+  const initials = initialsFromName(toolName);
 
-    return null;
-  }, [
-    src,
-    fallbackSrc,
-    tool?.logo_url,
-    tool?.logo,
-    tool?.image_url,
-    tool?.icon_url,
-  ]);
-
-  /*
-   * Reset image failure when the URL changes.
-   */
-  useEffect(() => {
-    setFailedUrl(null);
-  }, [resolvedLogo]);
-
-  const initials = useMemo(
-    () => getInitials(resolvedName),
-    [resolvedName]
-  );
-
-  const sizeClass =
-    SIZE_CLASSES[size] || SIZE_CLASSES.md;
-
-  const shouldShowFallback =
-    !resolvedLogo ||
-    failedUrl === resolvedLogo;
-
-  /*
-   * Beautiful fallback logo.
-   *
-   * This is intentionally kept because some tools in the
-   * database may not have a valid logo URL.
-   */
-  if (shouldShowFallback) {
+  if (!logo || failed) {
     return (
       <div
-        className={[
-          sizeClass,
-          "flex shrink-0 items-center justify-center",
-          "bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600",
-          "font-bold text-white shadow-sm",
-          "select-none",
-          className,
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        aria-label={`${resolvedName} logo`}
-        title={resolvedName}
+        className={`${classes} bg-gradient-to-br from-blue-600 to-indigo-600 font-bold text-white`}
+        aria-label={`${toolName} logo`}
+        role="img"
       >
-        <span>{initials}</span>
+        {initials}
       </div>
     );
   }
 
   return (
     <div
-      className={[
-        sizeClass,
-        "flex shrink-0 items-center justify-center",
-        "overflow-hidden",
-        "border border-slate-100",
-        "bg-white",
-        "shadow-sm",
-        className,
-      ]
-        .filter(Boolean)
-        .join(" ")}
-      aria-label={`${resolvedName} logo`}
-      title={resolvedName}
+      className={classes}
+      aria-label={`${toolName} logo`}
     >
       <img
-        src={resolvedLogo}
-        alt={`${resolvedName} logo`}
+        src={logo}
+        alt={`${toolName} logo`}
         className="h-full w-full object-contain p-2"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
-        onError={() => {
-          setFailedUrl(resolvedLogo);
-        }}
+        onError={() => setFailed(true)}
       />
     </div>
   );
-}
+};
 
-/*
- * IMPORTANT:
- *
- * Named export:
- *
- * import { ToolLogo } from "@/components/ToolLogo";
- *
- * Default export:
- *
- * import ToolLogo from "@/components/ToolLogo";
- *
- * BOTH are supported.
- */
 export default ToolLogo;

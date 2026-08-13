@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/seo";
+
+const SITE_URL = "https://aivault.pp.ua";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,13 +9,9 @@ export default function robots(): MetadataRoute.Robots {
         userAgent: "*",
         allow: "/",
         disallow: [
-          "/admin/",
           "/api/",
-          "/dashboard/",
-          "/login",
-          "/signup",
-          "/auth/",
-          "/search?*",
+          "/admin/",
+          "/private/",
         ],
       },
     ],
