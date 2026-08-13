@@ -1,15 +1,26 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
+
 import { SITE_URL } from "@/lib/site-url";
+
+const SITE_NAME = "AI Vault";
+
+const DEFAULT_DESCRIPTION =
+  "Discover, compare and explore 740+ AI tools, software, developer utilities, productivity apps, creative tools and SaaS platforms.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+
   title: {
-    default: "AI Vault — Discover the Best AI Tools & Software",
+    default: "AI Vault — Discover the Best AI Tools",
     template: "%s | AI Vault",
   },
-  description:
-    "Discover, compare and explore 740+ AI tools across Chatbots, Image Generation, Video, Coding, Marketing and Productivity. Find the right AI software faster with AI Vault.",
+
+  description: DEFAULT_DESCRIPTION,
+
+  applicationName: SITE_NAME,
+
   keywords: [
     "AI tools",
     "best AI tools",
@@ -23,37 +34,30 @@ export const metadata: Metadata = {
     "AI image generators",
     "AI video generators",
     "AI marketing tools",
+    "AI writing tools",
+    "AI automation tools",
+    "AI agents",
+    "AI SaaS",
   ],
+
+  authors: [
+    {
+      name: "AI Vault",
+      url: SITE_URL,
+    },
+  ],
+
+  creator: SITE_NAME,
+  publisher: SITE_NAME,
+
   alternates: {
     canonical: SITE_URL,
   },
-  openGraph: {
-    title: "AI Vault — Discover the Best AI Tools & Software",
-    description:
-      "Discover, compare and explore 740+ AI tools across Chatbots, Image Generation, Video, Coding, Marketing and Productivity.",
-    url: SITE_URL,
-    siteName: "AI Vault",
-    locale: "en_US",
-    type: "website",
-    images: [
-      {
-        url: `${SITE_URL}/og-image.png`,
-        width: 1200,
-        height: 630,
-        alt: "AI Vault Directory Logo and Hero Banner",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "AI Vault — Discover the Best AI Tools & Software",
-    description:
-      "Discover, compare and explore 740+ AI tools across Chatbots, Image Generation, Video, Coding, Marketing and Productivity.",
-    images: [`${SITE_URL}/og-image.png`],
-  },
+
   robots: {
     index: true,
     follow: true,
+
     googleBot: {
       index: true,
       follow: true,
@@ -62,15 +66,49 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
+
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: SITE_NAME,
+
+    url: SITE_URL,
+
+    title: "AI Vault — Discover the Best AI Tools",
+
+    description: DEFAULT_DESCRIPTION,
+
+    images: [
+      {
+        url: `${SITE_URL}/og-image.png`,
+        width: 1200,
+        height: 630,
+        alt: "AI Vault — Discover the Best AI Tools",
+      },
+    ],
   },
+
+  twitter: {
+    card: "summary_large_image",
+
+    title: "AI Vault — Discover the Best AI Tools",
+
+    description: DEFAULT_DESCRIPTION,
+
+    images: [`${SITE_URL}/og-image.png`],
+  },
+
+  verification: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+  },
+
+  category: "technology",
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="en">
