@@ -6,17 +6,17 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type PageProps = {
-  params: {
+  params: Promise<{
     slug: string;
-  };
-  searchParams?: {
+  }>;
+  searchParams?: Promise<{
     q?: string;
     pricing?: string;
-  };
+  }>;
 };
 
 type ToolRecord = {
-  id?: string | number;
+  id?: string | number | null;
   name?: string | null;
   slug?: string | null;
 
@@ -48,22 +48,23 @@ function getSupabase() {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    throw new Error("Supabase environment variables are missing.");
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    );
   }
 
   return createClient(url, key);
 }
 
-function normalizeText(value: unknown): string {
-  if (typeof value !== "string") return "";
-  return value.trim();
+function clean(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-function decodeSlug(slug: string): string {
+function decodeSlug(value: string): string {
   try {
-    return decodeURIComponent(slug);
+    return decodeURIComponent(value);
   } catch {
-    return slug;
+    return value;
   }
 }
 
@@ -76,38 +77,39 @@ function makeSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function getToolSlug(tool: ToolRecord): string {
-  const existingSlug = normalizeText(tool.slug);
-
-  if (existingSlug) {
-    return existingSlug;
-  }
-
-  return makeSlug(normalizeText(tool.name) || "tool");
+function titleFromSlug(slug: string): string {
+  return slug
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function getToolName(tool: ToolRecord): string {
-  return normalizeText(tool.name) || "AI Tool";
+function getName(tool: ToolRecord): string {
+  return clean(tool.name) || "AI Tool";
+}
+
+function getSlug(tool: ToolRecord): string {
+  const existing = clean(tool.slug);
+
+  if (existing) {
+    return existing;
+  }
+
+  return makeSlug(getName(tool));
 }
 
 function getDescription(tool: ToolRecord): string {
-  const description =
-    normalizeText(tool.description) ||
-    normalizeText(tool.short_description) ||
-    normalizeText(tool.overview);
-
-  if (!description) {
-    return "Explore this AI software platform and discover its features, pricing, and use cases.";
-  }
-
-  return description;
+  return (
+    clean(tool.description) ||
+    clean(tool.short_description) ||
+    clean(tool.overview) ||
+    "Explore this AI software platform, its features, pricing, use cases, and alternatives."
+  );
 }
 
 function getPricing(tool: ToolRecord): string {
-  const value =
-    normalizeText(tool.pricing_model) ||
-    normalizeText(tool.pricing) ||
-    "";
+  const value = clean(tool.pricing_model) || clean(tool.pricing);
 
   if (!value) {
     return "Unknown";
@@ -119,11 +121,19 @@ function getPricing(tool: ToolRecord): string {
     return "Freemium";
   }
 
-  if (lower.includes("free")) {
+  if (
+    lower === "free" ||
+    lower.includes("free to use") ||
+    lower.includes("free plan")
+  ) {
     return "Free";
   }
 
-  if (lower.includes("paid") || lower.includes("subscription")) {
+  if (
+    lower.includes("paid") ||
+    lower.includes("subscription") ||
+    lower.includes("pro plan")
+  ) {
     return "Paid";
   }
 
@@ -137,34 +147,60 @@ function getScore(tool: ToolRecord): number {
       ? tool.ai_vault_score
       : tool.score;
 
-  const parsed = Number(raw);
+  const number = Number(raw);
 
-  if (!Number.isFinite(parsed)) {
+  if (!Number.isFinite(number)) {
     return 90;
   }
 
-  return Math.max(0, Math.min(100, parsed));
+  return Math.max(0, Math.min(100, number));
 }
 
 function getLogoUrl(tool: ToolRecord): string | null {
   return (
-    normalizeText(tool.logo_url) ||
-    normalizeText(tool.logo) ||
-    normalizeText(tool.image_url) ||
+    clean(tool.logo_url) ||
+    clean(tool.logo) ||
+    clean(tool.image_url) ||
     null
   );
 }
 
 function getWebsiteUrl(tool: ToolRecord): string | null {
   return (
-    normalizeText(tool.website_url) ||
-    normalizeText(tool.official_url) ||
-    normalizeText(tool.url) ||
+    clean(tool.website_url) ||
+    clean(tool.official_url) ||
+    clean(tool.url) ||
     null
   );
 }
 
-function pricingMatches(tool: ToolRecord, selectedPricing: string): boolean {
+function categoryMatches(
+  toolCategory: string,
+  categorySlug: string,
+  categoryTitle: string
+): boolean {
+  const value = toolCategory
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ");
+
+  const slug = categorySlug
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ");
+
+  const title = categoryTitle
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ");
+
+  return value === slug || value === title;
+}
+
+function pricingMatches(
+  tool: ToolRecord,
+  selectedPricing: string
+): boolean {
   if (!selectedPricing || selectedPricing === "All Pricing") {
     return true;
   }
@@ -191,32 +227,40 @@ export default async function CategoryPage({
   params,
   searchParams,
 }: PageProps) {
-  const supabase = getSupabase();
+  /*
+   * NEXT.JS 16:
+   * params and searchParams are Promises.
+   */
+  const { slug } = await params;
 
-  const categorySlug = decodeSlug(params.slug);
-  const categoryName =
-    categorySlug
-      .replace(/-/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || "AI Tools";
+  const resolvedSearchParams = searchParams
+    ? await searchParams
+    : {};
 
-  const queryText = normalizeText(searchParams?.q);
+  const categorySlug = decodeSlug(slug);
+
+  const categoryName = titleFromSlug(categorySlug);
+
+  const queryText = clean(resolvedSearchParams.q);
+
   const selectedPricing =
-    normalizeText(searchParams?.pricing) || "All Pricing";
+    clean(resolvedSearchParams.pricing) || "All Pricing";
 
   let tools: ToolRecord[] = [];
   let databaseError: string | null = null;
 
   try {
+    const supabase = getSupabase();
+
     /*
-     * IMPORTANT:
-     * Do not select individual columns here.
-     * select("*") keeps compatibility with your current ai_tools table
-     * and preserves all existing fields.
+     * select("*") is intentional.
+     *
+     * It keeps all existing ai_tools fields available and avoids
+     * breaking the page when your table contains additional columns.
      */
     const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
-      .ilike("category", categoryName)
       .order("name", { ascending: true });
 
     if (error) {
@@ -228,33 +272,34 @@ export default async function CategoryPage({
     databaseError =
       error instanceof Error
         ? error.message
-        : "Unable to load AI tools.";
+        : "Unable to connect to the AI Vault database.";
   }
 
   /*
-   * If exact category matching returns nothing, try the original slug.
-   * This protects category pages where database capitalization differs.
+   * Filter category in JavaScript.
+   *
+   * This is more tolerant than exact SQL matching and supports:
+   * Productivity
+   * productivity
+   * PRODUCTIVITY
+   * productivity-
+   * etc.
    */
-  if (!databaseError && tools.length === 0) {
-    try {
-      const { data, error } = await supabase
-        .from("ai_tools")
-        .select("*")
-        .ilike("category", categorySlug)
-        .order("name", { ascending: true });
-
-      if (!error && data) {
-        tools = data as ToolRecord[];
-      }
-    } catch {
-      // Keep the first successful/empty result.
-    }
+  if (!databaseError) {
+    tools = tools.filter((tool) =>
+      categoryMatches(
+        clean(tool.category),
+        categorySlug,
+        categoryName
+      )
+    );
   }
 
+  /*
+   * Search + pricing filter
+   */
   const filteredTools = tools.filter((tool) => {
-    const matchesPricing = pricingMatches(tool, selectedPricing);
-
-    if (!matchesPricing) {
+    if (!pricingMatches(tool, selectedPricing)) {
       return false;
     }
 
@@ -265,9 +310,9 @@ export default async function CategoryPage({
     const search = queryText.toLowerCase();
 
     const searchableText = [
-      getToolName(tool),
+      getName(tool),
       getDescription(tool),
-      normalizeText(tool.category),
+      clean(tool.category),
       getPricing(tool),
     ]
       .join(" ")
@@ -280,16 +325,23 @@ export default async function CategoryPage({
 
   const pageTitle = `Best ${categoryName} AI Tools`;
 
-  const description = `Explore verified software platforms, pricing models, features, reviews, and alternatives in the ${categoryName} domain.`;
+  const pageDescription =
+    `Explore verified software platforms, pricing models, features, reviews, and alternatives in the ${categoryName} domain.`;
 
-  const buildUrl = (nextQuery: string, nextPricing: string) => {
+  function categoryUrl(
+    nextQuery = "",
+    nextPricing = "All Pricing"
+  ): string {
     const params = new URLSearchParams();
 
-    if (nextQuery) {
-      params.set("q", nextQuery);
+    if (nextQuery.trim()) {
+      params.set("q", nextQuery.trim());
     }
 
-    if (nextPricing && nextPricing !== "All Pricing") {
+    if (
+      nextPricing &&
+      nextPricing !== "All Pricing"
+    ) {
       params.set("pricing", nextPricing);
     }
 
@@ -298,11 +350,13 @@ export default async function CategoryPage({
     return `/category/${encodeURIComponent(categorySlug)}${
       query ? `?${query}` : ""
     }`;
-  };
+  }
 
   return (
     <main className="min-h-screen bg-white text-slate-950">
-      {/* Header */}
+      {/* =========================================================
+          HEADER
+      ========================================================= */}
       <header className="border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <Link
@@ -321,10 +375,16 @@ export default async function CategoryPage({
         </div>
       </header>
 
+      {/* =========================================================
+          CONTENT
+      ========================================================= */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <nav className="mb-6 flex items-center gap-2 text-xs text-slate-400">
-          <Link href="/" className="hover:text-slate-700">
+          <Link
+            href="/"
+            className="transition hover:text-slate-700"
+          >
             Home
           </Link>
 
@@ -335,23 +395,32 @@ export default async function CategoryPage({
           </span>
         </nav>
 
-        {/* Hero */}
+        {/* =======================================================
+            HERO
+        ======================================================= */}
         <section className="mb-8">
           <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             {pageTitle}
           </h1>
 
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-500 sm:text-base">
-            {description}
+            {pageDescription}
           </p>
 
-          <div className="mt-4 text-xs font-semibold text-blue-600">
-            Showing {filteredTools.length.toLocaleString()}{" "}
-            {filteredTools.length === 1 ? "Verified Tool" : "Verified Tools"}
-          </div>
+          {!databaseError && (
+            <p className="mt-4 text-xs font-semibold text-blue-600">
+              Showing{" "}
+              {filteredTools.length.toLocaleString()}{" "}
+              {filteredTools.length === 1
+                ? "Verified Tool"
+                : "Verified Tools"}
+            </p>
+          )}
         </section>
 
-        {/* Search / Filter */}
+        {/* =======================================================
+            SEARCH + PRICING FILTER
+        ======================================================= */}
         <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
           <form
             action={`/category/${encodeURIComponent(categorySlug)}`}
@@ -363,18 +432,29 @@ export default async function CategoryPage({
               name="q"
               defaultValue={queryText}
               placeholder={`Search ${categoryName} tools...`}
-              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
 
             <select
               name="pricing"
               defaultValue={selectedPricing}
-              className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
-              <option>All Pricing</option>
-              <option>Free</option>
-              <option>Freemium</option>
-              <option>Paid</option>
+              <option value="All Pricing">
+                All Pricing
+              </option>
+
+              <option value="Free">
+                Free
+              </option>
+
+              <option value="Freemium">
+                Freemium
+              </option>
+
+              <option value="Paid">
+                Paid
+              </option>
             </select>
 
             <button
@@ -386,27 +466,41 @@ export default async function CategoryPage({
           </form>
         </section>
 
-        {/* Database error */}
+        {/* =======================================================
+            DATABASE ERROR
+        ======================================================= */}
         {databaseError ? (
-          <section className="rounded-2xl border border-red-100 bg-red-50 p-8 text-center">
-            <h2 className="text-lg font-bold text-red-900">
+          <section className="rounded-2xl border border-red-100 bg-white p-10 text-center shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-xl">
+              !
+            </div>
+
+            <h2 className="mt-5 text-lg font-bold text-slate-900">
               Unable to load this category
             </h2>
 
-            <p className="mt-2 text-sm text-red-700">
-              The AI Vault database returned an error while loading this
-              category.
+            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
+              The AI Vault database returned an error while
+              loading this category.
             </p>
 
+            {process.env.NODE_ENV !== "production" && (
+              <p className="mx-auto mt-3 max-w-xl rounded-lg bg-red-50 p-3 text-left text-xs text-red-700">
+                {databaseError}
+              </p>
+            )}
+
             <Link
-              href={`/category/${encodeURIComponent(categorySlug)}`}
-              className="mt-5 inline-flex rounded-lg bg-white px-5 py-3 text-sm font-bold text-red-700 shadow-sm"
+              href={categoryUrl()}
+              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
             >
               Try Again →
             </Link>
           </section>
         ) : filteredTools.length === 0 ? (
-          /* Empty state */
+          /* =====================================================
+             EMPTY STATE
+          ===================================================== */
           <section className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-xl">
               🔎
@@ -417,43 +511,52 @@ export default async function CategoryPage({
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Try another search term or change the pricing filter.
+              Try another search term or change the pricing
+              filter.
             </p>
 
             <Link
-              href={`/category/${encodeURIComponent(categorySlug)}`}
-              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
+              href={categoryUrl()}
+              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
             >
               View All Tools
             </Link>
           </section>
         ) : (
-          /* Tool Grid */
+          /* =====================================================
+             TOOL GRID
+          ===================================================== */
           <section className="grid gap-5 md:grid-cols-2">
             {filteredTools.map((tool, index) => {
-              const toolName = getToolName(tool);
-              const toolSlug = getToolSlug(tool);
-              const toolDescription = getDescription(tool);
+              const toolName = getName(tool);
+              const toolSlug = getSlug(tool);
+              const toolDescription =
+                getDescription(tool);
               const toolPricing = getPricing(tool);
               const toolScore = getScore(tool);
               const logoUrl = getLogoUrl(tool);
               const websiteUrl = getWebsiteUrl(tool);
 
+              const key =
+                tool.id !== null &&
+                tool.id !== undefined
+                  ? String(tool.id)
+                  : `${toolSlug}-${index}`;
+
               return (
                 <Link
-                  key={
-                    tool.id !== undefined && tool.id !== null
-                      ? String(tool.id)
-                      : `${toolSlug}-${index}`
-                  }
-                  href={`/tool/${encodeURIComponent(toolSlug)}`}
+                  key={key}
+                  href={`/tool/${encodeURIComponent(
+                    toolSlug
+                  )}`}
                   className="group block"
                 >
                   <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
-                    {/* Card top */}
+                    {/* Card header */}
                     <div className="flex items-start justify-between gap-4">
                       <ToolLogo
                         src={logoUrl}
+                        fallbackSrc={logoUrl}
                         websiteUrl={websiteUrl}
                         name={toolName}
                         size="md"
@@ -464,8 +567,8 @@ export default async function CategoryPage({
                       </span>
                     </div>
 
-                    {/* Name */}
-                    <h2 className="mt-4 line-clamp-1 text-lg font-extrabold tracking-tight text-slate-900 group-hover:text-blue-600">
+                    {/* Tool name */}
+                    <h2 className="mt-4 line-clamp-1 text-lg font-extrabold tracking-tight text-slate-900 transition group-hover:text-blue-600">
                       {toolName}
                     </h2>
 
@@ -474,10 +577,11 @@ export default async function CategoryPage({
                       {toolDescription}
                     </p>
 
-                    {/* Bottom */}
+                    {/* Bottom metadata */}
                     <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
                       <span className="text-[11px] font-bold uppercase tracking-wide text-blue-600">
-                        {normalizeText(tool.category) || categoryName}
+                        {clean(tool.category) ||
+                          categoryName}
                       </span>
 
                       <span className="text-xs font-bold text-blue-600">
@@ -491,15 +595,21 @@ export default async function CategoryPage({
           </section>
         )}
 
-        {/* Bottom information */}
-        {!databaseError && tools.length > 0 && (
+        {/* =======================================================
+            FOOTER INFORMATION
+        ======================================================= */}
+        {!databaseError && totalTools > 0 && (
           <div className="mt-10 border-t border-slate-100 pt-6 text-center">
             <p className="text-xs text-slate-400">
               AI Vault has verified{" "}
               <span className="font-semibold text-slate-600">
                 {totalTools.toLocaleString()}
               </span>{" "}
-              tools in the {categoryName} category.
+              tools in the{" "}
+              <span className="font-semibold text-slate-600">
+                {categoryName}
+              </span>{" "}
+              category.
             </p>
           </div>
         )}
