@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/lib/supabase-server";
 import ToolLogo from "@/components/ToolLogo";
 import AdSlot from "@/components/AdSlot";
 
 import { SITE_URL } from "@/lib/site-url";
-import { resolveToolOutbound } from "@/lib/affiliate/resolver";
+import { resolveToolOutboundUrl } from "@/lib/affiliate/resolver";
 import { enrichMissingToolFields } from "@/lib/ai-enrichment";
 
 import {
@@ -467,7 +467,7 @@ export default async function ToolPage({
     outboundUrl,
     isAffiliate,
     buttonLabel,
-  } = await resolveToolOutbound(
+  } = await resolveToolOutboundUrl(
     tool.id,
     tool.slug,
     officialUrlClean,
