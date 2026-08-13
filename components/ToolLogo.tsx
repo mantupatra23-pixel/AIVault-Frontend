@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
-type ToolLogoInput = {
+export type ToolLogoInput = {
   id?: string | number | null;
   name?: string | null;
   slug?: string | null;
@@ -14,20 +14,21 @@ type ToolLogoInput = {
   website?: string | null;
   website_url?: string | null;
   url?: string | null;
-
   domain?: string | null;
-
-  [key: string]: unknown;
 };
 
 type ToolLogoProps = {
   /*
-   * Existing API
+   * Existing API.
+   *
+   * IMPORTANT:
+   * Keep this broad enough so existing DatabaseToolRecord
+   * objects can be passed without TypeScript index-signature errors.
    */
-  tool?: ToolLogoInput | null;
+  tool?: ToolLogoInput | Record<string, unknown> | null;
 
   /*
-   * New/direct API
+   * Direct logo API
    */
   src?: string | null;
   fallbackSrc?: string | null;
@@ -42,66 +43,69 @@ type ToolLogoProps = {
    * Optional custom classes
    */
   className?: string;
-  className?: string;
 };
 
-const sizeClasses: Record<
-  NonNullable<ToolLogoProps["size"]>,
-  string
-> = {
-  sm: "h-10 w-10 text-sm rounded-xl",
-  md: "h-16 w-16 text-lg rounded-2xl",
-  lg: "h-20 w-20 text-2xl rounded-2xl",
-  xl: "h-24 w-24 text-3xl rounded-2xl",
-};
+/* ============================================================
+   HELPERS
+   ============================================================ */
 
-/**
- * Safely convert unknown value to string.
- */
-function asString(value: unknown): string {
-  return typeof value === "string" ? value.trim() : "";
+function readString(
+  value: unknown
+): string {
+  return typeof value === "string"
+    ? value.trim()
+    : "";
 }
 
-/**
- * Make sure a URL is usable.
- */
-function normalizeUrl(value: string): string | null {
+function getToolValue(
+  tool: ToolLogoInput | Record<string, unknown> | null | undefined,
+  key: string
+): string {
+  if (!tool) return "";
+
+  return readString(
+    (tool as Record<string, unknown>)[key]
+  );
+}
+
+function normalizeUrl(
+  value: string
+): string | null {
   const input = value.trim();
 
   if (!input) {
     return null;
   }
 
-  try {
-    if (
-      input.startsWith("http://") ||
-      input.startsWith("https://")
-    ) {
-      return input;
-    }
-
-    if (input.startsWith("//")) {
-      return `https:${input}`;
-    }
-
-    if (
-      input.startsWith("/") ||
-      input.startsWith("./") ||
-      input.startsWith("../")
-    ) {
-      return input;
-    }
-
-    return `https://${input}`;
-  } catch {
-    return null;
+  if (
+    input.startsWith("/") ||
+    input.startsWith("./") ||
+    input.startsWith("../")
+  ) {
+    return input;
   }
+
+  if (
+    input.startsWith("https://") ||
+    input.startsWith("http://")
+  ) {
+    return input;
+  }
+
+  if (input.startsWith("//")) {
+    return `https:${input}`;
+  }
+
+  /*
+   * Domain such as:
+   * example.com
+   */
+  return `https://${input}`;
 }
 
-/**
- * Extract hostname from a website URL/domain.
- */
-function extractDomain(value: string): string | null {
+function getDomain(
+  value: string
+): string | null {
   const normalized = normalizeUrl(value);
 
   if (!normalized) {
@@ -109,46 +113,41 @@ function extractDomain(value: string): string | null {
   }
 
   try {
-    const url = new URL(normalized);
-    return url.hostname
+    const parsed = new URL(normalized);
+
+    return parsed.hostname
       .replace(/^www\./i, "")
-      .trim()
       .toLowerCase();
   } catch {
     return null;
   }
 }
 
-/**
- * Resolve the best available logo source.
- *
- * Priority:
- *
- * 1. logo_url
- * 2. image_url
- * 3. icon_url
- * 4. website favicon
- * 5. Google favicon service
- */
+/* ============================================================
+   LOGO RESOLVER
+   ============================================================ */
+
 export function resolveToolLogo(
-  tool?: ToolLogoInput | null,
+  tool?: ToolLogoInput | Record<string, unknown> | null,
   directSrc?: string | null,
   directFallbackSrc?: string | null
 ): string | null {
   /*
-   * Direct src gets highest priority.
+   * 1. Direct src
    */
-  const direct = normalizeUrl(asString(directSrc));
+  const direct = normalizeUrl(
+    readString(directSrc)
+  );
 
   if (direct) {
     return direct;
   }
 
   /*
-   * Database logo_url.
+   * 2. Official/database logo_url
    */
   const logoUrl = normalizeUrl(
-    asString(tool?.logo_url)
+    getToolValue(tool, "logo_url")
   );
 
   if (logoUrl) {
@@ -156,10 +155,10 @@ export function resolveToolLogo(
   }
 
   /*
-   * Database image_url.
+   * 3. image_url
    */
   const imageUrl = normalizeUrl(
-    asString(tool?.image_url)
+    getToolValue(tool, "image_url")
   );
 
   if (imageUrl) {
@@ -167,10 +166,10 @@ export function resolveToolLogo(
   }
 
   /*
-   * Database icon_url.
+   * 4. icon_url
    */
   const iconUrl = normalizeUrl(
-    asString(tool?.icon_url)
+    getToolValue(tool, "icon_url")
   );
 
   if (iconUrl) {
@@ -178,31 +177,33 @@ export function resolveToolLogo(
   }
 
   /*
-   * Explicit fallback.
+   * 5. Explicit fallback
    */
-  const fallback = normalizeUrl(
-    asString(directFallbackSrc)
+  const explicitFallback = normalizeUrl(
+    readString(directFallbackSrc)
   );
 
-  if (fallback) {
-    return fallback;
+  if (explicitFallback) {
+    return explicitFallback;
   }
 
   /*
-   * Website/domain based logo.
+   * 6. Website/domain fallback
    */
   const website =
-    asString(tool?.website_url) ||
-    asString(tool?.website) ||
-    asString(tool?.url) ||
-    asString(tool?.domain);
+    getToolValue(tool, "website_url") ||
+    getToolValue(tool, "website") ||
+    getToolValue(tool, "url") ||
+    getToolValue(tool, "domain");
 
-  const domain = extractDomain(website);
+  const domain = getDomain(website);
 
   if (domain) {
     /*
-     * Google favicon is useful when an official logo URL
-     * is not stored in Supabase.
+     * Google favicon fallback.
+     *
+     * This is only used when an actual logo URL
+     * is not available.
      */
     return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
       domain
@@ -212,17 +213,20 @@ export function resolveToolLogo(
   return null;
 }
 
-/**
- * Create initials from tool name.
- */
-function getInitials(name: string): string {
-  const cleaned = name.trim();
+/* ============================================================
+   INITIALS
+   ============================================================ */
 
-  if (!cleaned) {
+function getInitials(
+  name: string
+): string {
+  const cleanName = name.trim();
+
+  if (!cleanName) {
     return "AI";
   }
 
-  const words = cleaned
+  const words = cleanName
     .split(/\s+/)
     .filter(Boolean);
 
@@ -234,19 +238,34 @@ function getInitials(name: string): string {
 
   return words
     .slice(0, 2)
-    .map((word) =>
-      word.charAt(0).toUpperCase()
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase()
     )
     .join("");
 }
 
-/**
- * Main ToolLogo component.
- *
- * This remains a Client Component because image loading errors
- * need to be handled safely on the client.
- */
-export const ToolLogo: React.FC<ToolLogoProps> = ({
+/* ============================================================
+   SIZE SYSTEM
+   ============================================================ */
+
+const sizeClasses: Record<
+  NonNullable<ToolLogoProps["size"]>,
+  string
+> = {
+  sm: "h-10 w-10 rounded-xl text-sm",
+  md: "h-16 w-16 rounded-2xl text-lg",
+  lg: "h-20 w-20 rounded-2xl text-2xl",
+  xl: "h-24 w-24 rounded-2xl text-3xl",
+};
+
+/* ============================================================
+   TOOL LOGO
+   ============================================================ */
+
+export const ToolLogo: React.FC<
+  ToolLogoProps
+> = ({
   tool,
   src,
   fallbackSrc,
@@ -254,49 +273,59 @@ export const ToolLogo: React.FC<ToolLogoProps> = ({
   size = "md",
   className = "",
 }) => {
-  const [hasError, setHasError] = useState(false);
+  const [failed, setFailed] =
+    useState(false);
 
+  /*
+   * Resolve name from direct prop first,
+   * then database/tool object.
+   */
   const toolName =
-    asString(name) ||
-    asString(tool?.name) ||
+    readString(name) ||
+    getToolValue(tool, "name") ||
     "AI Tool";
 
-  const resolvedUrl = useMemo(() => {
-    return resolveToolLogo(
-      tool,
-      src,
-      fallbackSrc
-    );
-  }, [tool, src, fallbackSrc]);
+  /*
+   * Resolve logo.
+   */
+  const resolvedUrl = useMemo(
+    () =>
+      resolveToolLogo(
+        tool,
+        src,
+        fallbackSrc
+      ),
+    [tool, src, fallbackSrc]
+  );
 
   /*
-   * If database/tool changes because the page navigates,
-   * reset the previous image error.
+   * Reset error when a different tool/logo
+   * is rendered during navigation.
    */
   useEffect(() => {
-    setHasError(false);
+    setFailed(false);
   }, [resolvedUrl]);
 
+  const initials =
+    getInitials(toolName);
+
   const dimensions =
-    sizeClasses[size] || sizeClasses.md;
+    sizeClasses[size] ||
+    sizeClasses.md;
 
-  const initials = getInitials(toolName);
+  /* ==========================================================
+     FALLBACK
+     ========================================================== */
 
-  /*
-   * ============================================================
-   * FALLBACK LOGO
-   * ============================================================
-   */
-
-  if (!resolvedUrl || hasError) {
+  if (!resolvedUrl || failed) {
     return (
       <div
         className={[
           dimensions,
           "flex shrink-0 items-center justify-center",
+          "overflow-hidden select-none",
           "bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600",
           "font-bold text-white shadow-sm",
-          "select-none overflow-hidden",
           className,
         ]
           .filter(Boolean)
@@ -309,18 +338,17 @@ export const ToolLogo: React.FC<ToolLogoProps> = ({
     );
   }
 
-  /*
-   * ============================================================
-   * REAL LOGO
-   * ============================================================
-   */
+  /* ==========================================================
+     REAL LOGO
+     ========================================================== */
 
   return (
     <div
       className={[
         dimensions,
         "flex shrink-0 items-center justify-center",
-        "overflow-hidden border border-slate-100",
+        "overflow-hidden",
+        "border border-slate-100",
         "bg-white shadow-sm",
         className,
       ]
@@ -336,7 +364,7 @@ export const ToolLogo: React.FC<ToolLogoProps> = ({
         decoding="async"
         referrerPolicy="no-referrer"
         onError={() => {
-          setHasError(true);
+          setFailed(true);
         }}
       />
     </div>
