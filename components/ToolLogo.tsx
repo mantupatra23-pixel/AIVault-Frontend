@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 
-type ToolLogoProps = {
+export type ToolLogoProps = {
   src?: string | null;
   fallbackSrc?: string | null;
   websiteUrl?: string | null;
@@ -10,6 +10,23 @@ type ToolLogoProps = {
   size?: "sm" | "md" | "lg" | "xl" | number;
   className?: string;
 };
+
+function normalizeUrl(value?: string | null): string {
+  if (!value) return "";
+
+  const url = value.trim();
+
+  if (!url) return "";
+
+  if (
+    url.startsWith("http://") ||
+    url.startsWith("https://")
+  ) {
+    return url;
+  }
+
+  return `https://${url}`;
+}
 
 function getInitials(name?: string | null): string {
   const value = String(name ?? "").trim();
@@ -21,43 +38,15 @@ function getInitials(name?: string | null): string {
     .filter(Boolean);
 
   if (words.length >= 2) {
-    return `${words[0][0]}${words[1][0]}`
-      .toUpperCase();
+    return (
+      `${words[0].charAt(0)}${words[1].charAt(0)}`
+    ).toUpperCase();
   }
 
   return value.slice(0, 2).toUpperCase();
 }
 
-function normalizeUrl(value?: string | null): string {
-  if (!value) return "";
-
-  const trimmed = value.trim();
-
-  if (!trimmed) return "";
-
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://")
-  ) {
-    return trimmed;
-  }
-
-  return `https://${trimmed}`;
-}
-
-function getDomain(value?: string | null): string {
-  try {
-    const url = normalizeUrl(value);
-
-    if (!url) return "";
-
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
-}
-
-function sizeClass(
+function getSizeClass(
   size: ToolLogoProps["size"]
 ): string {
   if (typeof size === "number") {
@@ -80,7 +69,7 @@ function sizeClass(
   }
 }
 
-function pixelSize(
+function getPixelSize(
   size: ToolLogoProps["size"]
 ): number {
   if (typeof size === "number") {
@@ -103,7 +92,11 @@ function pixelSize(
   }
 }
 
-export default function ToolLogo({
+/* =========================================================
+   TOOL LOGO
+========================================================= */
+
+export function ToolLogo({
   src,
   fallbackSrc,
   websiteUrl,
@@ -111,43 +104,49 @@ export default function ToolLogo({
   size = "md",
   className = "",
 }: ToolLogoProps) {
-  const [failed, setFailed] = useState(false);
+  const [imageFailed, setImageFailed] =
+    useState(false);
 
   const primarySrc = normalizeUrl(src);
   const backupSrc = normalizeUrl(fallbackSrc);
-  const domain = getDomain(websiteUrl);
 
-  const logoUrl =
-    !failed && primarySrc
+  const pixelSize = getPixelSize(size);
+
+  const activeSrc =
+    !imageFailed && primarySrc
       ? primarySrc
-      : !failed && backupSrc
+      : !imageFailed && backupSrc
         ? backupSrc
         : "";
 
-  const dimension = pixelSize(size);
-
   useEffect(() => {
-    setFailed(false);
+    setImageFailed(false);
   }, [src, fallbackSrc, websiteUrl]);
 
-  if (!logoUrl) {
+  /*
+   * No logo available:
+   * show beautiful initials fallback.
+   */
+  if (!activeSrc) {
     return (
       <div
-        aria-label={`${name ?? "AI tool"} logo`}
-        title={name ?? "AI tool"}
+        role="img"
+        aria-label={`${name || "AI tool"} logo`}
+        title={name || "AI tool"}
         className={[
           "flex shrink-0 items-center justify-center",
-          "rounded-2xl bg-gradient-to-br",
+          "overflow-hidden rounded-2xl",
+          "bg-gradient-to-br",
           "from-blue-600 via-indigo-600 to-purple-600",
           "font-bold text-white shadow-sm",
-          sizeClass(size),
+          getSizeClass(size),
           className,
         ].join(" ")}
         style={
           typeof size === "number"
             ? {
-                width: dimension,
-                height: dimension,
+                width: pixelSize,
+                height: pixelSize,
               }
             : undefined
         }
@@ -161,47 +160,63 @@ export default function ToolLogo({
     <div
       className={[
         "relative flex shrink-0 items-center justify-center",
-        "overflow-hidden rounded-2xl bg-white",
-        "border border-slate-200",
+        "overflow-hidden rounded-2xl",
+        "border border-slate-200 bg-white",
         "shadow-sm",
-        sizeClass(size),
+        getSizeClass(size),
         className,
       ].join(" ")}
       style={
         typeof size === "number"
           ? {
-              width: dimension,
-              height: dimension,
+              width: pixelSize,
+              height: pixelSize,
             }
           : undefined
       }
     >
       <img
-        src={logoUrl}
-        alt={`${name ?? "AI tool"} logo`}
-        width={dimension}
-        height={dimension}
+        src={activeSrc}
+        alt={`${name || "AI tool"} logo`}
+        width={pixelSize}
+        height={pixelSize}
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
         className="h-full w-full object-contain p-2"
         onError={() => {
+          /*
+           * If primary logo fails and a fallback exists,
+           * try fallback first.
+           */
           if (
+            primarySrc &&
             backupSrc &&
-            logoUrl !== backupSrc
+            activeSrc === primarySrc
           ) {
-            setFailed(false);
-          } else {
-            setFailed(true);
+            setImageFailed(true);
+            return;
           }
+
+          /*
+           * Otherwise show initials.
+           */
+          setImageFailed(true);
         }}
       />
-
-      {domain && (
-        <span className="sr-only">
-          Official website: {domain}
-        </span>
-      )}
     </div>
   );
 }
+
+/*
+ * Keep default export too.
+ *
+ * This supports BOTH:
+ *
+ * import ToolLogo from "@/components/ToolLogo";
+ *
+ * AND
+ *
+ * import { ToolLogo } from "@/components/ToolLogo";
+ */
+export default ToolLogo;
