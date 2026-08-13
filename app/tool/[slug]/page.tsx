@@ -730,7 +730,7 @@ export default async function ToolPage({
 
               <li>
                 <Link
-                  href="/tools"
+                  href="/"
                   className="hover:text-slate-900"
                 >
                   AI Tools
