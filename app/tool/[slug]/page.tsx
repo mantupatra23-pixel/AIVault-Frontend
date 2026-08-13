@@ -1,12 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import ToolLogo from "@/components/ToolLogo";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-
-const SITE_URL = "https://www.aivault.pp.ua";
-const SITE_NAME = "AI Vault";
 
 type PageProps = {
   params: Promise<{
@@ -18,302 +15,449 @@ type ToolRecord = {
   id?: string | number | null;
   name?: string | null;
   slug?: string | null;
-  description?: string | null;
+
   category?: string | null;
+
+  description?: string | null;
+  short_description?: string | null;
+  overview?: string | null;
+
   pricing?: string | null;
+  pricing_model?: string | null;
+
+  score?: number | string | null;
+  ai_vault_score?: number | string | null;
+
+  logo_url?: string | null;
+  logo?: string | null;
+  image_url?: string | null;
+
   website_url?: string | null;
-  created_at?: string | null;
+  official_url?: string | null;
+  url?: string | null;
+
+  features?: unknown;
+  key_features?: unknown;
+
+  limitations?: unknown;
+  cons?: unknown;
+
+  use_cases?: unknown;
+
+  how_to_start?: unknown;
+  getting_started?: unknown;
+  how_to_get_started?: unknown;
+
+  faqs?: unknown;
+  faq?: unknown;
+
+  operating_system?: string | null;
+  os?: string | null;
+
+  deployment?: string | null;
+  license?: string | null;
+
+  integrations?: unknown;
+
+  [key: string]: unknown;
 };
 
-type ToolPageData = {
-  id: string | number | null;
-  name: string;
-  slug: string;
-  description: string;
-  category: string;
-  pricing: string;
-  websiteUrl: string;
-  score: number;
-  overview: string;
-  whoShouldUse: string;
-  pricingText: string;
-  features: string[];
-  limitations: string[];
-  useCases: string[];
-  gettingStarted: string[];
-  faqs: {
-    question: string;
-    answer: string;
-  }[];
-  specifications: {
-    label: string;
-    value: string;
-  }[];
-};
+/* =========================================================
+   SUPABASE
+========================================================= */
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    console.error("[AI_VAULT] Missing Supabase environment variables");
-    return null;
+    throw new Error(
+      "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY"
+    );
   }
 
   return createClient(url, key);
 }
 
-function cleanText(value: unknown): string {
-  if (typeof value !== "string") return "";
-  return value.replace(/\s+/g, " ").trim();
-}
+/* =========================================================
+   BASIC HELPERS
+========================================================= */
 
-function normalizeSlug(value: unknown): string {
-  return cleanText(value)
-    .toLowerCase()
-    .replace(/^\/+|\/+$/g, "")
-    .replace(/\s+/g, "-");
-}
-
-function normalizeWebsite(value: unknown): string {
-  const raw = cleanText(value);
-
-  if (!raw) return "";
-
-  if (/^https?:\/\//i.test(raw)) {
-    return raw;
+function clean(value: unknown): string {
+  if (typeof value === "string") {
+    return value.trim();
   }
 
-  return `https://${raw}`;
+  if (
+    typeof value === "number" ||
+    typeof value === "boolean"
+  ) {
+    return String(value);
+  }
+
+  return "";
 }
 
-function titleCase(value: string): string {
-  return value
+function decodeSlug(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function makeSlug(value: string): string {
+  return clean(value)
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function titleFromSlug(slug: string): string {
+  return slug
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    .replace(/\b\w/g, (char) =>
+      char.toUpperCase()
+    );
 }
 
-function getInitials(name: string): string {
-  const words = name
-    .replace(/[^a-zA-Z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
+/* =========================================================
+   TOOL DATA HELPERS
+========================================================= */
 
-  if (words.length === 0) return "AI";
+function getName(tool: ToolRecord): string {
+  return clean(tool.name) || "AI Tool";
+}
 
-  if (words.length === 1) {
-    return words[0].slice(0, 2).toUpperCase();
+function getSlug(tool: ToolRecord): string {
+  return (
+    clean(tool.slug) ||
+    makeSlug(getName(tool))
+  );
+}
+
+function getDescription(tool: ToolRecord): string {
+  return (
+    clean(tool.description) ||
+    clean(tool.short_description) ||
+    clean(tool.overview) ||
+    "Explore this AI software platform, its features, pricing, use cases, and alternatives."
+  );
+}
+
+function getPricing(tool: ToolRecord): string {
+  const value =
+    clean(tool.pricing_model) ||
+    clean(tool.pricing);
+
+  if (!value) {
+    return "Unknown";
   }
 
-  return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  const lower = value.toLowerCase();
+
+  if (lower.includes("freemium")) {
+    return "Freemium";
+  }
+
+  if (
+    lower === "free" ||
+    lower.includes("free to use") ||
+    lower.includes("free plan")
+  ) {
+    return "Free";
+  }
+
+  if (
+    lower.includes("paid") ||
+    lower.includes("subscription") ||
+    lower.includes("pro plan")
+  ) {
+    return "Paid";
+  }
+
+  return value;
 }
 
-function normalizePricing(value: string): string {
-  const pricing = value.toLowerCase();
+function getScore(tool: ToolRecord): number {
+  const raw =
+    tool.ai_vault_score !== null &&
+    tool.ai_vault_score !== undefined
+      ? tool.ai_vault_score
+      : tool.score;
 
-  if (pricing.includes("free")) return "Free";
-  if (pricing.includes("freemium")) return "Freemium";
-  if (pricing.includes("paid")) return "Paid";
-  if (pricing.includes("enterprise")) return "Enterprise";
+  const number = Number(raw);
 
-  return value ? titleCase(value) : "Freemium";
+  if (!Number.isFinite(number)) {
+    return 90;
+  }
+
+  return Math.max(
+    0,
+    Math.min(100, number)
+  );
 }
 
-function scoreForTool(name: string, category: string): number {
-  const seed =
-    [...`${name}-${category}`].reduce(
-      (sum, char) => sum + char.charCodeAt(0),
-      0,
-    ) % 16;
-
-  return 84 + seed;
+function getLogoUrl(
+  tool: ToolRecord
+): string | null {
+  return (
+    clean(tool.logo_url) ||
+    clean(tool.logo) ||
+    clean(tool.image_url) ||
+    null
+  );
 }
 
-function buildToolData(record: ToolRecord): ToolPageData {
-  const name = cleanText(record.name) || titleCase(normalizeSlug(record.slug));
-  const slug = normalizeSlug(record.slug || name);
-  const category = titleCase(cleanText(record.category) || "AI Tools");
-  const pricing = normalizePricing(cleanText(record.pricing));
-  const description =
-    cleanText(record.description) ||
-    `${name} is an AI-powered software solution designed to help users improve productivity, automate workflows, and complete tasks more efficiently.`;
+function getWebsiteUrl(
+  tool: ToolRecord
+): string | null {
+  return (
+    clean(tool.website_url) ||
+    clean(tool.official_url) ||
+    clean(tool.url) ||
+    null
+  );
+}
 
-  const websiteUrl = normalizeWebsite(record.website_url);
-  const score = scoreForTool(name, category);
+/* =========================================================
+   ARRAY / JSON HELPERS
+========================================================= */
 
-  const categoryLower = category.toLowerCase();
+function parseArray(
+  value: unknown
+): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") {
+          return item.trim();
+        }
 
-  let features = [
-    "User-friendly interface for easy navigation and task management",
-    "Powerful capabilities designed to streamline everyday workflows",
-    "Fast and practical experience for individuals and teams",
+        if (
+          item &&
+          typeof item === "object"
+        ) {
+          const obj =
+            item as Record<string, unknown>;
+
+          return (
+            clean(obj.title) ||
+            clean(obj.name) ||
+            clean(obj.question) ||
+            clean(obj.answer) ||
+            clean(obj.text)
+          );
+        }
+
+        return "";
+      })
+      .filter(Boolean);
+  }
+
+  if (typeof value === "string") {
+    const text = value.trim();
+
+    if (!text) {
+      return [];
+    }
+
+    try {
+      const parsed = JSON.parse(text);
+
+      if (Array.isArray(parsed)) {
+        return parseArray(parsed);
+      }
+    } catch {
+      // Not JSON. Continue below.
+    }
+
+    return text
+      .split(/\r?\n/)
+      .map((item) =>
+        item
+          .replace(/^[-•*]\s*/, "")
+          .replace(/^\d+[.)]\s*/, "")
+          .trim()
+      )
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+function getFeatures(
+  tool: ToolRecord
+): string[] {
+  const result =
+    parseArray(tool.key_features);
+
+  if (result.length) {
+    return result;
+  }
+
+  const fallback =
+    parseArray(tool.features);
+
+  if (fallback.length) {
+    return fallback;
+  }
+
+  return [
+    "User-friendly interface",
+    "Powerful workflow capabilities",
+    "Practical features for everyday use",
   ];
+}
 
-  let limitations = [
+function getLimitations(
+  tool: ToolRecord
+): string[] {
+  const result =
+    parseArray(tool.limitations);
+
+  if (result.length) {
+    return result;
+  }
+
+  const fallback =
+    parseArray(tool.cons);
+
+  if (fallback.length) {
+    return fallback;
+  }
+
+  return [
     "Some advanced capabilities may require a paid plan",
-    "Feature availability can vary by plan and platform",
+    "Feature availability may vary by plan and platform",
     "Internet connectivity may be required for cloud-based functionality",
   ];
+}
 
-  let useCases = [
+function getUseCases(
+  tool: ToolRecord
+): string[] {
+  const result =
+    parseArray(tool.use_cases);
+
+  if (result.length) {
+    return result;
+  }
+
+  return [
     "Productivity Enhancement",
     "Workflow Optimization",
     "Task Automation",
   ];
+}
 
-  let whoShouldUse = `${name} is designed for individuals, creators, professionals, and teams looking for a practical ${category.toLowerCase()} solution that can improve efficiency and simplify everyday workflows.`;
+function getGettingStarted(
+  tool: ToolRecord
+): string[] {
+  const result =
+    parseArray(tool.how_to_get_started);
 
-  if (
-    categoryLower.includes("coding") ||
-    categoryLower.includes("developer") ||
-    categoryLower.includes("development")
-  ) {
-    features = [
-      "Developer-focused workflow and productivity capabilities",
-      "Tools designed to simplify technical and development tasks",
-      "Integration-friendly experience for modern development workflows",
-    ];
-
-    limitations = [
-      "Advanced development workflows may require technical knowledge",
-      "Some integrations or features may depend on external services",
-      "Availability of advanced capabilities can vary by plan",
-    ];
-
-    useCases = [
-      "Software Development",
-      "Developer Productivity",
-      "Code Workflow",
-    ];
-
-    whoShouldUse = `${name} is designed for developers, engineers, technical teams, and creators who want to improve their development workflow and reduce repetitive technical work.`;
-  } else if (
-    categoryLower.includes("image") ||
-    categoryLower.includes("design")
-  ) {
-    features = [
-      "AI-assisted visual creation and design workflows",
-      "Simple interface for creating and refining visual content",
-      "Useful capabilities for creators, marketers, and design teams",
-    ];
-
-    limitations = [
-      "Output quality can vary depending on the input and use case",
-      "Some premium generation features may require payment",
-      "Commercial usage terms should be checked before publishing outputs",
-    ];
-
-    useCases = [
-      "Image Creation",
-      "Creative Design",
-      "Marketing Visuals",
-    ];
-
-    whoShouldUse = `${name} is designed for creators, designers, marketers, agencies, and businesses that need an efficient AI-powered visual workflow.`;
-  } else if (
-    categoryLower.includes("writing") ||
-    categoryLower.includes("content")
-  ) {
-    features = [
-      "AI-assisted content creation and writing workflows",
-      "Useful tools for drafting, editing, and improving written content",
-      "Designed to help users produce content more efficiently",
-    ];
-
-    limitations = [
-      "AI-generated content should be reviewed before publishing",
-      "Output quality depends on prompts and provided context",
-      "Advanced capabilities may depend on the selected plan",
-    ];
-
-    useCases = [
-      "Content Creation",
-      "Copywriting",
-      "Content Optimization",
-    ];
-
-    whoShouldUse = `${name} is designed for writers, marketers, creators, businesses, and teams that want to speed up content production while maintaining control over the final result.`;
-  } else if (
-    categoryLower.includes("marketing") ||
-    categoryLower.includes("seo")
-  ) {
-    features = [
-      "Marketing-focused workflow and productivity capabilities",
-      "Tools designed to support research, optimization, and campaign workflows",
-      "Useful for professionals managing recurring marketing tasks",
-    ];
-
-    limitations = [
-      "Marketing results depend on strategy and implementation",
-      "Some advanced capabilities may require a premium plan",
-      "External platforms may be required for certain workflows",
-    ];
-
-    useCases = [
-      "Marketing Automation",
-      "SEO Workflow",
-      "Campaign Optimization",
-    ];
-
-    whoShouldUse = `${name} is designed for marketers, SEO professionals, agencies, creators, and businesses looking to improve their marketing workflow and operational efficiency.`;
-  } else if (
-    categoryLower.includes("video") ||
-    categoryLower.includes("audio")
-  ) {
-    features = [
-      "AI-powered media workflow capabilities",
-      "Designed to simplify content production and editing tasks",
-      "Useful for creators, marketers, and media teams",
-    ];
-
-    limitations = [
-      "Generation or processing speed can depend on workload",
-      "Higher-quality outputs may require a premium plan",
-      "Usage limits may apply depending on the selected subscription",
-    ];
-
-    useCases = [
-      "Media Creation",
-      "Content Production",
-      "Creative Workflow",
-    ];
-
-    whoShouldUse = `${name} is designed for creators, media professionals, marketers, and businesses looking to simplify AI-assisted media production.`;
+  if (result.length) {
+    return result;
   }
 
-  const overview = `${name} is a ${category.toLowerCase()} solution featured in the AI Vault directory. ${description} For users evaluating ${name}, the most important areas to consider are its core capabilities, pricing model, workflow fit, integrations, and overall ease of use.`;
+  const second =
+    parseArray(tool.how_to_start);
 
-  const pricingText =
-    pricing === "Free"
-      ? `${name} currently appears in the AI Vault directory with a Free pricing model. Users should check the official portal for the latest feature limits and usage terms.`
-      : pricing === "Freemium"
-        ? `${name} operates under a Freemium model, providing access to core capabilities while potentially reserving advanced features or higher usage limits for paid plans. Check the official portal for current pricing.`
-        : `${name} is listed with a ${pricing} pricing model. Pricing, plan limits, and available features can change, so users should check the official portal for the latest information.`;
+  if (second.length) {
+    return second;
+  }
 
-  const gettingStarted = [
+  const third =
+    parseArray(tool.getting_started);
+
+  if (third.length) {
+    return third;
+  }
+
+  const name = getName(tool);
+
+  return [
     `Visit the official ${name} portal`,
     "Create or authenticate your user account if required",
     "Configure the available workspace, preferences, or integrations",
     "Start using the platform and evaluate it against your workflow requirements",
   ];
+}
 
-  const faqs = [
+/* =========================================================
+   FAQ
+========================================================= */
+
+type FAQItem = {
+  question: string;
+  answer: string;
+};
+
+function getFAQs(
+  tool: ToolRecord
+): FAQItem[] {
+  const raw =
+    tool.faqs ?? tool.faq;
+
+  if (Array.isArray(raw)) {
+    const parsed = raw
+      .map((item) => {
+        if (
+          !item ||
+          typeof item !== "object"
+        ) {
+          return null;
+        }
+
+        const obj =
+          item as Record<string, unknown>;
+
+        const question =
+          clean(obj.question) ||
+          clean(obj.q);
+
+        const answer =
+          clean(obj.answer) ||
+          clean(obj.a);
+
+        if (!question || !answer) {
+          return null;
+        }
+
+        return {
+          question,
+          answer,
+        };
+      })
+      .filter(
+        Boolean
+      ) as FAQItem[];
+
+    if (parsed.length) {
+      return parsed;
+    }
+  }
+
+  const name = getName(tool);
+  const pricing = getPricing(tool);
+
+  return [
     {
       question: `What is ${name} used for?`,
-      answer: `${name} is a ${category.toLowerCase()} solution designed to help users improve productivity, simplify workflows, and complete relevant tasks more efficiently.`,
+      answer: `${name} is a software solution designed to help users improve productivity, simplify workflows, and complete relevant tasks more efficiently.`,
     },
     {
       question: `Is ${name} free to use?`,
-      answer:
-        pricing === "Free"
-          ? `${name} is currently listed as Free in the AI Vault directory. Check the official portal for current limits and terms.`
-          : `${name} is currently listed as ${pricing}. Check the official portal for the latest pricing plans and feature availability.`,
+      answer: `${name} is currently listed as ${pricing} in the AI Vault directory. Check the official portal for current limits and terms.`,
     },
     {
       question: `Who should use ${name}?`,
-      answer: whoShouldUse,
+      answer: `${name} is designed for individuals, creators, professionals, and teams looking for a practical solution that can improve efficiency and simplify everyday workflows.`,
     },
     {
       question: `Does ${name} require software installation?`,
@@ -321,511 +465,966 @@ function buildToolData(record: ToolRecord): ToolPageData {
     },
     {
       question: `Where can I access ${name}?`,
-      answer: websiteUrl
-        ? `You can access ${name} through its official website or portal using the Visit Official Portal button on this page.`
-        : `The official access URL for ${name} is not currently available in the AI Vault database.`,
+      answer: `You can access ${name} through its official website or portal using the Visit Official Portal button on this page.`,
     },
   ];
+}
 
-  const specifications = [
-    {
-      label: "Category",
-      value: category,
-    },
-    {
-      label: "Pricing Model",
-      value: pricing,
-    },
-    {
-      label: "Operating System",
-      value: "Web / Cloud",
-    },
-    {
-      label: "Deployment",
-      value: "Hosted SaaS",
-    },
-    {
-      label: "License",
-      value: "Proprietary",
-    },
-    {
-      label: "Integrations",
-      value: "Web APIs / Cloud Services",
-    },
+/* =========================================================
+   OVERVIEW
+========================================================= */
+
+function getOverview(
+  tool: ToolRecord
+): string {
+  return (
+    clean(tool.overview) ||
+    clean(tool.description) ||
+    clean(tool.short_description) ||
+    `Explore ${getName(
+      tool
+    )}, including its features, pricing, use cases, limitations, and official access information.`
+  );
+}
+
+/* =========================================================
+   SPECIFICATION HELPERS
+========================================================= */
+
+function getOperatingSystem(
+  tool: ToolRecord
+): string {
+  return (
+    clean(tool.operating_system) ||
+    clean(tool.os) ||
+    "Web / Cloud"
+  );
+}
+
+function getDeployment(
+  tool: ToolRecord
+): string {
+  return (
+    clean(tool.deployment) ||
+    "Hosted SaaS"
+  );
+}
+
+function getLicense(
+  tool: ToolRecord
+): string {
+  return (
+    clean(tool.license) ||
+    "Proprietary"
+  );
+}
+
+function getIntegrations(
+  tool: ToolRecord
+): string[] {
+  const result =
+    parseArray(tool.integrations);
+
+  if (result.length) {
+    return result;
+  }
+
+  return [
+    "Web APIs",
+    "Cloud Services",
   ];
-
-  return {
-    id: record.id ?? null,
-    name,
-    slug,
-    description,
-    category,
-    pricing,
-    websiteUrl,
-    score,
-    overview,
-    whoShouldUse,
-    pricingText,
-    features,
-    limitations,
-    useCases,
-    gettingStarted,
-    faqs,
-    specifications,
-  };
 }
 
-async function getTool(slug: string): Promise<ToolPageData | null> {
-  const supabase = getSupabase();
+/* =========================================================
+   PAGE
+========================================================= */
 
-  if (!supabase) {
-    return null;
-  }
-
-  const normalizedSlug = normalizeSlug(slug);
-
-  if (!normalizedSlug) {
-    return null;
-  }
-
-  /*
-   * IMPORTANT:
-   * Only use columns that actually exist in ai_tools.
-   *
-   * Existing schema:
-   * id
-   * name
-   * slug
-   * description
-   * category
-   * pricing
-   * website_url
-   * created_at
-   *
-   * DO NOT add updated_at here.
-   */
-
-  const { data, error } = await supabase
-    .from("ai_tools")
-    .select(
-      "id,name,slug,description,category,pricing,website_url,created_at",
-    )
-    .eq("slug", normalizedSlug)
-    .maybeSingle();
-
-  if (error) {
-    console.error("[AI_VAULT] Supabase tool query error:", error);
-    return null;
-  }
-
-  if (!data) {
-    return null;
-  }
-
-  return buildToolData(data as ToolRecord);
-}
-
-export async function generateMetadata({ params }: PageProps) {
-  const { slug } = await params;
-  const tool = await getTool(slug);
-
-  if (!tool) {
-    return {
-      title: `AI Tool | ${SITE_NAME}`,
-      description: "Discover AI software and tools on AI Vault.",
-    };
-  }
-
-  return {
-    title: `${tool.name} — AI Tool Review | ${SITE_NAME}`,
-    description: `${tool.name} — features, pricing, use cases, limitations and specifications.`,
-    alternates: {
-      canonical: `${SITE_URL}/tool/${tool.slug}`,
-    },
-    openGraph: {
-      title: `${tool.name} — AI Tool Review`,
-      description: tool.description,
-      url: `${SITE_URL}/tool/${tool.slug}`,
-      siteName: SITE_NAME,
-      type: "article",
-    },
-  };
-}
-
-export default async function ToolPage({ params }: PageProps) {
+export default async function ToolPage({
+  params,
+}: PageProps) {
   const { slug } = await params;
 
-  const tool = await getTool(slug);
+  const requestedSlug =
+    decodeSlug(slug);
 
-  if (!tool) {
-    notFound();
+  let tool: ToolRecord | null = null;
+  let databaseError: string | null = null;
+
+  /* =======================================================
+     DATABASE LOAD
+  ======================================================= */
+
+  try {
+    const supabase = getSupabase();
+
+    /*
+     * First try exact slug.
+     */
+    const exactResult =
+      await supabase
+        .from("ai_tools")
+        .select("*")
+        .eq("slug", requestedSlug)
+        .maybeSingle();
+
+    if (
+      !exactResult.error &&
+      exactResult.data
+    ) {
+      tool =
+        exactResult.data as ToolRecord;
+    } else {
+      /*
+       * Fallback: load all tools and compare normalized
+       * slugs. This keeps old database rows working.
+       */
+      const allResult =
+        await supabase
+          .from("ai_tools")
+          .select("*")
+          .order("name", {
+            ascending: true,
+          });
+
+      if (allResult.error) {
+        databaseError =
+          allResult.error.message;
+      } else {
+        const rows =
+          (allResult.data ||
+            []) as ToolRecord[];
+
+        const normalizedRequested =
+          makeSlug(requestedSlug);
+
+        tool =
+          rows.find((row) => {
+            const rowSlug =
+              makeSlug(
+                clean(row.slug) ||
+                  getName(row)
+              );
+
+            return (
+              rowSlug ===
+              normalizedRequested
+            );
+          }) || null;
+      }
+    }
+  } catch (error) {
+    databaseError =
+      error instanceof Error
+        ? error.message
+        : "Unable to connect to the AI Vault database.";
   }
 
-  const initials = getInitials(tool.name);
+  /* =======================================================
+     ERROR
+  ======================================================= */
+
+  if (databaseError) {
+    return (
+      <main className="min-h-screen overflow-x-hidden bg-white text-slate-950">
+
+        <header className="border-b border-slate-100 bg-white">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+
+            <Link
+              href="/"
+              className="shrink-0 text-base font-bold text-slate-950 sm:text-xl"
+            >
+              AI Vault.
+            </Link>
+
+            <Link
+              href="/"
+              className="shrink-0 rounded-full bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-white sm:px-4 sm:text-[10px]"
+            >
+              Visit Official Portal ↗
+            </Link>
+
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+
+          <section className="rounded-2xl border border-red-100 bg-white p-6 text-center shadow-sm sm:p-10">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
+              !
+            </div>
+
+            <h1 className="mt-5 text-xl font-bold">
+              Unable to load this tool
+            </h1>
+
+            <p className="mt-3 text-sm leading-6 text-slate-500">
+              The AI Vault database returned an error while loading this tool.
+            </p>
+
+            {process.env.NODE_ENV !==
+              "production" && (
+              <pre className="mt-5 overflow-x-auto rounded-xl bg-red-50 p-4 text-left text-xs text-red-700">
+                {databaseError}
+              </pre>
+            )}
+
+            <Link
+              href="/"
+              className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
+            >
+              Back to AI Vault
+            </Link>
+
+          </section>
+
+        </div>
+
+      </main>
+    );
+  }
+
+  /* =======================================================
+     NOT FOUND
+  ======================================================= */
+
+  if (!tool) {
+    return (
+      <main className="min-h-screen overflow-x-hidden bg-white text-slate-950">
+
+        <header className="border-b border-slate-100 bg-white">
+          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+
+            <Link
+              href="/"
+              className="shrink-0 text-base font-bold sm:text-xl"
+            >
+              AI Vault.
+            </Link>
+
+            <Link
+              href="/"
+              className="shrink-0 rounded-full bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase text-white sm:px-4 sm:text-[10px]"
+            >
+              Visit Official Portal ↗
+            </Link>
+
+          </div>
+        </header>
+
+        <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6">
+
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-2xl">
+            ?
+          </div>
+
+          <h1 className="mt-6 text-2xl font-black sm:text-3xl">
+            Tool Not Found
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            We couldn't find the requested AI tool in the AI Vault directory.
+          </p>
+
+          <Link
+            href="/categories"
+            className="mt-7 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
+          >
+            Browse AI Tools
+          </Link>
+
+        </div>
+
+      </main>
+    );
+  }
+
+  /* =======================================================
+     DATA
+  ======================================================= */
+
+  const name =
+    getName(tool);
+
+  const category =
+    clean(tool.category) ||
+    "AI Tools";
+
+  const pricing =
+    getPricing(tool);
+
+  const score =
+    getScore(tool);
+
+  const logoUrl =
+    getLogoUrl(tool);
+
+  const websiteUrl =
+    getWebsiteUrl(tool);
+
+  const overview =
+    getOverview(tool);
+
+  const features =
+    getFeatures(tool);
+
+  const limitations =
+    getLimitations(tool);
+
+  const useCases =
+    getUseCases(tool);
+
+  const gettingStarted =
+    getGettingStarted(tool);
+
+  const faqs =
+    getFAQs(tool);
+
+  const integrations =
+    getIntegrations(tool);
+
+  const toolSlug =
+    getSlug(tool);
+
+  const categorySlug =
+    makeSlug(category);
+
+  /* =======================================================
+     EXTERNAL WEBSITE
+  ======================================================= */
+
+  function isExternalUrl(
+    value: string
+  ): boolean {
+    return /^https?:\/\//i.test(value);
+  }
+
+  const officialLink =
+    websiteUrl &&
+    isExternalUrl(websiteUrl)
+      ? websiteUrl
+      : null;
+
+  /* =======================================================
+     PAGE
+  ======================================================= */
 
   return (
-    <main className="min-h-screen bg-white text-[#111827]">
-      {/* HEADER */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-[72px] max-w-[1400px] items-center justify-between px-5 sm:px-8 lg:px-10">
+    <main className="min-h-screen w-full overflow-x-hidden bg-white text-slate-950">
+
+      {/* ===================================================
+          HEADER
+      =================================================== */}
+
+      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+
+        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+
           <Link
             href="/"
-            className="text-[20px] font-black tracking-[-0.04em] text-[#111827]"
+            className="shrink-0 text-base font-bold tracking-tight text-slate-950 sm:text-xl"
           >
             AI Vault
           </Link>
 
-          {tool.websiteUrl ? (
+          {officialLink ? (
             <a
-              href={tool.websiteUrl}
+              href={officialLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="rounded-xl bg-[#101828] px-5 py-3 text-[11px] font-extrabold uppercase tracking-[0.02em] text-white shadow-sm transition hover:bg-[#1d2939]"
+              className="shrink-0 rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:px-5 sm:py-2.5 sm:text-[10px]"
             >
               Visit Official Portal ↗
             </a>
           ) : (
-            <span className="rounded-xl bg-slate-100 px-5 py-3 text-[11px] font-extrabold uppercase text-slate-500">
+            <span className="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-400 sm:px-5 sm:py-2.5 sm:text-[10px]">
               Official Portal Unavailable
             </span>
           )}
+
         </div>
+
       </header>
 
-      <div className="mx-auto max-w-[1400px] px-5 pb-20 pt-7 sm:px-8 lg:px-10">
-        {/* BREADCRUMB */}
-        <nav className="mb-7 flex flex-wrap items-center gap-2 text-[11px] font-medium text-slate-500">
-          <Link href="/" className="hover:text-slate-900">
+      {/* ===================================================
+          MAIN CONTAINER
+      =================================================== */}
+
+      <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+
+        {/* =================================================
+            BREADCRUMB
+        ================================================= */}
+
+        <nav className="mb-7 flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+
+          <Link
+            href="/"
+            className="transition hover:text-slate-700"
+          >
             Home
           </Link>
 
           <span>/</span>
 
-          <Link href="/" className="hover:text-slate-900">
+          <Link
+            href="/categories"
+            className="transition hover:text-slate-700"
+          >
             AI Tools
           </Link>
 
           <span>/</span>
 
-          <span>{tool.category}</span>
+          <Link
+            href={`/category/${encodeURIComponent(
+              categorySlug
+            )}`}
+            className="font-medium text-slate-700"
+          >
+            {category}
+          </Link>
 
           <span>/</span>
 
-          <span className="font-semibold text-slate-800">{tool.name}</span>
+          <span className="min-w-0 break-words font-medium text-slate-700">
+            {name}
+          </span>
+
         </nav>
 
-        {/* HERO */}
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.04)] sm:p-8 lg:p-10">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex min-w-0 items-center gap-5">
+        {/* =================================================
+            HERO CARD
+        ================================================= */}
+
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8 lg:p-10">
+
+          {/* Hero content */}
+
+          <div className="flex min-w-0 flex-col gap-7 md:flex-row md:items-center md:justify-between">
+
+            {/* LEFT */}
+
+            <div className="flex min-w-0 flex-1 flex-col gap-5 sm:flex-row sm:items-center">
+
               {/* LOGO */}
-              <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#334cff] to-[#4534e8] text-[24px] font-black text-white shadow-[0_8px_22px_rgba(51,76,255,0.22)]">
-                {initials}
+
+              <div className="shrink-0">
+
+                <ToolLogo
+                  src={logoUrl}
+                  fallbackSrc={logoUrl}
+                  websiteUrl={websiteUrl}
+                  name={name}
+                  size="lg"
+                />
+
               </div>
 
-              <div className="min-w-0">
-                <div className="mb-2 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-600">
-                    {tool.category}
+              {/* TITLE */}
+
+              <div className="min-w-0 flex-1">
+
+                <div className="mb-3 flex flex-wrap gap-2">
+
+                  <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600">
+                    {category}
                   </span>
 
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold text-slate-600">
-                    {tool.pricing}
+                  <span
+                    className={`rounded-full px-3 py-1.5 text-[10px] font-bold ${
+                      pricing === "Free"
+                        ? "bg-emerald-50 text-emerald-700"
+                        : pricing === "Paid"
+                        ? "bg-amber-50 text-amber-700"
+                        : "bg-slate-50 text-slate-600"
+                    }`}
+                  >
+                    {pricing}
                   </span>
+
                 </div>
 
-                <h1 className="break-words text-[34px] font-black tracking-[-0.045em] text-[#101828] sm:text-[46px]">
-                  {tool.name}
+                <h1 className="max-w-full break-words text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+                  {name}
                 </h1>
 
-                <div className="mt-5">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-                    AI Vault Score
-                  </div>
+                {/* SCORE */}
 
-                  <div className="mt-1 flex items-end">
-                    <span className="text-[27px] font-black text-[#111827]">
-                      {tool.score}
+                <div className="mt-5">
+
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                    AI Vault Score
+                  </p>
+
+                  <div className="mt-1 flex items-baseline gap-1">
+
+                    <span className="text-3xl font-black text-slate-950 sm:text-4xl">
+                      {score}
                     </span>
 
-                    <span className="mb-1 ml-1 text-[14px] font-bold text-slate-400">
+                    <span className="text-sm font-bold text-slate-400">
                       /10
                     </span>
+
                   </div>
+
                 </div>
+
               </div>
+
             </div>
 
-            {/* DESKTOP CTA */}
-            {tool.websiteUrl && (
+          </div>
+
+          {/* HERO BUTTON */}
+
+          {officialLink && (
+            <div className="mt-7 w-full">
+
               <a
-                href={tool.websiteUrl}
+                href={officialLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden shrink-0 rounded-xl bg-[#101828] px-7 py-4 text-[11px] font-extrabold uppercase tracking-wide text-white transition hover:bg-[#1d2939] sm:inline-flex lg:self-start"
+                className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-center text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:min-h-14 sm:text-sm"
               >
                 Visit Official Portal ↗
               </a>
-            )}
-          </div>
+
+            </div>
+          )}
+
         </section>
 
-        {/* OVERVIEW */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            OVERVIEW
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
             Overview
           </h2>
 
-          <div className="mt-5 space-y-5 text-[13px] leading-7 text-slate-600">
-            <p>{tool.overview}</p>
+          <div className="mt-5 max-w-none">
 
-            <p>{tool.description}</p>
+            <p className="whitespace-pre-line break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
+              {overview}
+            </p>
+
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+          {/* TAGS */}
+
+          <div className="mt-6 flex max-w-full flex-wrap gap-2">
+
+            <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
               AI
             </span>
 
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
-              {tool.category}
+            <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
+              {category}
             </span>
 
-            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
-              {tool.name}
+            <span className="max-w-full break-all rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
+              {name}
             </span>
+
           </div>
+
         </section>
 
-        {/* WHO SHOULD USE */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
-            Who Should Use {tool.name}?
+        {/* =================================================
+            WHO SHOULD USE
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
+            Who Should Use {name}?
           </h2>
 
-          <p className="mt-5 text-[13px] leading-7 text-slate-600">
-            {tool.whoShouldUse}
+          <p className="mt-4 break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
+            {name} is designed for individuals, creators, professionals, and teams looking for a practical {category.toLowerCase()} solution that can improve efficiency and simplify everyday workflows.
           </p>
+
         </section>
 
-        {/* PRICING */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            PRICING
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
             Pricing
           </h2>
 
-          <p className="mt-5 text-[13px] leading-7 text-slate-600">
-            {tool.pricingText}
+          <p className="mt-4 break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
+            {name} currently appears in the AI Vault directory with a{" "}
+            <strong className="font-bold text-slate-700">
+              {pricing}
+            </strong>{" "}
+            pricing model. Users should check the official portal for the latest pricing, feature limits, and usage terms.
           </p>
+
         </section>
 
-        {/* FEATURES / LIMITATIONS */}
-        <section className="mt-6 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-            <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            FEATURES + LIMITATIONS
+        ================================================= */}
+
+        <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
+
+          {/* FEATURES */}
+
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+
+            <h2 className="text-xl font-extrabold text-slate-900">
               Key Features
             </h2>
 
-            <div className="mt-5 space-y-4">
-              {tool.features.map((feature, index) => (
-                <div
-                  key={`${feature}-${index}`}
-                  className="flex gap-3 text-[13px] leading-6 text-slate-600"
-                >
-                  <span className="mt-[8px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#334cff]" />
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+            <ul className="mt-5 space-y-4">
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-            <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+              {features.map(
+                (feature, index) => (
+                  <li
+                    key={`feature-${index}`}
+                    className="flex min-w-0 gap-3 text-sm leading-6 text-slate-500"
+                  >
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
+
+                    <span className="min-w-0 break-words">
+                      {feature}
+                    </span>
+                  </li>
+                )
+              )}
+
+            </ul>
+
+          </section>
+
+          {/* LIMITATIONS */}
+
+          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+
+            <h2 className="text-xl font-extrabold text-slate-900">
               Limitations
             </h2>
 
-            <div className="mt-5 space-y-4">
-              {tool.limitations.map((limitation, index) => (
-                <div
-                  key={`${limitation}-${index}`}
-                  className="flex gap-3 text-[13px] leading-6 text-slate-600"
-                >
-                  <span className="mt-[8px] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-400" />
-                  <span>{limitation}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+            <ul className="mt-5 space-y-4">
 
-        {/* USE CASES */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+              {limitations.map(
+                (limitation, index) => (
+                  <li
+                    key={`limitation-${index}`}
+                    className="flex min-w-0 gap-3 text-sm leading-6 text-slate-500"
+                  >
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
+
+                    <span className="min-w-0 break-words">
+                      {limitation}
+                    </span>
+                  </li>
+                )
+              )}
+
+            </ul>
+
+          </section>
+
+        </div>
+
+        {/* =================================================
+            USE CASES
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
             Use Cases
           </h2>
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            {tool.useCases.map((useCase) => (
-              <span
-                key={useCase}
-                className="rounded-full bg-slate-100 px-4 py-2 text-[11px] font-semibold text-slate-600"
-              >
-                {useCase}
-              </span>
-            ))}
+          <div className="mt-5 flex max-w-full flex-wrap gap-2">
+
+            {useCases.map(
+              (useCase, index) => (
+                <span
+                  key={`use-case-${index}`}
+                  className="max-w-full break-words rounded-full bg-slate-50 px-3 py-2 text-[10px] font-semibold text-slate-600"
+                >
+                  {useCase}
+                </span>
+              )
+            )}
+
           </div>
+
         </section>
 
-        {/* HOW TO GET STARTED */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            HOW TO GET STARTED
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
             How To Get Started
           </h2>
 
-          <ol className="mt-5 space-y-3 text-[13px] leading-6 text-slate-600">
-            {tool.gettingStarted.map((step, index) => (
-              <li key={`${step}-${index}`} className="flex gap-3">
-                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-700">
-                  {index + 1}
-                </span>
+          <ol className="mt-5 space-y-4">
 
-                <span className="pt-[1px]">{step}</span>
-              </li>
-            ))}
+            {gettingStarted.map(
+              (step, index) => (
+                <li
+                  key={`step-${index}`}
+                  className="flex min-w-0 items-start gap-3"
+                >
+
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-50 text-[10px] font-bold text-slate-600">
+                    {index + 1}
+                  </span>
+
+                  <span className="min-w-0 break-words pt-0.5 text-sm leading-6 text-slate-500">
+                    {step}
+                  </span>
+
+                </li>
+              )
+            )}
+
           </ol>
+
         </section>
 
-        {/* FAQ */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            FAQ
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
             Frequently Asked Questions
           </h2>
 
           <div className="mt-5 divide-y divide-slate-100">
-            {tool.faqs.map((faq, index) => (
-              <div
-                key={`${faq.question}-${index}`}
-                className="py-5 first:pt-0 last:pb-0"
-              >
-                <h3 className="text-[12px] font-extrabold text-slate-800">
-                  {faq.question}
-                </h3>
 
-                <p className="mt-2 text-[12px] leading-6 text-slate-500">
-                  {faq.answer}
-                </p>
-              </div>
-            ))}
+            {faqs.map(
+              (faq, index) => (
+                <div
+                  key={`faq-${index}`}
+                  className="py-5 first:pt-0 last:pb-0"
+                >
+
+                  <h3 className="break-words text-sm font-bold text-slate-800">
+                    {faq.question}
+                  </h3>
+
+                  <p className="mt-2 break-words text-sm leading-7 text-slate-500">
+                    {faq.answer}
+                  </p>
+
+                </div>
+              )
+            )}
+
           </div>
+
         </section>
 
-        {/* SPECIFICATIONS */}
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_2px_8px_rgba(15,23,42,0.03)] sm:p-8">
-          <h2 className="text-[20px] font-extrabold tracking-[-0.02em]">
+        {/* =================================================
+            TOOL SPECIFICATIONS
+        ================================================= */}
+
+        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+
+          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
             Tool Specifications
           </h2>
 
-          <div className="mt-6 divide-y divide-slate-100">
-            {tool.specifications.map((specification) => (
-              <div
-                key={specification.label}
-                className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <span className="text-[12px] font-medium text-slate-500">
-                  {specification.label}
-                </span>
+          <div className="mt-5 divide-y divide-slate-100">
 
-                <span className="text-[12px] font-bold text-slate-800 sm:text-right">
-                  {specification.value}
-                </span>
+            {/* CATEGORY */}
+
+            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm text-slate-500">
+                Category
+              </span>
+
+              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
+                {category}
+              </span>
+
+            </div>
+
+            {/* PRICING */}
+
+            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm text-slate-500">
+                Pricing Model
+              </span>
+
+              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
+                {pricing}
+              </span>
+
+            </div>
+
+            {/* OS */}
+
+            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm text-slate-500">
+                Operating System
+              </span>
+
+              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
+                {getOperatingSystem(tool)}
+              </span>
+
+            </div>
+
+            {/* DEPLOYMENT */}
+
+            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm text-slate-500">
+                Deployment
+              </span>
+
+              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
+                {getDeployment(tool)}
+              </span>
+
+            </div>
+
+            {/* LICENSE */}
+
+            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+
+              <span className="text-sm text-slate-500">
+                License
+              </span>
+
+              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
+                {getLicense(tool)}
+              </span>
+
+            </div>
+
+            {/* INTEGRATIONS */}
+
+            <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
+
+              <span className="shrink-0 text-sm text-slate-500">
+                Integrations
+              </span>
+
+              <div className="flex max-w-full flex-wrap justify-start gap-2 sm:justify-end">
+
+                {integrations.map(
+                  (integration, index) => (
+                    <span
+                      key={`integration-${index}`}
+                      className="max-w-full break-words rounded-lg bg-slate-50 px-3 py-2 text-[10px] font-semibold text-slate-600"
+                    >
+                      {integration}
+                    </span>
+                  )
+                )}
+
               </div>
-            ))}
+
+            </div>
+
           </div>
 
-          {/* INTEGRATION TAGS */}
-          <div className="mt-6 flex flex-wrap justify-end gap-2">
-            <span className="rounded-md bg-slate-100 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
-              Web APIs
-            </span>
+          {/* FINAL CTA */}
 
-            <span className="rounded-md bg-slate-100 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
-              Cloud Services
-            </span>
-          </div>
-
-          {/* BOTTOM CTA */}
-          {tool.websiteUrl && (
+          {officialLink && (
             <a
-              href={tool.websiteUrl}
+              href={officialLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-7 flex w-full items-center justify-center rounded-xl bg-[#101828] px-5 py-4 text-[11px] font-extrabold uppercase tracking-wide text-white transition hover:bg-[#1d2939]"
+              className="mt-7 flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-center text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:min-h-14 sm:text-sm"
             >
               Visit Official Portal ↗
             </a>
           )}
+
         </section>
 
-        {/* BACK */}
-        <div className="mt-7">
+        {/* =================================================
+            BACK BUTTON
+        ================================================= */}
+
+        <div className="mt-6">
+
           <Link
-            href="/"
-            className="inline-flex items-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-[11px] font-bold text-slate-700 transition hover:bg-slate-50"
+            href={`/category/${encodeURIComponent(
+              categorySlug
+            )}`}
+            className="inline-flex max-w-full items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
           >
             ← Back to AI Directory
           </Link>
+
         </div>
+
       </div>
 
-      {/* FOOTER */}
-      <footer className="border-t border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-4 px-5 py-7 text-[11px] text-slate-500 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-10">
-          <span>© 2026 AI Vault. All rights reserved.</span>
+      {/* ===================================================
+          FOOTER
+      =================================================== */}
 
-          <div className="flex gap-5">
-            <Link href="/about" className="hover:text-slate-900">
+      <footer className="mt-12 border-t border-slate-100 bg-white">
+
+        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-7 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+
+          <p className="text-xs text-slate-400">
+            © {new Date().getFullYear()} AI Vault. All rights reserved.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 sm:gap-5">
+
+            <Link
+              href="/about"
+              className="hover:text-slate-700"
+            >
               About
             </Link>
 
-            <Link href="/contact" className="hover:text-slate-900">
+            <Link
+              href="/contact"
+              className="hover:text-slate-700"
+            >
               Contact
             </Link>
 
-            <Link href="/privacy" className="hover:text-slate-900">
+            <Link
+              href="/privacy"
+              className="hover:text-slate-700"
+            >
               Privacy
             </Link>
 
-            <Link href="/terms" className="hover:text-slate-900">
+            <Link
+              href="/terms"
+              className="hover:text-slate-700"
+            >
               Terms
             </Link>
+
           </div>
+
         </div>
+
       </footer>
 
-      {/* STRUCTURED DATA */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            "@context": "https://schema.org",
-            "@type": "SoftwareApplication",
-            name: tool.name,
-            description: tool.description,
-            applicationCategory: tool.category,
-            operatingSystem: "Web",
-            url: `${SITE_URL}/tool/${tool.slug}`,
-            ...(tool.websiteUrl
-              ? {
-                  sameAs: tool.websiteUrl,
-                }
-              : {}),
-            offers: {
-              "@type": "Offer",
-              category: tool.pricing,
-            },
-          }),
-        }}
-      />
     </main>
   );
 }
