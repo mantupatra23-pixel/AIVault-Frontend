@@ -43,6 +43,10 @@ type ToolRecord = {
   [key: string]: unknown;
 };
 
+/* =========================================================
+   SUPABASE
+========================================================= */
+
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -55,6 +59,10 @@ function getSupabase() {
 
   return createClient(url, key);
 }
+
+/* =========================================================
+   HELPERS
+========================================================= */
 
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -69,7 +77,7 @@ function decodeSlug(value: string): string {
 }
 
 function makeSlug(value: string): string {
-  return value
+  return clean(value)
     .toLowerCase()
     .trim()
     .replace(/&/g, "and")
@@ -109,7 +117,9 @@ function getDescription(tool: ToolRecord): string {
 }
 
 function getPricing(tool: ToolRecord): string {
-  const value = clean(tool.pricing_model) || clean(tool.pricing);
+  const value =
+    clean(tool.pricing_model) ||
+    clean(tool.pricing);
 
   if (!value) {
     return "Unknown";
@@ -174,28 +184,42 @@ function getWebsiteUrl(tool: ToolRecord): string | null {
   );
 }
 
+/* =========================================================
+   CATEGORY MATCHING
+========================================================= */
+
+function normalizeCategory(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
 function categoryMatches(
   toolCategory: string,
   categorySlug: string,
   categoryTitle: string
 ): boolean {
-  const value = toolCategory
-    .trim()
-    .toLowerCase()
-    .replace(/[-_]+/g, " ");
+  const value = normalizeCategory(toolCategory);
+  const slug = normalizeCategory(categorySlug);
+  const title = normalizeCategory(categoryTitle);
 
-  const slug = categorySlug
-    .trim()
-    .toLowerCase()
-    .replace(/[-_]+/g, " ");
+  if (!value) {
+    return false;
+  }
 
-  const title = categoryTitle
-    .trim()
-    .toLowerCase()
-    .replace(/[-_]+/g, " ");
-
-  return value === slug || value === title;
+  return (
+    value === slug ||
+    value === title ||
+    value.includes(slug) ||
+    slug.includes(value)
+  );
 }
+
+/* =========================================================
+   PRICING FILTER
+========================================================= */
 
 function pricingMatches(
   tool: ToolRecord,
@@ -223,14 +247,69 @@ function pricingMatches(
   return pricing.includes(selected);
 }
 
+/* =========================================================
+   SEARCH MATCHING
+========================================================= */
+
+function searchMatches(
+  tool: ToolRecord,
+  query: string
+): boolean {
+  if (!query) {
+    return true;
+  }
+
+  const search = query.toLowerCase();
+
+  const searchableText = [
+    getName(tool),
+    getDescription(tool),
+    clean(tool.category),
+    getPricing(tool),
+  ]
+    .join(" ")
+    .toLowerCase();
+
+  return searchableText.includes(search);
+}
+
+/* =========================================================
+   URL HELPERS
+========================================================= */
+
+function categoryUrl(
+  categorySlug: string,
+  nextQuery = "",
+  nextPricing = "All Pricing"
+): string {
+  const params = new URLSearchParams();
+
+  if (nextQuery.trim()) {
+    params.set("q", nextQuery.trim());
+  }
+
+  if (
+    nextPricing &&
+    nextPricing !== "All Pricing"
+  ) {
+    params.set("pricing", nextPricing);
+  }
+
+  const query = params.toString();
+
+  return `/category/${encodeURIComponent(categorySlug)}${
+    query ? `?${query}` : ""
+  }`;
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
 export default async function CategoryPage({
   params,
   searchParams,
 }: PageProps) {
-  /*
-   * NEXT.JS 16:
-   * params and searchParams are Promises.
-   */
   const { slug } = await params;
 
   const resolvedSearchParams = searchParams
@@ -239,34 +318,41 @@ export default async function CategoryPage({
 
   const categorySlug = decodeSlug(slug);
 
-  const categoryName = titleFromSlug(categorySlug);
+  const categoryName =
+    titleFromSlug(categorySlug);
 
-  const queryText = clean(resolvedSearchParams.q);
+  const queryText =
+    clean(resolvedSearchParams.q);
 
   const selectedPricing =
-    clean(resolvedSearchParams.pricing) || "All Pricing";
+    clean(resolvedSearchParams.pricing) ||
+    "All Pricing";
 
   let tools: ToolRecord[] = [];
   let databaseError: string | null = null;
+
+  /* =======================================================
+     LOAD TOOLS
+  ======================================================= */
 
   try {
     const supabase = getSupabase();
 
     /*
-     * select("*") is intentional.
-     *
-     * It keeps all existing ai_tools fields available and avoids
-     * breaking the page when your table contains additional columns.
+     * select("*") intentionally keeps this page compatible
+     * with additional columns in the ai_tools table.
      */
     const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
-      .order("name", { ascending: true });
+      .order("name", {
+        ascending: true,
+      });
 
     if (error) {
       databaseError = error.message;
     } else {
-      tools = (data ?? []) as ToolRecord[];
+      tools = (data || []) as ToolRecord[];
     }
   } catch (error) {
     databaseError =
@@ -275,16 +361,10 @@ export default async function CategoryPage({
         : "Unable to connect to the AI Vault database.";
   }
 
-  /*
-   * Filter category in JavaScript.
-   *
-   * This is more tolerant than exact SQL matching and supports:
-   * Productivity
-   * productivity
-   * PRODUCTIVITY
-   * productivity-
-   * etc.
-   */
+  /* =======================================================
+     CATEGORY FILTER
+  ======================================================= */
+
   if (!databaseError) {
     tools = tools.filter((tool) =>
       categoryMatches(
@@ -295,70 +375,54 @@ export default async function CategoryPage({
     );
   }
 
-  /*
-   * Search + pricing filter
-   */
+  /* =======================================================
+     SEARCH + PRICING FILTER
+  ======================================================= */
+
   const filteredTools = tools.filter((tool) => {
-    if (!pricingMatches(tool, selectedPricing)) {
+    if (
+      !pricingMatches(
+        tool,
+        selectedPricing
+      )
+    ) {
       return false;
     }
 
-    if (!queryText) {
-      return true;
+    if (
+      !searchMatches(
+        tool,
+        queryText
+      )
+    ) {
+      return false;
     }
 
-    const search = queryText.toLowerCase();
-
-    const searchableText = [
-      getName(tool),
-      getDescription(tool),
-      clean(tool.category),
-      getPricing(tool),
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return searchableText.includes(search);
+    return true;
   });
 
   const totalTools = tools.length;
 
-  const pageTitle = `Best ${categoryName} AI Tools`;
+  const pageTitle =
+    `Best ${categoryName} AI Tools`;
 
   const pageDescription =
     `Explore verified software platforms, pricing models, features, reviews, and alternatives in the ${categoryName} domain.`;
 
-  function categoryUrl(
-    nextQuery = "",
-    nextPricing = "All Pricing"
-  ): string {
-    const params = new URLSearchParams();
-
-    if (nextQuery.trim()) {
-      params.set("q", nextQuery.trim());
-    }
-
-    if (
-      nextPricing &&
-      nextPricing !== "All Pricing"
-    ) {
-      params.set("pricing", nextPricing);
-    }
-
-    const query = params.toString();
-
-    return `/category/${encodeURIComponent(categorySlug)}${
-      query ? `?${query}` : ""
-    }`;
-  }
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <main className="min-h-screen bg-white text-slate-950">
-      {/* =========================================================
+
+      {/* ===================================================
           HEADER
-      ========================================================= */}
+      =================================================== */}
+
       <header className="border-b border-slate-100 bg-white">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+
           <Link
             href="/"
             className="text-xl font-bold tracking-tight text-slate-950"
@@ -372,15 +436,22 @@ export default async function CategoryPage({
           >
             Browse All Categories
           </Link>
+
         </div>
       </header>
 
-      {/* =========================================================
+      {/* ===================================================
           CONTENT
-      ========================================================= */}
+      =================================================== */}
+
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Breadcrumb */}
-        <nav className="mb-6 flex items-center gap-2 text-xs text-slate-400">
+
+        {/* =================================================
+            BREADCRUMB
+        ================================================= */}
+
+        <nav className="mb-7 flex items-center gap-2 text-xs text-slate-400">
+
           <Link
             href="/"
             className="transition hover:text-slate-700"
@@ -390,15 +461,27 @@ export default async function CategoryPage({
 
           <span>/</span>
 
+          <Link
+            href="/categories"
+            className="transition hover:text-slate-700"
+          >
+            AI Tools
+          </Link>
+
+          <span>/</span>
+
           <span className="font-medium text-slate-700">
             {categoryName}
           </span>
+
         </nav>
 
-        {/* =======================================================
+        {/* =================================================
             HERO
-        ======================================================= */}
+        ================================================= */}
+
         <section className="mb-8">
+
           <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
             {pageTitle}
           </h1>
@@ -408,25 +491,32 @@ export default async function CategoryPage({
           </p>
 
           {!databaseError && (
-            <p className="mt-4 text-xs font-semibold text-blue-600">
+            <p className="mt-4 text-sm font-semibold text-blue-600">
               Showing{" "}
-              {filteredTools.length.toLocaleString()}{" "}
               {filteredTools.length === 1
-                ? "Verified Tool"
-                : "Verified Tools"}
+                ? "1 Verified Tool"
+                : `${filteredTools.length} Verified Tools`}
             </p>
           )}
+
         </section>
 
-        {/* =======================================================
+        {/* =================================================
             SEARCH + PRICING FILTER
-        ======================================================= */}
+        ================================================= */}
+
         <section className="mb-8 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm">
+
           <form
-            action={`/category/${encodeURIComponent(categorySlug)}`}
+            action={`/category/${encodeURIComponent(
+              categorySlug
+            )}`}
             method="GET"
             className="grid gap-3 md:grid-cols-[1fr_190px_auto]"
           >
+
+            {/* Search */}
+
             <input
               type="search"
               name="q"
@@ -435,10 +525,12 @@ export default async function CategoryPage({
               className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             />
 
+            {/* Pricing */}
+
             <select
               name="pricing"
               defaultValue={selectedPricing}
-              className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              className="h-12 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
             >
               <option value="All Pricing">
                 All Pricing
@@ -457,21 +549,27 @@ export default async function CategoryPage({
               </option>
             </select>
 
+            {/* Search button */}
+
             <button
               type="submit"
-              className="h-12 rounded-xl bg-slate-950 px-7 text-sm font-bold text-white transition hover:bg-slate-800"
+              className="h-12 rounded-xl bg-slate-950 px-7 text-sm font-bold text-white transition hover:bg-blue-600 active:scale-[0.98]"
             >
               Search
             </button>
+
           </form>
+
         </section>
 
-        {/* =======================================================
+        {/* =================================================
             DATABASE ERROR
-        ======================================================= */}
+        ================================================= */}
+
         {databaseError ? (
           <section className="rounded-2xl border border-red-100 bg-white p-10 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-xl">
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-xl text-red-600">
               !
             </div>
 
@@ -480,30 +578,37 @@ export default async function CategoryPage({
             </h2>
 
             <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-slate-500">
-              The AI Vault database returned an error while
-              loading this category.
+              The AI Vault database returned an error while loading this category.
             </p>
 
             {process.env.NODE_ENV !== "production" && (
-              <p className="mx-auto mt-3 max-w-xl rounded-lg bg-red-50 p-3 text-left text-xs text-red-700">
+              <p className="mx-auto mt-4 max-w-2xl rounded-xl bg-red-50 p-3 text-left text-xs text-red-700">
                 {databaseError}
               </p>
             )}
 
             <Link
-              href={categoryUrl()}
-              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+              href={categoryUrl(
+                categorySlug,
+                queryText,
+                selectedPricing
+              )}
+              className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-600"
             >
-              Try Again →
+              Try Again
             </Link>
+
           </section>
         ) : filteredTools.length === 0 ? (
-          /* =====================================================
+
+          /* =================================================
              EMPTY STATE
-          ===================================================== */
+          ================================================= */
+
           <section className="rounded-2xl border border-slate-100 bg-white p-12 text-center shadow-sm">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-xl">
-              🔎
+
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-50 text-xl text-slate-500">
+              ?
             </div>
 
             <h2 className="mt-5 text-lg font-bold text-slate-900">
@@ -511,31 +616,50 @@ export default async function CategoryPage({
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              Try another search term or change the pricing
-              filter.
+              Try another search term or change the pricing filter.
             </p>
 
             <Link
-              href={categoryUrl()}
-              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-slate-800"
+              href={`/category/${encodeURIComponent(
+                categorySlug
+              )}`}
+              className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white transition hover:bg-blue-600"
             >
               View All Tools
             </Link>
+
           </section>
+
         ) : (
-          /* =====================================================
+
+          /* =================================================
              TOOL GRID
-          ===================================================== */
+          ================================================= */
+
           <section className="grid gap-5 md:grid-cols-2">
+
             {filteredTools.map((tool, index) => {
-              const toolName = getName(tool);
-              const toolSlug = getSlug(tool);
+
+              const toolName =
+                getName(tool);
+
+              const toolSlug =
+                getSlug(tool);
+
               const toolDescription =
                 getDescription(tool);
-              const toolPricing = getPricing(tool);
-              const toolScore = getScore(tool);
-              const logoUrl = getLogoUrl(tool);
-              const websiteUrl = getWebsiteUrl(tool);
+
+              const toolPricing =
+                getPricing(tool);
+
+              const toolScore =
+                getScore(tool);
+
+              const logoUrl =
+                getLogoUrl(tool);
+
+              const websiteUrl =
+                getWebsiteUrl(tool);
 
               const key =
                 tool.id !== null &&
@@ -543,6 +667,12 @@ export default async function CategoryPage({
                   ? String(tool.id)
                   : `${toolSlug}-${index}`;
 
+              /*
+               * IMPORTANT:
+               * The whole card is a Link.
+               * Therefore the Explore button does not
+               * create a nested <a> element.
+               */
               return (
                 <Link
                   key={key}
@@ -551,9 +681,15 @@ export default async function CategoryPage({
                   )}`}
                   className="group block"
                 >
-                  <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
-                    {/* Card header */}
+
+                  <article className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md">
+
+                    {/* =====================================
+                       CARD TOP
+                    ===================================== */}
+
                     <div className="flex items-start justify-between gap-4">
+
                       <ToolLogo
                         src={logoUrl}
                         fallbackSrc={logoUrl}
@@ -562,58 +698,165 @@ export default async function CategoryPage({
                         size="md"
                       />
 
-                      <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-slate-500">
+                      <span
+                        className={`shrink-0 rounded-full px-3 py-1 text-[9px] font-bold ${
+                          toolPricing === "Free"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : toolPricing === "Paid"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-slate-50 text-slate-600"
+                        }`}
+                      >
                         {toolPricing}
                       </span>
+
                     </div>
 
-                    {/* Tool name */}
+                    {/* =====================================
+                       TOOL NAME
+                    ===================================== */}
+
                     <h2 className="mt-4 line-clamp-1 text-lg font-extrabold tracking-tight text-slate-900 transition group-hover:text-blue-600">
                       {toolName}
                     </h2>
 
-                    {/* Description */}
+                    {/* =====================================
+                       DESCRIPTION
+                    ===================================== */}
+
                     <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">
                       {toolDescription}
                     </p>
 
-                    {/* Bottom metadata */}
-                    <div className="mt-6 flex items-center justify-between border-t border-slate-100 pt-4">
-                      <span className="text-[11px] font-bold uppercase tracking-wide text-blue-600">
-                        {clean(tool.category) ||
-                          categoryName}
-                      </span>
+                    {/* =====================================
+                       BOTTOM METADATA
+                    ===================================== */}
 
-                      <span className="text-xs font-bold text-blue-600">
-                        {toolScore}/100
-                      </span>
+                    <div className="mt-auto pt-5">
+
+                      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+
+                        {/* Category */}
+
+                        <span className="max-w-[45%] truncate text-[11px] font-semibold text-blue-600">
+                          {clean(tool.category) ||
+                            categoryName}
+                        </span>
+
+                        {/* Score */}
+
+                        <span className="text-xs font-bold text-blue-600">
+                          {toolScore}
+                          <span className="ml-0.5 text-slate-400">
+                            /10
+                          </span>
+                        </span>
+
+                      </div>
+
+                      {/* ===================================
+                         EXPLORE BUTTON
+                      =================================== */}
+
+                      <div className="mt-4 flex items-center justify-end">
+
+                        <span className="inline-flex items-center gap-2 rounded-xl bg-slate-950 px-4 py-2.5 text-[11px] font-extrabold text-white transition group-hover:bg-blue-600">
+                          Explore
+                          <span
+                            aria-hidden="true"
+                            className="text-sm transition-transform group-hover:translate-x-0.5"
+                          >
+                            →
+                          </span>
+                        </span>
+
+                      </div>
+
                     </div>
+
                   </article>
+
                 </Link>
               );
             })}
+
           </section>
         )}
 
-        {/* =======================================================
-            FOOTER INFORMATION
-        ======================================================= */}
-        {!databaseError && totalTools > 0 && (
-          <div className="mt-10 border-t border-slate-100 pt-6 text-center">
-            <p className="text-xs text-slate-400">
-              AI Vault has verified{" "}
-              <span className="font-semibold text-slate-600">
-                {totalTools.toLocaleString()}
-              </span>{" "}
-              tools in the{" "}
-              <span className="font-semibold text-slate-600">
-                {categoryName}
-              </span>{" "}
-              category.
-            </p>
-          </div>
-        )}
+        {/* =================================================
+           RESULT INFORMATION
+        ================================================= */}
+
+        {!databaseError &&
+          totalTools > 0 &&
+          filteredTools.length > 0 && (
+            <div className="mt-10 border-t border-slate-100 pt-6 text-center">
+
+              <p className="text-xs text-slate-400">
+                AI Vault has verified{" "}
+                <span className="font-semibold text-slate-600">
+                  {totalTools.toLocaleString()}
+                </span>{" "}
+                tools in the{" "}
+                <span className="font-semibold text-slate-600">
+                  {categoryName}
+                </span>{" "}
+                category.
+              </p>
+
+            </div>
+          )}
+
       </div>
+
+      {/* ===================================================
+          FOOTER
+      =================================================== */}
+
+      <footer className="mt-16 border-t border-slate-100 bg-white">
+
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+
+          <p className="text-xs text-slate-400">
+            © {new Date().getFullYear()} AI Vault. All rights reserved.
+          </p>
+
+          <div className="flex items-center justify-center gap-5 text-xs text-slate-400">
+
+            <Link
+              href="/about"
+              className="transition hover:text-slate-700"
+            >
+              About
+            </Link>
+
+            <Link
+              href="/contact"
+              className="transition hover:text-slate-700"
+            >
+              Contact
+            </Link>
+
+            <Link
+              href="/privacy"
+              className="transition hover:text-slate-700"
+            >
+              Privacy
+            </Link>
+
+            <Link
+              href="/terms"
+              className="transition hover:text-slate-700"
+            >
+              Terms
+            </Link>
+
+          </div>
+
+        </div>
+
+      </footer>
+
     </main>
   );
 }
