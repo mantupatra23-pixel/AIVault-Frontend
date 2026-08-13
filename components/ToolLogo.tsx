@@ -2,181 +2,181 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
+type ToolData = {
+  id?: string | number | null;
+  name?: string | null;
+  slug?: string | null;
+
+  logo_url?: string | null;
+  logo?: string | null;
+  image_url?: string | null;
+  icon_url?: string | null;
+
+  [key: string]: unknown;
+};
+
 type ToolLogoProps = {
+  /*
+   * New API
+   */
   src?: string | null;
   fallbackSrc?: string | null;
-  websiteUrl?: string | null;
-  name: string;
+  name?: string | null;
+
+  /*
+   * Backward-compatible API
+   * Existing pages can still use:
+   *
+   * <ToolLogo tool={tool} />
+   */
+  tool?: ToolData | null;
+
   size?: "sm" | "md" | "lg" | "xl";
   className?: string;
 };
 
-const sizeClasses: Record<NonNullable<ToolLogoProps["size"]>, string> = {
-  sm: "h-10 w-10 rounded-xl text-sm",
-  md: "h-16 w-16 rounded-2xl text-lg",
-  lg: "h-20 w-20 rounded-2xl text-2xl",
-  xl: "h-24 w-24 rounded-2xl text-3xl",
+const sizeClasses = {
+  sm: "h-10 w-10 text-xs rounded-xl",
+  md: "h-16 w-16 text-lg rounded-2xl",
+  lg: "h-20 w-20 text-2xl rounded-2xl",
+  xl: "h-24 w-24 text-3xl rounded-3xl",
 };
 
-function normalizeUrl(value?: string | null): string | null {
-  if (!value) return null;
+function cleanUrl(value: unknown): string | null {
+  if (typeof value !== "string") return null;
 
-  const trimmed = value.trim();
+  const valueTrimmed = value.trim();
 
-  if (!trimmed) return null;
+  if (!valueTrimmed) return null;
 
-  if (
-    trimmed.startsWith("http://") ||
-    trimmed.startsWith("https://") ||
-    trimmed.startsWith("//")
-  ) {
-    return trimmed.startsWith("//")
-      ? `https:${trimmed}`
-      : trimmed;
-  }
-
-  if (trimmed.startsWith("/")) {
-    return trimmed;
-  }
-
-  return `https://${trimmed}`;
+  return valueTrimmed;
 }
 
-function getHostname(value?: string | null): string | null {
-  if (!value) return null;
-
-  try {
-    const normalized = normalizeUrl(value);
-
-    if (!normalized || normalized.startsWith("/")) {
-      return null;
-    }
-
-    const url = new URL(normalized);
-
-    return url.hostname.replace(/^www\./i, "");
-  } catch {
-    return null;
-  }
-}
-
-function buildLogoCandidates(
-  src?: string | null,
-  fallbackSrc?: string | null,
-  websiteUrl?: string | null
-): string[] {
-  const candidates: string[] = [];
-
-  const primary = normalizeUrl(src);
-  const fallback = normalizeUrl(fallbackSrc);
-  const hostname = getHostname(websiteUrl);
-
-  if (primary) {
-    candidates.push(primary);
-  }
-
-  if (fallback && !candidates.includes(fallback)) {
-    candidates.push(fallback);
-  }
-
-  if (hostname) {
-    // Official website favicon
-    candidates.push(`https://${hostname}/favicon.ico`);
-
-    // Google favicon resolver as a second automatic fallback.
-    candidates.push(
-      `https://www.google.com/s2/favicons?domain=${encodeURIComponent(
-        hostname
-      )}&sz=128`
-    );
-  }
-
-  return [...new Set(candidates)];
-}
-
-function getInitials(name: string): string {
-  const cleanName = name.trim();
-
-  if (!cleanName) {
-    return "AI";
-  }
-
-  const words = cleanName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2);
-
-  const initials = words
-    .map((word) => word.charAt(0).toUpperCase())
-    .join("");
-
-  return initials || "AI";
-}
-
-export const ToolLogo: React.FC<ToolLogoProps> = ({
+export default function ToolLogo({
   src,
   fallbackSrc,
-  websiteUrl,
   name,
+  tool,
   size = "md",
   className = "",
-}) => {
-  const [candidateIndex, setCandidateIndex] = useState(0);
+}: ToolLogoProps) {
+  const [failed, setFailed] = useState(false);
 
-  const candidates = useMemo(
-    () => buildLogoCandidates(src, fallbackSrc, websiteUrl),
-    [src, fallbackSrc, websiteUrl]
-  );
+  /*
+   * Resolve name from either:
+   *
+   * 1. name prop
+   * 2. tool.name
+   */
+  const resolvedName = useMemo(() => {
+    return (
+      cleanUrl(name) ||
+      cleanUrl(tool?.name) ||
+      "AI Tool"
+    );
+  }, [name, tool?.name]);
 
+  /*
+   * Build initials from tool name.
+   *
+   * Example:
+   * Nylas CLI -> NC
+   * ChatGPT -> C
+   * Open AI -> OA
+   */
+  const initials = useMemo(() => {
+    const words = resolvedName
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+
+    if (words.length === 0) {
+      return "AI";
+    }
+
+    if (words.length === 1) {
+      return words[0].charAt(0).toUpperCase();
+    }
+
+    return words
+      .slice(0, 2)
+      .map((word) => word.charAt(0).toUpperCase())
+      .join("");
+  }, [resolvedName]);
+
+  /*
+   * Resolve logo from every supported database field.
+   *
+   * Priority:
+   *
+   * src
+   * fallbackSrc
+   * tool.logo_url
+   * tool.logo
+   * tool.image_url
+   * tool.icon_url
+   */
+  const resolvedLogo = useMemo(() => {
+    return (
+      cleanUrl(src) ||
+      cleanUrl(fallbackSrc) ||
+      cleanUrl(tool?.logo_url) ||
+      cleanUrl(tool?.logo) ||
+      cleanUrl(tool?.image_url) ||
+      cleanUrl(tool?.icon_url) ||
+      null
+    );
+  }, [
+    src,
+    fallbackSrc,
+    tool?.logo_url,
+    tool?.logo,
+    tool?.image_url,
+    tool?.icon_url,
+  ]);
+
+  /*
+   * Reset failed state whenever a different logo is supplied.
+   */
   useEffect(() => {
-    setCandidateIndex(0);
-  }, [src, fallbackSrc, websiteUrl]);
+    setFailed(false);
+  }, [resolvedLogo]);
 
-  const currentImage = candidates[candidateIndex] ?? null;
-  const initials = getInitials(name);
+  const dimension = sizeClasses[size];
 
-  const baseClasses = sizeClasses[size];
-
-  const fallbackLogo = (
-    <div
-      className={`${baseClasses} flex shrink-0 items-center justify-center bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 font-bold text-white shadow-sm ${className}`}
-      aria-label={`${name} logo`}
-      title={name}
-    >
-      {initials}
-    </div>
-  );
-
-  if (!currentImage) {
-    return fallbackLogo;
+  /*
+   * No valid image or image failed:
+   * render beautiful initials fallback.
+   */
+  if (!resolvedLogo || failed) {
+    return (
+      <div
+        className={`${dimension} ${className} flex shrink-0 items-center justify-center bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 font-bold text-white shadow-sm`}
+        aria-label={`${resolvedName} logo`}
+        title={resolvedName}
+      >
+        {initials}
+      </div>
+    );
   }
 
   return (
     <div
-      className={`${baseClasses} flex shrink-0 items-center justify-center overflow-hidden border border-slate-200 bg-white shadow-sm ${className}`}
-      aria-label={`${name} logo`}
-      title={name}
+      className={`${dimension} ${className} flex shrink-0 items-center justify-center overflow-hidden border border-slate-100 bg-white shadow-sm`}
+      aria-label={`${resolvedName} logo`}
+      title={resolvedName}
     >
       <img
-        key={currentImage}
-        src={currentImage}
-        alt={`${name} logo`}
+        src={resolvedLogo}
+        alt={`${resolvedName} logo`}
         className="h-full w-full object-contain p-2"
         loading="lazy"
         decoding="async"
         referrerPolicy="no-referrer"
         onError={() => {
-          setCandidateIndex((current) => {
-            if (current < candidates.length - 1) {
-              return current + 1;
-            }
-
-            return candidates.length;
-          });
+          setFailed(true);
         }}
       />
     </div>
   );
-};
-
-export default ToolLogo;
+}
