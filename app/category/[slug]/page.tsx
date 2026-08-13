@@ -1,16 +1,15 @@
 import { Metadata } from "next";
-import { notFound } from "next/navigation";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { ToolLogo } from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 type Props = {
-  params: Promise<{
-    slug: string;
-  }>;
+  params: Promise<{ slug: string }>;
   searchParams: Promise<{
     q?: string;
     pricing?: string;
@@ -25,99 +24,70 @@ type Tool = {
   category: string | null;
   pricing: string | null;
   description: string | null;
-  image_url?: string | null;
-  logo_url?: string | null;
-  score?: number | null;
+  image_url: string | null;
+  logo_url: string | null;
+  score: number | null;
 };
 
 function getSupabaseClient() {
-  const supabaseUrl =
+  const url =
     process.env.NEXT_PUBLIC_SUPABASE_URL ||
     process.env.SUPABASE_URL ||
     "";
 
-  const supabaseAnonKey =
+  const key =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.SUPABASE_ANON_KEY ||
     "";
 
-  if (!supabaseUrl || !supabaseAnonKey) {
+  if (!url || !key) {
+    console.error("[CATEGORY] Supabase environment variables missing");
     return null;
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey);
+  return createClient(url, key);
 }
 
-/**
- * Convert URL slug into human readable category.
- *
- * productivity -> Productivity
- * marketing -> Marketing
- * video-gen -> Video Gen
- * image-gen -> Image Gen
- */
-function formatCategoryTitle(rawSlug: string): string {
-  const decoded = decodeURIComponent(rawSlug || "")
+function formatCategoryTitle(slug: string) {
+  const decoded = decodeURIComponent(slug)
     .replace(/[-_]+/g, " ")
     .trim();
 
-  if (!decoded) {
-    return "";
-  }
+  if (!decoded) return "";
 
   return decoded
-    .split(" ")
-    .filter(Boolean)
+    .split(/\s+/)
     .map((word) => {
-      if (word.toLowerCase() === "ai") return "AI";
-      if (word.toLowerCase() === "seo") return "SEO";
-      if (word.toLowerCase() === "api") return "API";
+      const lower = word.toLowerCase();
 
-      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+      if (lower === "ai") return "AI";
+      if (lower === "seo") return "SEO";
+      if (lower === "api") return "API";
+
+      return lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join(" ");
 }
 
-/**
- * Metadata for category pages.
- */
 export async function generateMetadata({
   params,
 }: Props): Promise<Metadata> {
-  const resolvedParams = await params;
+  const { slug } = await params;
 
-  const rawCategory = resolvedParams.slug;
-  const categoryName = formatCategoryTitle(rawCategory);
-
-  if (!categoryName) {
-    return {
-      title: "AI Tools Directory | AI Vault",
-      description:
-        "Discover and compare verified AI tools, software, pricing, features, and alternatives on AI Vault.",
-    };
-  }
-
-  const canonicalUrl = `${SITE_URL}/category/${encodeURIComponent(
-    rawCategory
-  )}`;
+  const categoryName = formatCategoryTitle(slug);
 
   return {
     title: `Best ${categoryName} AI Tools & Software Directory | AI Vault`,
-    description: `Discover and compare the best ${categoryName} AI tools, software platforms, pricing, features, and alternatives on AI Vault.`,
+    description: `Discover and compare the best ${categoryName} AI tools, software, pricing, features and alternatives on AI Vault.`,
     alternates: {
-      canonical: canonicalUrl,
+      canonical: `${SITE_URL}/category/${encodeURIComponent(slug)}`,
     },
     openGraph: {
       title: `Best ${categoryName} AI Tools | AI Vault`,
-      description: `Explore curated ${categoryName} software tools on AI Vault.`,
-      url: canonicalUrl,
+      description: `Explore curated ${categoryName} AI software tools on AI Vault.`,
+      url: `${SITE_URL}/category/${encodeURIComponent(slug)}`,
       siteName: "AI Vault",
       type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title: `Best ${categoryName} AI Tools | AI Vault`,
-      description: `Explore curated ${categoryName} software tools on AI Vault.`,
     },
   };
 }
@@ -126,10 +96,10 @@ export default async function CategoryPage({
   params,
   searchParams,
 }: Props) {
-  const resolvedParams = await params;
-  const resolvedSearchParams = await searchParams;
+  const { slug } = await params;
+  const filters = await searchParams;
 
-  const rawCategory = decodeURIComponent(resolvedParams.slug || "").trim();
+  const rawCategory = decodeURIComponent(slug || "").trim();
 
   if (!rawCategory) {
     notFound();
@@ -141,79 +111,62 @@ export default async function CategoryPage({
     notFound();
   }
 
-  const searchQuery = (resolvedSearchParams.q || "").trim();
-  const pricingFilter = (resolvedSearchParams.pricing || "").trim();
+  const searchQuery = (filters.q || "").trim();
+  const pricingFilter = (filters.pricing || "").trim();
 
-  const parsedPage = Number.parseInt(
-    resolvedSearchParams.page || "1",
-    10
-  );
+  const requestedPage = Number.parseInt(filters.page || "1", 10);
 
   const page =
-    Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    Number.isFinite(requestedPage) && requestedPage > 0
+      ? requestedPage
+      : 1;
 
   const pageSize = 24;
 
   const supabase = getSupabaseClient();
 
-  /**
-   * If Supabase is not configured, don't silently render
-   * a fake empty category page.
-   */
   if (!supabase) {
-    console.error(
-      "[CATEGORY_CRITICAL] Missing Supabase environment variables."
-    );
-
     return (
-      <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans">
-        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl font-black tracking-tight text-slate-950 font-serif">
-                AI Vault<span className="text-blue-600">.</span>
-              </span>
+      <div className="min-h-screen bg-[#FDFDFD]">
+        <header className="border-b border-slate-100 bg-white">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4">
+            <Link
+              href="/"
+              className="font-serif text-2xl font-black text-slate-950"
+            >
+              AI Vault<span className="text-blue-600">.</span>
             </Link>
 
             <Link
               href="/"
-              className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 rounded-full hover:bg-slate-200 transition"
+              className="rounded-full bg-slate-100 px-5 py-2.5 text-xs font-bold uppercase"
             >
               Browse All Categories
             </Link>
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="p-10 text-center bg-white border border-red-100 rounded-3xl">
-            <h1 className="text-xl font-bold text-slate-900">
-              Category temporarily unavailable
+        <main className="mx-auto max-w-7xl px-4 py-20">
+          <div className="rounded-3xl border border-red-100 bg-white p-12 text-center">
+            <h1 className="text-xl font-bold">
+              Database configuration unavailable
             </h1>
 
             <p className="mt-3 text-sm text-slate-500">
-              The AI Vault database configuration is currently unavailable.
+              Supabase environment variables are missing.
             </p>
-
-            <Link
-              href="/"
-              className="inline-block mt-6 text-sm font-bold text-blue-600 hover:underline"
-            >
-              Return to Directory →
-            </Link>
           </div>
         </main>
       </div>
     );
   }
 
-  /**
-   * ============================================================
-   * CATEGORY QUERY
-   * ============================================================
+  /*
+   * ==========================================================
+   * MAIN CATEGORY QUERY
+   * ==========================================================
    *
-   * IMPORTANT:
-   *
-   * Database values are:
+   * Database values:
    *
    * Productivity
    * Marketing
@@ -222,188 +175,144 @@ export default async function CategoryPage({
    * Video Gen
    * Image Gen
    *
-   * Therefore we use case-insensitive exact matching:
-   *
-   * .ilike("category", categoryName)
-   *
-   * Example:
+   * URL:
    *
    * /category/productivity
-   *       ↓
-   * Productivity
-   *       ↓
-   * database category = Productivity
    *
-   * This avoids the previous category-filter problem.
+   * becomes:
+   *
+   * Productivity
+   *
+   * We use eq() because the database value is already normalized.
    */
 
   let query = supabase
     .from("ai_tools")
     .select(
-      `
-        id,
-        name,
-        slug,
-        category,
-        pricing,
-        description,
-        image_url,
-        logo_url,
-        score
-      `,
+      "id,name,slug,category,pricing,description,image_url,logo_url,score",
       {
         count: "exact",
       }
     )
-    .ilike("category", categoryName);
+    .eq("category", categoryName);
 
-  /**
-   * Optional search.
+  /*
+   * Search filter
    */
+
   if (searchQuery) {
-    query = query.or(
-      `name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%`
-    );
+    const safeSearch = searchQuery
+      .replace(/[%_]/g, "")
+      .trim();
+
+    if (safeSearch) {
+      query = query.or(
+        `name.ilike.%${safeSearch}%,description.ilike.%${safeSearch}%`
+      );
+    }
   }
 
-  /**
-   * Optional pricing filter.
+  /*
+   * Pricing filter
    */
+
   if (pricingFilter) {
-    query = query.ilike("pricing", `%${pricingFilter}%`);
+    const safePricing = pricingFilter
+      .replace(/[%_]/g, "")
+      .trim();
+
+    if (safePricing) {
+      query = query.ilike("pricing", `%${safePricing}%`);
+    }
   }
 
-  /**
-   * Pagination.
+  /*
+   * Pagination
    */
-  const fromIndex = (page - 1) * pageSize;
-  const toIndex = fromIndex + pageSize - 1;
 
-  const {
-    data: tools,
-    count,
-    error,
-  } = await query
-    .order("score", {
-      ascending: false,
-      nullsFirst: false,
-    })
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  const result = await query
     .order("name", {
       ascending: true,
     })
-    .range(fromIndex, toIndex);
+    .range(from, to);
 
-  /**
-   * IMPORTANT:
-   * Never turn a database error into a fake "No tools found".
+  const tools = (result.data || []) as Tool[];
+  const count = result.count || 0;
+  const error = result.error;
+
+  /*
+   * NEVER hide the real Supabase error.
    */
+
   if (error) {
-    console.error("[CATEGORY_QUERY_ERROR]", {
-      category: categoryName,
-      slug: rawCategory,
-      message: error.message,
-      details: error.details,
-      hint: error.hint,
-      code: error.code,
-    });
+    console.error("======================================");
+    console.error("[CATEGORY_QUERY_ERROR]");
+    console.error("Slug:", rawCategory);
+    console.error("Category:", categoryName);
+    console.error("Code:", error.code);
+    console.error("Message:", error.message);
+    console.error("Details:", error.details);
+    console.error("Hint:", error.hint);
+    console.error("======================================");
 
     return (
-      <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans">
-        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
-              <span className="text-2xl font-black tracking-tight text-slate-950 font-serif">
-                AI Vault<span className="text-blue-600">.</span>
-              </span>
+      <div className="min-h-screen bg-[#FDFDFD] text-slate-900">
+        <header className="border-b border-slate-100 bg-white">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4">
+            <Link
+              href="/"
+              className="font-serif text-2xl font-black"
+            >
+              AI Vault<span className="text-blue-600">.</span>
             </Link>
 
             <Link
               href="/"
-              className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 rounded-full hover:bg-slate-200 transition"
+              className="rounded-full bg-slate-100 px-5 py-2.5 text-xs font-bold uppercase"
             >
               Browse All Categories
             </Link>
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
-          <div className="p-10 text-center bg-white border border-red-100 rounded-3xl">
+        <main className="mx-auto max-w-7xl px-4 py-20">
+          <div className="rounded-3xl border border-red-100 bg-white p-12 text-center">
+
             <h1 className="text-xl font-bold text-slate-900">
               Unable to load this category
             </h1>
 
-            <p className="mt-3 text-sm text-slate-500">
-              There was a temporary problem loading the AI tools.
+            <p className="mx-auto mt-3 max-w-xl text-sm text-slate-500">
+              The AI Vault database returned an error while loading
+              this category.
+            </p>
+
+            <p className="mt-4 text-xs font-semibold text-red-500">
+              Category: {categoryName}
             </p>
 
             <Link
               href={`/category/${encodeURIComponent(rawCategory)}`}
-              className="inline-block mt-6 text-sm font-bold text-blue-600 hover:underline"
+              className="mt-6 inline-block text-xs font-bold text-blue-600 hover:underline"
             >
               Try Again →
             </Link>
+
           </div>
         </main>
       </div>
     );
   }
 
-  const safeTools: Tool[] = Array.isArray(tools) ? tools : [];
+  const totalPages = Math.max(
+    1,
+    Math.ceil(count / pageSize)
+  );
 
-  const totalTools = count || 0;
-
-  const totalPages =
-    totalTools > 0 ? Math.ceil(totalTools / pageSize) : 1;
-
-  /**
-   * If someone manually opens page 999,
-   * don't show a broken pagination state.
-   */
-  const currentPage =
-    page > totalPages && totalTools > 0 ? totalPages : page;
-
-  /**
-   * Breadcrumb JSON-LD.
-   */
-  const breadcrumbSchema = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      {
-        "@type": "ListItem",
-        position: 1,
-        name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: categoryName,
-        item: `${SITE_URL}/category/${rawCategory}`,
-      },
-    ],
-  };
-
-  /**
-   * CollectionPage structured data.
-   */
-  const collectionSchema = {
-    "@context": "https://schema.org",
-    "@type": "CollectionPage",
-    name: `Best ${categoryName} AI Tools`,
-    description: `Explore the best ${categoryName} AI tools and software on AI Vault.`,
-    url: `${SITE_URL}/category/${rawCategory}`,
-    isPartOf: {
-      "@type": "WebSite",
-      name: "AI Vault",
-      url: SITE_URL,
-    },
-  };
-
-  /**
-   * Build pagination URL while preserving search/filter params.
-   */
-  function getPageUrl(targetPage: number) {
+  function pageUrl(targetPage: number) {
     const params = new URLSearchParams();
 
     if (searchQuery) {
@@ -425,12 +334,41 @@ export default async function CategoryPage({
     }`;
   }
 
+  /*
+   * ==========================================================
+   * STRUCTURED DATA
+   * ==========================================================
+   */
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: SITE_URL,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: categoryName,
+        item: `${SITE_URL}/category/${rawCategory}`,
+      },
+    ],
+  };
+
+  const collectionSchema = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: `Best ${categoryName} AI Tools`,
+    description: `Explore the best ${categoryName} AI tools and software on AI Vault.`,
+    url: `${SITE_URL}/category/${rawCategory}`,
+  };
+
   return (
     <>
-      {/* ======================================================
-          STRUCTURED DATA
-      ====================================================== */}
-
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -445,27 +383,23 @@ export default async function CategoryPage({
         }}
       />
 
-      <div className="min-h-screen bg-[#FDFDFD] text-slate-900 font-sans">
+      <div className="min-h-screen bg-[#FDFDFD] text-slate-900">
 
-        {/* ====================================================
-            HEADER
-        ==================================================== */}
+        {/* HEADER */}
 
-        <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-100">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between gap-4">
+        <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
+          <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
 
             <Link
               href="/"
-              className="flex items-center gap-2 shrink-0"
+              className="font-serif text-2xl font-black tracking-tight"
             >
-              <span className="text-2xl font-black tracking-tight text-slate-950 font-serif">
-                AI Vault<span className="text-blue-600">.</span>
-              </span>
+              AI Vault<span className="text-blue-600">.</span>
             </Link>
 
             <Link
               href="/"
-              className="px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 bg-slate-100 rounded-full hover:bg-slate-200 transition"
+              className="rounded-full bg-slate-100 px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-200"
             >
               Browse All Categories
             </Link>
@@ -473,124 +407,106 @@ export default async function CategoryPage({
           </div>
         </header>
 
-        {/* ====================================================
-            MAIN
-        ==================================================== */}
+        <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 sm:py-16 lg:px-8">
 
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-16">
-
-          {/* ==================================================
-              BREADCRUMB
-          ================================================== */}
+          {/* BREADCRUMB */}
 
           <nav
             aria-label="Breadcrumb"
-            className="text-xs font-semibold text-slate-400 mb-8"
+            className="mb-8 text-xs font-semibold text-slate-400"
           >
-            <ol className="flex items-center gap-2 flex-wrap">
+            <ol className="flex items-center gap-2">
 
               <li>
                 <Link
                   href="/"
-                  className="hover:text-blue-600 transition"
+                  className="hover:text-blue-600"
                 >
                   Home
                 </Link>
               </li>
 
-              <li aria-hidden="true">/</li>
+              <li>/</li>
 
-              <li className="text-slate-900 font-bold">
+              <li className="font-bold text-slate-900">
                 {categoryName}
               </li>
 
             </ol>
           </nav>
 
-          {/* ==================================================
-              HERO
-          ================================================== */}
+          {/* HERO */}
 
-          <div className="space-y-4">
+          <section>
 
-            <h1 className="text-3xl sm:text-5xl font-black text-slate-950 font-serif tracking-tight">
+            <h1 className="font-serif text-3xl font-black tracking-tight text-slate-950 sm:text-5xl">
               Best {categoryName} AI Tools
             </h1>
 
-            <p className="text-sm sm:text-base text-slate-600 max-w-2xl leading-relaxed">
+            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-600 sm:text-base">
               Explore verified software platforms, pricing models,
               features, and alternatives in the {categoryName} domain.
             </p>
 
-            <div className="text-xs font-bold text-blue-600">
-              Showing {totalTools} {totalTools === 1 ? "Tool" : "Tools"}
+            <div className="mt-4 text-xs font-bold text-blue-600">
+              Showing {count} {count === 1 ? "Tool" : "Tools"}
             </div>
 
-          </div>
+          </section>
 
-          {/* ==================================================
-              FILTER BAR
-          ================================================== */}
+          {/* FILTER */}
 
-          <div className="mt-8 p-4 sm:p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
+          <form
+            method="GET"
+            className="mt-8 grid grid-cols-1 gap-3 rounded-2xl border border-slate-100 bg-white p-4 shadow-sm sm:grid-cols-[1fr_auto_auto]"
+          >
 
-            <form
-              method="GET"
-              className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3"
+            <input
+              type="search"
+              name="q"
+              defaultValue={searchQuery}
+              placeholder={`Search ${categoryName} tools...`}
+              className="rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-blue-500"
+            />
+
+            <select
+              name="pricing"
+              defaultValue={pricingFilter}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none"
             >
+              <option value="">All Pricing</option>
+              <option value="Free">Free</option>
+              <option value="Freemium">Freemium</option>
+              <option value="Paid">Paid</option>
+              <option value="Free Trial">Free Trial</option>
+            </select>
 
-              <input
-                type="search"
-                name="q"
-                defaultValue={searchQuery}
-                placeholder={`Search ${categoryName} tools...`}
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-              />
+            <button
+              type="submit"
+              className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-bold text-white hover:bg-blue-700"
+            >
+              Search
+            </button>
 
-              <select
-                name="pricing"
-                defaultValue={pricingFilter}
-                className="px-4 py-3 rounded-xl border border-slate-200 bg-white text-sm outline-none focus:border-blue-500"
-              >
-                <option value="">All Pricing</option>
-                <option value="Free">Free</option>
-                <option value="Freemium">Freemium</option>
-                <option value="Paid">Paid</option>
-                <option value="Free Trial">Free Trial</option>
-              </select>
+          </form>
 
-              <button
-                type="submit"
-                className="px-6 py-3 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 transition"
-              >
-                Search
-              </button>
-
-            </form>
-
-          </div>
-
-          {/* ==================================================
-              DIRECTORY
-          ================================================== */}
+          {/* TOOLS */}
 
           <section className="mt-10">
 
-            {safeTools.length > 0 ? (
+            {tools.length > 0 ? (
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
 
-                {safeTools.map((tool) => (
+                {tools.map((tool) => (
 
                   <Link
-                    key={tool.id || tool.slug}
+                    key={tool.id}
                     href={`/tool/${encodeURIComponent(tool.slug)}`}
-                    className="group bg-white border border-slate-100 hover:border-blue-200 rounded-3xl p-6 transition-all duration-300 shadow-sm hover:shadow-md flex flex-col justify-between"
+                    className="group flex flex-col justify-between rounded-3xl border border-slate-100 bg-white p-6 shadow-sm transition-all hover:border-blue-200 hover:shadow-md"
                   >
 
-                    <div className="space-y-5">
-
-                      {/* Tool top row */}
+                    <div>
 
                       <div className="flex items-center justify-between gap-3">
 
@@ -599,38 +515,30 @@ export default async function CategoryPage({
                           size="md"
                         />
 
-                        <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase bg-blue-50 text-blue-700">
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[10px] font-extrabold uppercase text-blue-700">
                           {tool.pricing || "Freemium"}
                         </span>
 
                       </div>
 
-                      {/* Name / description */}
+                      <h2 className="mt-5 text-lg font-bold text-slate-900 group-hover:text-blue-600">
+                        {tool.name}
+                      </h2>
 
-                      <div>
-
-                        <h2 className="text-lg font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                          {tool.name}
-                        </h2>
-
-                        <p className="text-xs text-slate-500 line-clamp-3 mt-2 leading-relaxed">
-                          {tool.description ||
-                            `${tool.name} overview and details.`}
-                        </p>
-
-                      </div>
+                      <p className="mt-2 line-clamp-3 text-xs leading-relaxed text-slate-500">
+                        {tool.description ||
+                          `${tool.name} overview and details.`}
+                      </p>
 
                     </div>
 
-                    {/* Bottom row */}
-
-                    <div className="pt-5 mt-5 border-t border-slate-50 flex items-center justify-between text-xs font-semibold">
+                    <div className="mt-5 flex items-center justify-between border-t border-slate-50 pt-5 text-xs font-semibold">
 
                       <span className="text-slate-400">
                         {tool.category || categoryName}
                       </span>
 
-                      <span className="text-blue-600 group-hover:translate-x-1 transition-transform">
+                      <span className="text-blue-600 transition-transform group-hover:translate-x-1">
                         Inspect →
                       </span>
 
@@ -644,40 +552,22 @@ export default async function CategoryPage({
 
             ) : (
 
-              /* =================================================
-                 EMPTY STATE
-                 ================================================= */
-
-              <div className="p-12 text-center bg-white border border-slate-100 rounded-3xl">
+              <div className="rounded-3xl border border-slate-100 bg-white p-12 text-center">
 
                 <h2 className="text-lg font-bold text-slate-900">
                   No tools found
                 </h2>
 
-                <p className="text-sm text-slate-500 mt-2 max-w-md mx-auto">
-                  No tools match the selected criteria in this
-                  category.
+                <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+                  No tools match the selected criteria in this category.
                 </p>
 
-                <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
-
-                  <Link
-                    href={`/category/${encodeURIComponent(rawCategory)}`}
-                    className="inline-block text-xs font-bold text-blue-600 hover:underline"
-                  >
-                    Clear Filters
-                  </Link>
-
-                  <span className="text-slate-300">•</span>
-
-                  <Link
-                    href="/"
-                    className="inline-block text-xs font-bold text-blue-600 hover:underline"
-                  >
-                    Return to Directory →
-                  </Link>
-
-                </div>
+                <Link
+                  href={`/category/${encodeURIComponent(rawCategory)}`}
+                  className="mt-6 inline-block text-xs font-bold text-blue-600 hover:underline"
+                >
+                  Clear Filters →
+                </Link>
 
               </div>
 
@@ -685,124 +575,86 @@ export default async function CategoryPage({
 
           </section>
 
-          {/* ==================================================
-              PAGINATION
-          ================================================== */}
+          {/* PAGINATION */}
 
           {totalPages > 1 && (
 
             <nav
               aria-label="Pagination"
-              className="flex justify-center items-center gap-2 pt-10"
+              className="mt-10 flex flex-wrap items-center justify-center gap-2"
             >
 
-              {/* Previous */}
-
-              {currentPage > 1 ? (
-
+              {page > 1 && (
                 <Link
-                  href={getPageUrl(currentPage - 1)}
-                  className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-100 bg-white text-slate-700 hover:bg-slate-50"
+                  href={pageUrl(page - 1)}
+                  className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-xs font-bold hover:bg-slate-50"
                 >
                   ← Previous
                 </Link>
-
-              ) : (
-
-                <span className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-100 bg-slate-50 text-slate-300">
-                  ← Previous
-                </span>
-
               )}
 
-              {/* Page numbers */}
+              {Array.from(
+                { length: Math.min(totalPages, 7) },
+                (_, index) => {
 
-              <div className="flex items-center gap-2">
+                  let number = index + 1;
 
-                {Array.from(
-                  { length: Math.min(totalPages, 7) },
-                  (_, index) => {
-
-                    let pageNumber: number;
-
-                    if (totalPages <= 7) {
-                      pageNumber = index + 1;
-                    } else if (currentPage <= 4) {
-                      pageNumber = index + 1;
-                    } else if (currentPage >= totalPages - 3) {
-                      pageNumber = totalPages - 6 + index;
-                    } else {
-                      pageNumber = currentPage - 3 + index;
-                    }
-
-                    return (
-                      <Link
-                        key={pageNumber}
-                        href={getPageUrl(pageNumber)}
-                        aria-current={
-                          pageNumber === currentPage
-                            ? "page"
-                            : undefined
-                        }
-                        className={`px-4 py-2 text-xs font-bold rounded-xl transition ${
-                          pageNumber === currentPage
-                            ? "bg-blue-600 text-white"
-                            : "bg-white border border-slate-100 text-slate-700 hover:bg-slate-50"
-                        }`}
-                      >
-                        {pageNumber}
-                      </Link>
-                    );
+                  if (totalPages > 7 && page > 4) {
+                    number = page - 3 + index;
                   }
-                )}
 
-              </div>
+                  if (number > totalPages) {
+                    return null;
+                  }
 
-              {/* Next */}
+                  return (
+                    <Link
+                      key={number}
+                      href={pageUrl(number)}
+                      className={`rounded-xl px-4 py-2 text-xs font-bold ${
+                        number === page
+                          ? "bg-blue-600 text-white"
+                          : "border border-slate-100 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {number}
+                    </Link>
+                  );
+                }
+              )}
 
-              {currentPage < totalPages ? (
-
+              {page < totalPages && (
                 <Link
-                  href={getPageUrl(currentPage + 1)}
-                  className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-100 bg-white text-slate-700 hover:bg-slate-50"
+                  href={pageUrl(page + 1)}
+                  className="rounded-xl border border-slate-100 bg-white px-4 py-2 text-xs font-bold hover:bg-slate-50"
                 >
                   Next →
                 </Link>
-
-              ) : (
-
-                <span className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-100 bg-slate-50 text-slate-300">
-                  Next →
-                </span>
-
               )}
 
             </nav>
 
           )}
 
-          {/* ==================================================
-              SEO FOOTER CONTENT
-          ================================================== */}
+          {/* SEO CONTENT */}
 
-          <section className="mt-16 pt-10 border-t border-slate-100">
+          <section className="mt-16 border-t border-slate-100 pt-10">
 
-            <h2 className="text-2xl font-bold text-slate-900 font-serif">
+            <h2 className="font-serif text-2xl font-bold text-slate-900">
               {categoryName} AI Tools Directory
             </h2>
 
-            <p className="mt-4 text-sm text-slate-600 max-w-3xl leading-7">
-              AI Vault helps you discover and compare
-              {` ${categoryName}`} AI tools and software.
-              Explore tool features, pricing models, use cases,
-              limitations, and alternatives to find the right
-              software for your workflow.
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-slate-600">
+              AI Vault helps you discover and compare the best
+              {` ${categoryName}`} AI tools and software. Explore
+              features, pricing models, use cases, limitations,
+              and alternatives to find the right software for your
+              workflow.
             </p>
 
           </section>
 
         </main>
-
       </div>
     </>
   );
