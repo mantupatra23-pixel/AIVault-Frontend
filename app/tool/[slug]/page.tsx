@@ -40,47 +40,194 @@ type Props = {
    HELPERS
 ========================================================= */
 
-function categoryToSlug(category: string): string {
-  return category
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function safeText(value: unknown): string | null {
-  if (typeof value !== "string") {
-    return null;
+function safeString(
+  value: unknown
+): string {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
   }
 
-  const valueClean = value.trim();
+  return value.trim();
+}
 
-  return valueClean.length > 0
-    ? valueClean
+function nullableString(
+  value: unknown
+): string | null {
+  const valueString =
+    safeString(value);
+
+  return valueString
+    ? valueString
     : null;
 }
 
-function uniqueStrings(values: string[]): string[] {
-  return Array.from(
-    new Set(
-      values
-        .map((value) => value.trim())
-        .filter(Boolean)
+function uniqueStrings(
+  values: unknown
+): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const result: string[] = [];
+
+  for (const item of values) {
+    const value =
+      safeString(item);
+
+    if (!value) {
+      continue;
+    }
+
+    if (
+      !result.some(
+        (existing) =>
+          existing.toLowerCase() ===
+          value.toLowerCase()
+      )
+    ) {
+      result.push(value);
+    }
+  }
+
+  return result;
+}
+
+function categoryToSlug(
+  category: string
+): string {
+  return category
+    .toLowerCase()
+    .trim()
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      "");
+}
+
+function getSafeWebsite(
+  tool: ToolRecord
+): string | null {
+  const website =
+    getWebsiteUrl(tool);
+
+  return nullableString(
+    website
+  );
+}
+
+function getSafeScore(
+  tool: ToolRecord
+): number | null {
+  const value =
+    getAiVaultScore(tool);
+
+  if (
+    typeof value !== "number" ||
+    !Number.isFinite(value)
+  ) {
+    return null;
+  }
+
+  return Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(value)
     )
   );
 }
 
-/*
- * Important:
- * Website URL can legitimately be null.
- * Never force it into a string.
- */
-function getSafeWebsiteUrl(
-  tool: ToolRecord
-): string | null {
-  const value = getWebsiteUrl(tool);
+function getToolField(
+  tool: ToolRecord,
+  key: string
+): unknown {
+  return (
+    tool as unknown as Record<
+      string,
+      unknown
+    >
+  )[key];
+}
 
-  return safeText(value);
+function getVerifiedStatus(
+  tool: ToolRecord
+): boolean {
+  const record =
+    tool as unknown as Record<
+      string,
+      unknown
+    >;
+
+  const value =
+    record.verified ??
+    record.is_verified ??
+    record.verified_status;
+
+  return (
+    value === true ||
+    value === "true" ||
+    value === 1 ||
+    value === "1" ||
+    value === "verified"
+  );
+}
+
+function getPlatformValues(
+  tool: ToolRecord
+): string[] {
+  const record =
+    tool as unknown as Record<
+      string,
+      unknown
+    >;
+
+  const candidates = [
+    record.platforms,
+    record.platform,
+    record.supported_platforms,
+  ];
+
+  for (
+    const candidate of candidates
+  ) {
+    if (
+      Array.isArray(candidate)
+    ) {
+      const values =
+        uniqueStrings(candidate);
+
+      if (values.length) {
+        return values;
+      }
+    }
+
+    if (
+      typeof candidate ===
+      "string"
+    ) {
+      const values =
+        candidate
+          .split(",")
+          .map(
+            (item) =>
+              item.trim()
+          )
+          .filter(Boolean);
+
+      if (values.length) {
+        return uniqueStrings(
+          values
+        );
+      }
+    }
+  }
+
+  return [];
 }
 
 /* =========================================================
@@ -90,19 +237,25 @@ function getSafeWebsiteUrl(
 export async function generateMetadata({
   params,
 }: Props): Promise<Metadata> {
-  const { slug } = await params;
+  const { slug } =
+    await params;
 
-  const requestedSlug = safeDecode(slug);
+  const requestedSlug =
+    safeDecode(slug);
 
-  const tool = await getToolBySlug(
-    requestedSlug
-  );
+  const tool =
+    await getToolBySlug(
+      requestedSlug
+    );
 
   if (!tool) {
     return {
-      title: "Tool Not Found | AI Vault",
+      title:
+        "Tool Not Found | AI Vault",
+
       description:
-        "The requested AI tool could not be found.",
+        "The requested tool could not be found in AI Vault.",
+
       robots: {
         index: false,
         follow: true,
@@ -110,9 +263,14 @@ export async function generateMetadata({
     };
   }
 
-  const title = getSeoTitle(tool);
-  const description = getSeoDescription(tool);
-  const canonical = toolUrl(tool);
+  const title =
+    getSeoTitle(tool);
+
+  const description =
+    getSeoDescription(tool);
+
+  const canonical =
+    toolUrl(tool);
 
   return {
     title,
@@ -131,7 +289,8 @@ export async function generateMetadata({
       title,
       description,
       url: canonical,
-      siteName: "AI Vault",
+      siteName:
+        "AI Vault",
       type: "website",
     },
 
@@ -152,39 +311,65 @@ function ToolJsonLd({
 }: {
   tool: ToolRecord;
 }) {
-  const name = getToolName(tool);
-  const description = getDescription(tool);
-  const category = getToolCategory(tool);
-  const canonical = toolUrl(tool);
-  const website = getSafeWebsiteUrl(tool);
+  const name =
+    getToolName(tool);
 
-  const jsonLd: Record<string, unknown> = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
+  const description =
+    getDescription(tool);
+
+  const category =
+    getToolCategory(tool);
+
+  const canonical =
+    toolUrl(tool);
+
+  const website =
+    getSafeWebsite(tool);
+
+  const jsonLd: Record<
+    string,
+    unknown
+  > = {
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "SoftwareApplication",
+
     name,
-    url: canonical,
+
+    url:
+      canonical,
   };
 
-  /*
-   * Only add factual fields.
-   */
   if (description) {
-    jsonLd.description = description;
+    jsonLd.description =
+      description;
   }
 
   if (category) {
-    jsonLd.applicationCategory = category;
+    jsonLd.applicationCategory =
+      category;
   }
 
+  /*
+   * Only expose sameAs when an
+   * actual website exists.
+   */
   if (website) {
-    jsonLd.sameAs = [website];
+    jsonLd.sameAs = [
+      website,
+    ];
   }
 
   return (
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{
-        __html: JSON.stringify(jsonLd),
+        __html:
+          JSON.stringify(
+            jsonLd
+          ),
       }}
     />
   );
@@ -199,37 +384,65 @@ function BreadcrumbJsonLd({
 }: {
   tool: ToolRecord;
 }) {
-  const name = getToolName(tool);
-  const category = getToolCategory(tool);
+  const name =
+    getToolName(tool);
+
+  const category =
+    getToolCategory(tool);
 
   const categorySlug =
-    categoryToSlug(category);
+    categoryToSlug(
+      category
+    );
 
-  const canonical = toolUrl(tool);
+  const canonical =
+    toolUrl(tool);
 
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
+    "@context":
+      "https://schema.org",
+
+    "@type":
+      "BreadcrumbList",
+
     itemListElement: [
       {
-        "@type": "ListItem",
+        "@type":
+          "ListItem",
+
         position: 1,
+
         name: "Home",
-        item: SITE_URL,
-      },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: category,
+
         item:
-          `${SITE_URL}/category/` +
-          encodeURIComponent(categorySlug),
+          SITE_URL,
       },
+
       {
-        "@type": "ListItem",
+        "@type":
+          "ListItem",
+
+        position: 2,
+
+        name:
+          category,
+
+        item:
+          `${SITE_URL}/category/${encodeURIComponent(
+            categorySlug
+          )}`,
+      },
+
+      {
+        "@type":
+          "ListItem",
+
         position: 3,
+
         name,
-        item: canonical,
+
+        item:
+          canonical,
       },
     ],
   };
@@ -238,33 +451,43 @@ function BreadcrumbJsonLd({
     <script
       type="application/ld+json"
       dangerouslySetInnerHTML={{
-        __html: JSON.stringify(jsonLd),
+        __html:
+          JSON.stringify(
+            jsonLd
+          ),
       }}
     />
   );
 }
 
 /* =========================================================
-   PAGE
+   TOOL PAGE
 ========================================================= */
 
 export default async function ToolPage({
   params,
 }: Props) {
-  const { slug: rawSlug } = await params;
+  const { slug: rawSlug } =
+    await params;
 
   const requestedSlug =
     safeDecode(rawSlug);
 
-  if (!requestedSlug.trim()) {
+  /*
+   * Empty slug = 404.
+   */
+  if (
+    !requestedSlug.trim()
+  ) {
     notFound();
   }
 
   /*
-   * EXACT SLUG LOOKUP.
+   * EXACT DATABASE LOOKUP.
    *
-   * Never redirect one tool to another tool.
    * Never fuzzy-match.
+   * Never redirect to another tool.
+   * Never substitute a similar tool.
    */
   const tool =
     await getToolBySlug(
@@ -276,7 +499,7 @@ export default async function ToolPage({
   }
 
   /* =======================================================
-     NORMALIZED DATA
+     CORE DATA
   ======================================================= */
 
   const name =
@@ -286,7 +509,9 @@ export default async function ToolPage({
     getToolCategory(tool);
 
   const categorySlug =
-    categoryToSlug(category);
+    categoryToSlug(
+      category
+    );
 
   const description =
     getDescription(tool);
@@ -304,30 +529,37 @@ export default async function ToolPage({
       getUseCases(tool)
     );
 
-  const limitations =
-    uniqueStrings(
-      getLimitations(tool)
-    );
-
   const integrations =
     uniqueStrings(
       getIntegrations(tool)
     );
 
+  const limitations =
+    uniqueStrings(
+      getLimitations(tool)
+    );
+
   const pricing =
     normalizePricing(
       tool.pricing_model ||
-      tool.pricing
+        tool.pricing
     );
 
   const score =
-    getAiVaultScore(tool);
+    getSafeScore(tool);
 
-  /*
-   * This is intentionally nullable.
-   */
   const website =
-    getSafeWebsiteUrl(tool);
+    getSafeWebsite(tool);
+
+  const verified =
+    getVerifiedStatus(tool);
+
+  const platforms =
+    getPlatformValues(tool);
+
+  /* =======================================================
+     LOGO
+  ======================================================= */
 
   const logo =
     clean(tool.logo_url) ||
@@ -336,60 +568,103 @@ export default async function ToolPage({
     null;
 
   /* =======================================================
-     VERIFIED STATUS
-  ======================================================= */
-
-  /*
-   * Do not blindly display "Verified" for every tool.
-   *
-   * Only use an explicit verified field when available.
-   */
-  const rawVerified =
-    (tool as Record<string, unknown>)
-      .verified;
-
-  const verified =
-    rawVerified === true ||
-    rawVerified === "true";
-
-  /* =======================================================
-     PLATFORM DATA
+     PLATFORM / DEPLOYMENT / LICENSE
   ======================================================= */
 
   const operatingSystem =
-    safeText(
+    nullableString(
       tool.operating_system
     ) ||
-    safeText(tool.os);
+    nullableString(
+      tool.os
+    );
 
   const deployment =
-    safeText(tool.deployment);
+    nullableString(
+      tool.deployment
+    );
 
   const license =
-    safeText(tool.license);
+    nullableString(
+      tool.license
+    );
 
   /* =======================================================
-     DESCRIPTION FALLBACK
+     OPTIONAL VERIFIED AUDIENCE DATA
   ======================================================= */
 
-  /*
-   * Do not generate fake descriptions.
-   */
-  const factualDescription =
+  const audience =
+    uniqueStrings(
+      getToolField(
+        tool,
+        "audience"
+      )
+    );
+
+  /* =======================================================
+     OPTIONAL DATA
+     These fields are only displayed when
+     they already exist in the database.
+  ======================================================= */
+
+  const apiAvailable =
+    getToolField(
+      tool,
+      "api_available"
+    );
+
+  const hasApiInformation =
+    apiAvailable === true ||
+    apiAvailable === false;
+
+  /* =======================================================
+     OPTIONAL ALTERNATIVES
+     We do NOT fabricate alternatives.
+     If the existing backend already provides
+     related/alternative data, this page can display it.
+  ======================================================= */
+
+  const relatedToolsRaw =
+    getToolField(
+      tool,
+      "related_tools"
+    );
+
+  const alternativesRaw =
+    getToolField(
+      tool,
+      "alternatives"
+    );
+
+  const relatedTools =
+    Array.isArray(
+      relatedToolsRaw
+    )
+      ? relatedToolsRaw
+      : [];
+
+  const alternatives =
+    Array.isArray(
+      alternativesRaw
+    )
+      ? alternativesRaw
+      : [];
+
+  /* =======================================================
+     DESCRIPTION
+  ======================================================= */
+
+  const factualSummary =
     description ||
     overview ||
     null;
 
-  /* =======================================================
-     PAGE
-  ======================================================= */
-
   return (
     <main className="min-h-screen w-full overflow-x-hidden bg-white text-slate-950">
 
-      {/* ===================================================
+      {/* =================================================
           STRUCTURED DATA
-      =================================================== */}
+      ================================================= */}
 
       <ToolJsonLd
         tool={tool}
@@ -399,9 +674,9 @@ export default async function ToolPage({
         tool={tool}
       />
 
-      {/* ===================================================
+      {/* =================================================
           HEADER
-      =================================================== */}
+      ================================================= */}
 
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
 
@@ -421,13 +696,13 @@ export default async function ToolPage({
             <a
               href={website}
               target="_blank"
-              rel="noopener noreferrer nofollow"
+              rel="noopener noreferrer"
               className="shrink-0 rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:px-5 sm:py-2.5 sm:text-[10px]"
             >
               Visit Official Website ↗
             </a>
           ) : (
-            <span className="rounded-xl bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase text-slate-400">
+            <span className="rounded-xl bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-400">
               Official Website Unavailable
             </span>
           )}
@@ -436,9 +711,9 @@ export default async function ToolPage({
 
       </header>
 
-      {/* ===================================================
-          MAIN CONTAINER
-      =================================================== */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
 
       <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
 
@@ -483,7 +758,7 @@ export default async function ToolPage({
 
         <section className="grid gap-7 lg:grid-cols-[1fr_320px]">
 
-          <div>
+          <div className="min-w-0">
 
             <div className="flex items-start gap-4">
 
@@ -519,17 +794,21 @@ export default async function ToolPage({
 
             </div>
 
-            {factualDescription && (
+            {factualSummary && (
               <p className="mt-6 max-w-4xl text-sm leading-7 text-slate-600 sm:text-base">
-                {factualDescription}
+                {factualSummary}
               </p>
             )}
 
           </div>
 
-          {/* SCORE / PRICING / CATEGORY */}
+          {/* =================================================
+              QUICK FACTS
+          ================================================= */}
 
           <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
+
+            {/* SCORE */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
 
@@ -540,26 +819,37 @@ export default async function ToolPage({
                 </p>
 
                 <span
-                  title="The AI Vault Score measures the completeness and quality of available tool data. It is not an objective product-quality rating."
+                  title="Measures the completeness and quality of available tool data. It is not an objective product-quality rating."
                   className="cursor-help text-xs text-slate-400"
+                  aria-label="AI Vault Score information"
                 >
                   ⓘ
                 </span>
 
               </div>
 
-              <p className="mt-2 text-xl font-black">
-                {score}
-                <span className="text-xs font-medium text-slate-400">
-                  /100
-                </span>
-              </p>
+              {score !== null ? (
+                <>
+                  <p className="mt-2 text-xl font-black">
+                    {score}
+                    <span className="text-xs font-medium text-slate-400">
+                      /100
+                    </span>
+                  </p>
 
-              <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                Data quality indicator
-              </p>
+                  <p className="mt-1 text-[10px] leading-4 text-slate-400">
+                    Data quality indicator
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-sm font-bold text-slate-400">
+                  Unavailable
+                </p>
+              )}
 
             </div>
+
+            {/* PRICING */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
 
@@ -572,6 +862,8 @@ export default async function ToolPage({
               </p>
 
             </div>
+
+            {/* CATEGORY */}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
 
@@ -613,7 +905,7 @@ export default async function ToolPage({
             <a
               href={website}
               target="_blank"
-              rel="noopener noreferrer nofollow"
+              rel="noopener noreferrer"
               className="mt-5 flex w-full items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-blue-700"
             >
               Visit Official Website ↗
@@ -652,6 +944,38 @@ export default async function ToolPage({
         )}
 
         {/* =================================================
+            WHO IS IT FOR?
+        ================================================= */}
+
+        {audience.length > 0 && (
+          <section className="mt-10">
+
+            <h2 className="text-xl font-black">
+              Who Is It For?
+            </h2>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+
+              {audience.map(
+                (
+                  item,
+                  index
+                ) => (
+                  <span
+                    key={`${item}-${index}`}
+                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600"
+                  >
+                    {item}
+                  </span>
+                )
+              )}
+
+            </div>
+
+          </section>
+        )}
+
+        {/* =================================================
             KEY FEATURES
         ================================================= */}
 
@@ -665,7 +989,10 @@ export default async function ToolPage({
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
 
               {features.map(
-                (feature, index) => (
+                (
+                  feature,
+                  index
+                ) => (
                   <div
                     key={`${feature}-${index}`}
                     className="rounded-2xl border border-slate-200 bg-white p-4"
@@ -710,7 +1037,10 @@ export default async function ToolPage({
             <div className="mt-4 flex flex-wrap gap-2">
 
               {useCases.map(
-                (item, index) => (
+                (
+                  item,
+                  index
+                ) => (
                   <span
                     key={`${item}-${index}`}
                     className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600"
@@ -730,7 +1060,7 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
-            PLATFORM DETAILS
+            PLATFORM
         ================================================= */}
 
         <section className="mt-10">
@@ -741,51 +1071,94 @@ export default async function ToolPage({
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
 
-            {[
-              [
-                "Operating System",
-                operatingSystem,
-              ],
-              [
-                "Deployment",
-                deployment,
-              ],
-              [
-                "License",
-                license,
-              ],
-              [
-                "Pricing",
-                pricing,
-              ],
-            ].map(
-              ([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-2xl border border-slate-200 bg-white p-5"
-                >
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
 
-                  <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
-                    {label}
-                  </p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Operating System
+              </p>
 
-                  <p className="mt-2 break-words text-sm font-bold text-slate-800">
-                    {value || "Information currently unavailable"}
-                  </p>
+              <p className="mt-2 break-words text-sm font-bold">
+                {operatingSystem ||
+                  "Information currently unavailable"}
+              </p>
 
-                </div>
-              )
-            )}
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Deployment
+              </p>
+
+              <p className="mt-2 break-words text-sm font-bold">
+                {deployment ||
+                  "Information currently unavailable"}
+              </p>
+
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                License
+              </p>
+
+              <p className="mt-2 break-words text-sm font-bold">
+                {license ||
+                  "Information currently unavailable"}
+              </p>
+
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+                Pricing Model
+              </p>
+
+              <p className="mt-2 break-words text-sm font-bold">
+                {pricing}
+              </p>
+
+            </div>
 
           </div>
+
+          {platforms.length > 0 && (
+            <div className="mt-5">
+
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Supported Platforms
+              </p>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+
+                {platforms.map(
+                  (
+                    platform,
+                    index
+                  ) => (
+                    <span
+                      key={`${platform}-${index}`}
+                      className="rounded-full bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-600"
+                    >
+                      {platform}
+                    </span>
+                  )
+                )}
+
+              </div>
+
+            </div>
+          )}
 
         </section>
 
         {/* =================================================
-            PRICING NOTE
+            PRICING
         ================================================= */}
 
-        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-5">
+        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
 
           <h2 className="text-xl font-black">
             Pricing
@@ -793,7 +1166,7 @@ export default async function ToolPage({
 
           <div className="mt-4 rounded-xl bg-slate-50 p-4">
 
-            <p className="text-sm font-semibold text-slate-700">
+            <p className="text-sm font-bold text-slate-800">
               {pricing}
             </p>
 
@@ -819,7 +1192,10 @@ export default async function ToolPage({
             <div className="mt-4 flex flex-wrap gap-2">
 
               {integrations.map(
-                (item, index) => (
+                (
+                  item,
+                  index
+                ) => (
                   <span
                     key={`${item}-${index}`}
                     className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600"
@@ -839,6 +1215,30 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
+            API INFORMATION
+        ================================================= */}
+
+        {hasApiInformation && (
+          <section className="mt-10">
+
+            <h2 className="text-xl font-black">
+              API
+            </h2>
+
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-5">
+
+              <p className="text-sm text-slate-600">
+                {apiAvailable === true
+                  ? "API availability is recorded in the available tool data."
+                  : "The available tool data indicates that an API is not listed."}
+              </p>
+
+            </div>
+
+          </section>
+        )}
+
+        {/* =================================================
             LIMITATIONS
         ================================================= */}
 
@@ -852,7 +1252,10 @@ export default async function ToolPage({
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
 
               {limitations.map(
-                (item, index) => (
+                (
+                  item,
+                  index
+                ) => (
                   <div
                     key={`${item}-${index}`}
                     className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-slate-700"
@@ -872,10 +1275,214 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
+            ALTERNATIVES
+            Only render if existing data is available.
+            No fabricated alternatives.
+        ================================================= */}
+
+        {alternatives.length > 0 && (
+          <section className="mt-12">
+
+            <div className="mb-5">
+
+              <h2 className="text-xl font-black">
+                Alternatives
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Alternatives available from the existing tool data.
+              </p>
+
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+              {alternatives
+                .slice(0, 5)
+                .map(
+                  (
+                    alternative,
+                    index
+                  ) => {
+
+                    const item =
+                      alternative as Record<
+                        string,
+                        unknown
+                      >;
+
+                    const altSlug =
+                      safeString(
+                        item.slug
+                      );
+
+                    const altName =
+                      safeString(
+                        item.name
+                      );
+
+                    if (
+                      !altSlug ||
+                      !altName ||
+                      altSlug ===
+                        requestedSlug
+                    ) {
+                      return null;
+                    }
+
+                    return (
+                      <Link
+                        key={`${altSlug}-${index}`}
+                        href={`/tool/${encodeURIComponent(
+                          altSlug
+                        )}`}
+                        className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:text-blue-600"
+                      >
+
+                        <p className="text-sm font-black">
+                          {altName}
+                        </p>
+
+                        {safeString(
+                          item.category
+                        ) && (
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            {safeString(
+                              item.category
+                            )}
+                          </p>
+                        )}
+
+                        {safeString(
+                          item.description
+                        ) && (
+                          <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-500">
+                            {safeString(
+                              item.description
+                            )}
+                          </p>
+                        )}
+
+                        <span className="mt-4 inline-block text-xs font-bold">
+                          View alternative →
+                        </span>
+
+                      </Link>
+                    );
+                  }
+                )}
+
+            </div>
+
+          </section>
+        )}
+
+        {/* =================================================
+            RELATED TOOLS
+        ================================================= */}
+
+        {relatedTools.length > 0 && (
+          <section className="mt-12">
+
+            <div className="mb-5">
+
+              <h2 className="text-xl font-black">
+                Similar Tools
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Related tools from the available AI Vault data.
+              </p>
+
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+              {relatedTools
+                .slice(0, 5)
+                .map(
+                  (
+                    related,
+                    index
+                  ) => {
+
+                    const item =
+                      related as Record<
+                        string,
+                        unknown
+                      >;
+
+                    const relatedSlug =
+                      safeString(
+                        item.slug
+                      );
+
+                    const relatedName =
+                      safeString(
+                        item.name
+                      );
+
+                    if (
+                      !relatedSlug ||
+                      !relatedName ||
+                      relatedSlug ===
+                        requestedSlug
+                    ) {
+                      return null;
+                    }
+
+                    return (
+                      <Link
+                        key={`${relatedSlug}-${index}`}
+                        href={`/tool/${encodeURIComponent(
+                          relatedSlug
+                        )}`}
+                        className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-sm"
+                      >
+
+                        <p className="text-sm font-black text-slate-900">
+                          {relatedName}
+                        </p>
+
+                        {safeString(
+                          item.category
+                        ) && (
+                          <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                            {safeString(
+                              item.category
+                            )}
+                          </p>
+                        )}
+
+                        {safeString(
+                          item.description
+                        ) && (
+                          <p className="mt-3 line-clamp-3 text-xs leading-5 text-slate-500">
+                            {safeString(
+                              item.description
+                            )}
+                          </p>
+                        )}
+
+                        <span className="mt-4 inline-block text-xs font-bold text-blue-600">
+                          View Tool →
+                        </span>
+
+                      </Link>
+                    );
+                  }
+                )}
+
+            </div>
+
+          </section>
+        )}
+
+        {/* =================================================
             INTERNAL DISCOVERY
         ================================================= */}
 
-        <section className="mt-10">
+        <section className="mt-12">
 
           <h2 className="text-xl font-black">
             Continue Exploring
@@ -918,6 +1525,53 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
+            SAVE / REVIEW / COMPARE
+        ================================================= */}
+
+        <section className="mt-10 grid gap-3 sm:grid-cols-3">
+
+          <Link
+            href="/compare"
+            className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:text-blue-600"
+          >
+            <p className="text-sm font-black">
+              Compare
+            </p>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Compare available tools side by side.
+            </p>
+          </Link>
+
+          <Link
+            href="/saved"
+            className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:text-blue-600"
+          >
+            <p className="text-sm font-black">
+              Saved Tools
+            </p>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Manage your saved AI tools.
+            </p>
+          </Link>
+
+          <Link
+            href="/ai-finder"
+            className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-blue-300 hover:text-blue-600"
+          >
+            <p className="text-sm font-black">
+              AI Finder
+            </p>
+
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Find tools based on your requirements.
+            </p>
+          </Link>
+
+        </section>
+
+        {/* =================================================
             FINAL CTA
         ================================================= */}
 
@@ -935,7 +1589,7 @@ export default async function ToolPage({
             <a
               href={website}
               target="_blank"
-              rel="noopener noreferrer nofollow"
+              rel="noopener noreferrer"
               className="mt-6 inline-flex rounded-xl bg-white px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-950 transition hover:bg-slate-200"
             >
               Visit Official Website ↗
@@ -946,9 +1600,9 @@ export default async function ToolPage({
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           FOOTER
-      =================================================== */}
+      ================================================= */}
 
       <footer className="border-t border-slate-200">
 
