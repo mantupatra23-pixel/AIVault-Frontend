@@ -37,10 +37,17 @@ type Props = {
 };
 
 /* =========================================================
-   SAFE HELPERS
+   HELPERS
 ========================================================= */
 
-function normalizeCategorySlug(
+/**
+ * Convert a category name into the existing category URL format.
+ *
+ * IMPORTANT:
+ * This is only used for category navigation.
+ * It does NOT modify the tool's canonical slug.
+ */
+function categoryToSlug(
   category: string
 ): string {
   return category
@@ -50,174 +57,27 @@ function normalizeCategorySlug(
     .replace(/^-+|-+$/g, "");
 }
 
-function safeString(
-  value: unknown
-): string {
-  if (
-    typeof value !== "string"
-  ) {
-    return "";
-  }
-
-  return value.trim();
-}
-
-function safeArray(
-  value: unknown
-): string[] {
-  if (Array.isArray(value)) {
-    return value
-      .filter(
-        (item): item is string =>
-          typeof item === "string" &&
-          item.trim().length > 0
-      )
-      .map((item) =>
-        item.trim()
-      );
-  }
-
-  if (
-    typeof value === "string" &&
-    value.trim()
-  ) {
-    return value
-      .split(/[,;\n|]+/)
-      .map((item) =>
-        item.trim()
-      )
-      .filter(Boolean);
-  }
-
-  return [];
-}
-
 /**
- * Only use an audience value if the database
- * explicitly contains it.
+ * Safely resolve the official website.
  *
- * We NEVER invent audience segments.
+ * getWebsiteUrl() may return string | null.
+ * This helper intentionally preserves null.
  */
-function getAudience(
+function getSafeWebsiteUrl(
   tool: ToolRecord
-): string[] {
-  const possibleFields = [
-    "target_audience",
-    "audience",
-    "users",
-    "user_types",
-    "target_users",
-  ];
+): string | null {
+  const website = getWebsiteUrl(tool);
 
-  for (
-    const field of possibleFields
+  if (
+    typeof website !== "string"
   ) {
-    const value =
-      tool[field];
-
-    const result =
-      safeArray(value);
-
-    if (result.length) {
-      return result;
-    }
+    return null;
   }
 
-  return [];
-}
+  const trimmed =
+    website.trim();
 
-/**
- * Only expose platforms when the source/database
- * explicitly contains them.
- */
-function getPlatforms(
-  tool: ToolRecord
-): string[] {
-  const values: string[] = [];
-
-  const platformFields = [
-    "platforms",
-    "platform",
-    "operating_system",
-    "os",
-    "supported_platforms",
-  ];
-
-  for (
-    const field of platformFields
-  ) {
-    const value =
-      tool[field];
-
-    values.push(
-      ...safeArray(value)
-    );
-  }
-
-  return Array.from(
-    new Set(values)
-  );
-}
-
-/**
- * Explicit deployment information only.
- */
-function getDeployment(
-  tool: ToolRecord
-): string {
-  const fields = [
-    "deployment",
-    "hosting",
-    "deployment_type",
-  ];
-
-  for (
-    const field of fields
-  ) {
-    const value =
-      safeString(tool[field]);
-
-    if (value) {
-      return value;
-    }
-  }
-
-  return "";
-}
-
-/**
- * Explicit license information only.
- */
-function getLicense(
-  tool: ToolRecord
-): string {
-  return (
-    safeString(tool.license) ||
-    safeString(tool.licence)
-  );
-}
-
-/**
- * Explicit pricing information.
- */
-function getPricingRaw(
-  tool: ToolRecord
-): string {
-  return (
-    safeString(
-      tool.pricing_model
-    ) ||
-    safeString(tool.pricing)
-  );
-}
-
-/**
- * Official website.
- */
-function getOfficialWebsite(
-  tool: ToolRecord
-): string {
-  return getWebsiteUrl(tool);
+  return trimmed || null;
 }
 
 /* =========================================================
@@ -232,14 +92,6 @@ export async function generateMetadata({
   const requestedSlug =
     safeDecode(slug);
 
-  /*
-   * IMPORTANT:
-   *
-   * getToolBySlug must perform an exact canonical
-   * database slug lookup.
-   *
-   * We never generate a slug from the tool name.
-   */
   const tool =
     await getToolBySlug(
       requestedSlug
@@ -249,6 +101,8 @@ export async function generateMetadata({
     return {
       title:
         "Tool Not Found | AI Vault",
+      description:
+        "The requested tool could not be found in the AI Vault directory.",
       robots: {
         index: false,
         follow: true,
@@ -287,7 +141,7 @@ export async function generateMetadata({
     },
 
     twitter: {
-      card: "summary_large_image",
+      card: "summary",
       title,
       description,
     },
@@ -295,7 +149,7 @@ export async function generateMetadata({
 }
 
 /* =========================================================
-   SOFTWARE APPLICATION JSON-LD
+   SOFTWARE JSON-LD
 ========================================================= */
 
 function ToolJsonLd({
@@ -313,7 +167,7 @@ function ToolJsonLd({
     toolUrl(tool);
 
   const website =
-    getOfficialWebsite(tool);
+    getSafeWebsiteUrl(tool);
 
   const category =
     getToolCategory(tool);
@@ -334,28 +188,20 @@ function ToolJsonLd({
       description || undefined,
 
     applicationCategory:
-      category || undefined,
+      category,
 
     url: canonical,
   };
 
   /*
-   * Only include sameAs when an official URL
-   * actually exists.
+   * Only include official website
+   * when it actually exists.
    */
   if (website) {
     jsonLd.sameAs = [
       website,
     ];
   }
-
-  /*
-   * Pricing is intentionally NOT placed into
-   * offers/price because the database may contain
-   * only a pricing label such as Freemium/Paid.
-   *
-   * This prevents fabricated structured-data prices.
-   */
 
   return (
     <script
@@ -386,45 +232,9 @@ function BreadcrumbJsonLd({
     getToolCategory(tool);
 
   const categorySlug =
-    normalizeCategorySlug(
+    categoryToSlug(
       category
     );
-
-  const items = [
-    {
-      "@type":
-        "ListItem",
-      position: 1,
-      name: "Home",
-      item: SITE_URL,
-    },
-  ];
-
-  if (
-    category &&
-    categorySlug
-  ) {
-    items.push({
-      "@type":
-        "ListItem",
-      position: 2,
-      name: category,
-      item:
-        `${SITE_URL}/category/${encodeURIComponent(
-          categorySlug
-        )}`,
-    });
-  }
-
-  items.push({
-    "@type":
-      "ListItem",
-    position:
-      items.length + 1,
-    name,
-    item:
-      toolUrl(tool),
-  });
 
   const jsonLd = {
     "@context":
@@ -433,188 +243,43 @@ function BreadcrumbJsonLd({
     "@type":
       "BreadcrumbList",
 
-    itemListElement:
-      items,
-  };
+    itemListElement: [
+      {
+        "@type":
+          "ListItem",
 
-  return (
-    <script
-      type="application/ld+json"
-      dangerouslySetInnerHTML={{
-        __html:
-          JSON.stringify(
-            jsonLd
-          ),
-      }}
-    />
-  );
-}
+        position: 1,
 
-/* =========================================================
-   FAQ DATA
-========================================================= */
+        name: "Home",
 
-function buildFaqs(
-  tool: ToolRecord,
-  name: string,
-  pricing: string,
-  website: string,
-  features: string[],
-  useCases: string[],
-  platforms: string[],
-  integrations: string[]
-) {
-  const faqs: {
-    question: string;
-    answer: string;
-  }[] = [];
+        item: SITE_URL,
+      },
 
-  /*
-   * What is the tool?
-   *
-   * Only create this when description exists.
-   */
-  const description =
-    getDescription(tool);
+      {
+        "@type":
+          "ListItem",
 
-  if (description) {
-    faqs.push({
-      question:
-        `What is ${name} used for?`,
-      answer:
-        description,
-    });
-  }
+        position: 2,
 
-  /*
-   * Features FAQ only when real features exist.
-   */
-  if (features.length) {
-    faqs.push({
-      question:
-        `What are the key features of ${name}?`,
-      answer:
-        features
-          .slice(0, 6)
-          .join(", ") + ".",
-    });
-  }
+        name: category,
 
-  /*
-   * Use-case FAQ only when actual use cases
-   * are present in the database.
-   */
-  if (useCases.length) {
-    faqs.push({
-      question:
-        `What can you use ${name} for?`,
-      answer:
-        useCases
-          .slice(0, 6)
-          .join(", ") + ".",
-    });
-  }
+        item:
+          `${SITE_URL}/category/${encodeURIComponent(
+            categorySlug
+          )}`,
+      },
 
-  /*
-   * Pricing FAQ.
-   */
-  if (pricing) {
-    faqs.push({
-      question:
-        `Is ${name} free?`,
-      answer:
-        `${name} is listed in AI Vault with the pricing model "${pricing}". Check the official website for current pricing and plan availability.`,
-    });
-  }
+      {
+        "@type":
+          "ListItem",
 
-  /*
-   * Platform FAQ only when actual platform
-   * data exists.
-   */
-  if (platforms.length) {
-    faqs.push({
-      question:
-        `What platforms does ${name} support?`,
-      answer:
-        `${name} is listed with the following platform information: ${platforms
-          .slice(0, 8)
-          .join(", ")}.`,
-    });
-  }
+        position: 3,
 
-  /*
-   * Integration FAQ only when actual integration
-   * data exists.
-   */
-  if (integrations.length) {
-    faqs.push({
-      question:
-        `Does ${name} offer integrations?`,
-      answer:
-        `AI Vault lists these integrations for ${name}: ${integrations
-          .slice(0, 8)
-          .join(", ")}.`,
-    });
-  }
+        name,
 
-  /*
-   * Getting started.
-   *
-   * This does NOT claim a specific signup process.
-   */
-  if (website) {
-    faqs.push({
-      question:
-        `How do I get started with ${name}?`,
-      answer:
-        `Visit the official ${name} website to review the current product information and available access options.`,
-    });
-  }
-
-  return faqs;
-}
-
-/* =========================================================
-   FAQ JSON-LD
-========================================================= */
-
-function FaqJsonLd({
-  faqs,
-}: {
-  faqs: {
-    question: string;
-    answer: string;
-  }[];
-}) {
-  if (!faqs.length) {
-    return null;
-  }
-
-  const jsonLd = {
-    "@context":
-      "https://schema.org",
-
-    "@type":
-      "FAQPage",
-
-    mainEntity:
-      faqs.map(
-        (faq) => ({
-          "@type":
-            "Question",
-
-          name:
-            faq.question,
-
-          acceptedAnswer: {
-            "@type":
-              "Answer",
-
-            text:
-              faq.answer,
-          },
-        })
-      ),
+        item: toolUrl(tool),
+      },
+    ],
   };
 
   return (
@@ -637,26 +302,15 @@ function FaqJsonLd({
 export default async function ToolPage({
   params,
 }: Props) {
-  const { slug: rawSlug } =
-    await params;
+  const { slug } = await params;
 
   /*
-   * =======================================================
-   * EXACT CANONICAL SLUG
-   * =======================================================
+   * Decode only the incoming URL parameter.
    *
-   * We decode the requested URL once.
-   *
-   * We NEVER:
-   *
-   * normalize name -> slug
-   * generate fallback slug
-   * redirect one tool to another tool
-   *
-   * Existing database slugs remain sacred.
+   * NEVER create a slug from the tool name.
    */
   const requestedSlug =
-    safeDecode(rawSlug);
+    safeDecode(slug);
 
   if (
     !requestedSlug.trim()
@@ -665,28 +319,26 @@ export default async function ToolPage({
   }
 
   /*
-   * SINGLE SOURCE OF TRUTH
+   * EXACT DATABASE LOOKUP.
    *
-   * getToolBySlug() is used instead of maintaining
-   * a second competing query here.
-   *
-   * This prevents:
-   *
-   * - duplicate lookup logic
-   * - accidental name-based routing
-   * - mismatched records
+   * getToolBySlug() is responsible for
+   * resolving the canonical database slug.
    */
   const tool =
     await getToolBySlug(
       requestedSlug
     );
 
+  /*
+   * NEVER render another tool when
+   * the requested slug does not exist.
+   */
   if (!tool) {
     notFound();
   }
 
   /* =======================================================
-     NORMALIZED DATA
+     CANONICAL TOOL DATA
   ======================================================= */
 
   const name =
@@ -695,14 +347,10 @@ export default async function ToolPage({
   const category =
     getToolCategory(tool);
 
-  const categorySlug =
-    normalizeCategorySlug(
-      category
-    );
-
   const pricing =
     normalizePricing(
-      getPricingRaw(tool)
+      tool.pricing_model ??
+        tool.pricing
     );
 
   const score =
@@ -726,46 +374,37 @@ export default async function ToolPage({
   const integrations =
     getIntegrations(tool);
 
+  /*
+   * IMPORTANT:
+   *
+   * getWebsiteUrl() can return null.
+   * We keep it nullable instead of
+   * forcing it into a string.
+   */
   const website =
-    getOfficialWebsite(tool);
-
-  const platforms =
-    getPlatforms(tool);
-
-  const deployment =
-    getDeployment(tool);
-
-  const license =
-    getLicense(tool);
-
-  const audience =
-    getAudience(tool);
-
-  const faqs =
-    buildFaqs(
-      tool,
-      name,
-      pricing,
-      website,
-      features,
-      useCases,
-      platforms,
-      integrations
-    );
+    getSafeWebsiteUrl(tool);
 
   const logo =
     clean(tool.logo_url) ||
     clean(tool.logo) ||
     clean(tool.image_url) ||
-    clean(tool.icon_url) ||
     null;
+
+  const categorySlug =
+    categoryToSlug(
+      category
+    );
+
+  /* =======================================================
+     RENDER
+  ======================================================= */
 
   return (
     <main className="min-h-screen w-full overflow-x-hidden bg-white text-slate-950">
 
-      {/* =====================================================
+      {/* ===================================================
           STRUCTURED DATA
-      ====================================================== */}
+      =================================================== */}
 
       <ToolJsonLd
         tool={tool}
@@ -775,13 +414,9 @@ export default async function ToolPage({
         tool={tool}
       />
 
-      <FaqJsonLd
-        faqs={faqs}
-      />
-
-      {/* =====================================================
+      {/* ===================================================
           HEADER
-      ====================================================== */}
+      =================================================== */}
 
       <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
 
@@ -816,15 +451,15 @@ export default async function ToolPage({
 
       </header>
 
-      {/* =====================================================
-          CONTENT
-      ====================================================== */}
+      {/* ===================================================
+          MAIN CONTAINER
+      =================================================== */}
 
       <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
 
-        {/* ===================================================
+        {/* =================================================
             BREADCRUMB
-        ==================================================== */}
+        ================================================= */}
 
         <nav
           aria-label="Breadcrumb"
@@ -838,24 +473,22 @@ export default async function ToolPage({
             Home
           </Link>
 
-          <span>/</span>
+          <span>
+            /
+          </span>
 
-          {categorySlug ? (
-            <Link
-              href={`/category/${encodeURIComponent(
-                categorySlug
-              )}`}
-              className="hover:text-slate-700"
-            >
-              {category}
-            </Link>
-          ) : (
-            <span>
-              {category}
-            </span>
-          )}
+          <Link
+            href={`/category/${encodeURIComponent(
+              categorySlug
+            )}`}
+            className="hover:text-slate-700"
+          >
+            {category}
+          </Link>
 
-          <span>/</span>
+          <span>
+            /
+          </span>
 
           <span className="font-medium text-slate-700">
             {name}
@@ -863,9 +496,9 @@ export default async function ToolPage({
 
         </nav>
 
-        {/* ===================================================
+        {/* =================================================
             HERO
-        ==================================================== */}
+        ================================================= */}
 
         <section className="grid gap-7 lg:grid-cols-[1fr_320px]">
 
@@ -910,7 +543,7 @@ export default async function ToolPage({
           </div>
 
           {/* =================================================
-              QUICK FACTS
+              QUICK DATA
           ================================================= */}
 
           <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
@@ -922,17 +555,15 @@ export default async function ToolPage({
               </p>
 
               <p className="mt-2 text-xl font-black">
-
                 {score}
 
                 <span className="text-xs font-medium text-slate-400">
                   /100
                 </span>
-
               </p>
 
               <p className="mt-1 text-[10px] leading-4 text-slate-400">
-                Data-quality and catalog completeness signal.
+                Data and catalog quality signal.
               </p>
 
             </div>
@@ -944,7 +575,7 @@ export default async function ToolPage({
               </p>
 
               <p className="mt-2 text-sm font-bold">
-                {pricing || "Unknown"}
+                {pricing}
               </p>
 
             </div>
@@ -965,9 +596,9 @@ export default async function ToolPage({
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
             OFFICIAL ACCESS
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-7">
 
@@ -976,11 +607,11 @@ export default async function ToolPage({
           </p>
 
           <h2 className="mt-2 text-lg font-bold">
-            Explore {name}
+            Try {name}
           </h2>
 
-          <p className="mt-2 text-sm leading-6 text-slate-500">
-            Visit the official platform for the latest product information, availability and pricing.
+          <p className="mt-2 text-sm text-slate-500">
+            Visit the official platform for current product information, availability and pricing.
           </p>
 
           {website ? (
@@ -1000,16 +631,16 @@ export default async function ToolPage({
 
           <Link
             href="/"
-            className="mt-3 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+            className="mt-3 flex w-full items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-3 text-xs font-bold text-slate-700 transition hover:border-slate-300"
           >
             ← Back to Directory
           </Link>
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
             OVERVIEW
-        ==================================================== */}
+        ================================================= */}
 
         {overview && (
           <section className="mt-10">
@@ -1025,41 +656,9 @@ export default async function ToolPage({
           </section>
         )}
 
-        {/* ===================================================
-            WHO IS IT FOR?
-        ==================================================== */}
-
-        {audience.length > 0 && (
-          <section className="mt-10">
-
-            <h2 className="text-xl font-black">
-              Who is {name} for?
-            </h2>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-
-              {audience.map(
-                (
-                  item,
-                  index
-                ) => (
-                  <span
-                    key={`${item}-${index}`}
-                    className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-600"
-                  >
-                    {item}
-                  </span>
-                )
-              )}
-
-            </div>
-
-          </section>
-        )}
-
-        {/* ===================================================
+        {/* =================================================
             FEATURES
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10">
 
@@ -1086,7 +685,7 @@ export default async function ToolPage({
                         ✓
                       </span>
 
-                      <span className="text-sm font-medium leading-6 text-slate-700">
+                      <span className="text-sm font-medium text-slate-700">
                         {feature}
                       </span>
 
@@ -1099,15 +698,15 @@ export default async function ToolPage({
             </div>
           ) : (
             <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-              Feature information is not currently available in the catalog.
+              Feature information is not currently available.
             </p>
           )}
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
             USE CASES
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10">
 
@@ -1135,15 +734,15 @@ export default async function ToolPage({
             </div>
           ) : (
             <p className="mt-4 text-sm text-slate-500">
-              Use-case information is not currently available in the catalog.
+              Use-case information is not currently available.
             </p>
           )}
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
             PLATFORM DETAILS
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10">
 
@@ -1156,26 +755,24 @@ export default async function ToolPage({
             {[
               [
                 "Operating System",
-                safeString(
+                clean(
                   tool.operating_system
                 ) ||
-                  safeString(
+                  clean(
                     tool.os
                   ),
               ],
               [
-                "Platform",
-                platforms.join(
-                  ", "
+                "Deployment",
+                clean(
+                  tool.deployment
                 ),
               ],
               [
-                "Deployment",
-                deployment,
-              ],
-              [
                 "License",
-                license,
+                clean(
+                  tool.license
+                ),
               ],
               [
                 "Pricing",
@@ -1193,7 +790,8 @@ export default async function ToolPage({
                   </p>
 
                   <p className="mt-2 text-sm font-bold">
-                    {value || "Information unavailable"}
+                    {value ||
+                      "Information unavailable"}
                   </p>
 
                 </div>
@@ -1204,44 +802,9 @@ export default async function ToolPage({
 
         </section>
 
-        {/* ===================================================
-            PRICING
-        ==================================================== */}
-
-        <section className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-6">
-
-          <h2 className="text-xl font-black">
-            Pricing
-          </h2>
-
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-
-            {pricing
-              ? `${name} is currently listed with the pricing model "${pricing}".`
-              : `AI Vault does not currently have a verified pricing model for ${name}.`}
-
-          </p>
-
-          <p className="mt-2 text-xs font-medium text-slate-500">
-            Check the official website for current pricing, plans and availability.
-          </p>
-
-          {website && (
-            <a
-              href={website}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-5 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-blue-600"
-            >
-              Check Official Pricing ↗
-            </a>
-          )}
-
-        </section>
-
-        {/* ===================================================
+        {/* =================================================
             INTEGRATIONS
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10">
 
@@ -1269,15 +832,15 @@ export default async function ToolPage({
             </div>
           ) : (
             <p className="mt-4 text-sm text-slate-500">
-              Integration information is not currently available in the catalog.
+              Integration information is not currently available.
             </p>
           )}
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
             LIMITATIONS
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10">
 
@@ -1295,7 +858,7 @@ export default async function ToolPage({
                 ) => (
                   <div
                     key={`${item}-${index}`}
-                    className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm leading-6 text-slate-700"
+                    className="rounded-2xl border border-amber-100 bg-amber-50 p-4 text-sm text-slate-700"
                   >
                     {item}
                   </div>
@@ -1305,104 +868,48 @@ export default async function ToolPage({
             </div>
           ) : (
             <p className="mt-4 text-sm text-slate-500">
-              Limitation information is not currently available in the catalog.
+              Limitation information is not currently available.
             </p>
           )}
 
         </section>
 
-        {/* ===================================================
-            HOW TO GET STARTED
-        ==================================================== */}
+        {/* =================================================
+            PRICING NOTE
+        ================================================= */}
 
-        {website && (
-          <section className="mt-10">
+        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
 
-            <h2 className="text-xl font-black">
-              How to Get Started
-            </h2>
+          <h2 className="text-lg font-black">
+            Pricing
+          </h2>
 
-            <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Current catalog pricing:
+            {" "}
+            <strong>
+              {pricing}
+            </strong>
+          </p>
 
-              <p className="text-sm leading-7 text-slate-600">
-                Start by visiting the official {name} website to review its current product information and available access options.
-              </p>
+          <p className="mt-2 text-xs leading-5 text-slate-400">
+            Check the official website for current pricing and plan availability.
+          </p>
 
-              <a
-                href={website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-5 inline-flex rounded-xl bg-blue-600 px-5 py-3 text-xs font-bold uppercase tracking-wide text-white transition hover:bg-blue-700"
-              >
-                Visit {name} ↗
-              </a>
+        </section>
 
-            </div>
+        {/* =================================================
+            INTERNAL DISCOVERY
+        ================================================= */}
 
-          </section>
-        )}
+        <section className="mt-10">
 
-        {/* ===================================================
-            FAQ
-        ==================================================== */}
+          <h2 className="text-xl font-black">
+            Explore More
+          </h2>
 
-        {faqs.length > 0 && (
-          <section className="mt-10">
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
 
-            <h2 className="text-xl font-black">
-              Frequently Asked Questions
-            </h2>
-
-            <div className="mt-5 space-y-3">
-
-              {faqs.map(
-                (
-                  faq,
-                  index
-                ) => (
-                  <details
-                    key={`${faq.question}-${index}`}
-                    className="group rounded-2xl border border-slate-200 bg-white"
-                  >
-
-                    <summary className="cursor-pointer list-none px-5 py-4 text-sm font-bold text-slate-800">
-                      <div className="flex items-center justify-between gap-4">
-
-                        <span>
-                          {faq.question}
-                        </span>
-
-                        <span className="text-slate-400 transition group-open:rotate-45">
-                          +
-                        </span>
-
-                      </div>
-                    </summary>
-
-                    <div className="border-t border-slate-100 px-5 py-4">
-
-                      <p className="text-sm leading-7 text-slate-600">
-                        {faq.answer}
-                      </p>
-
-                    </div>
-
-                  </details>
-                )
-              )}
-
-            </div>
-
-          </section>
-        )}
-
-        {/* ===================================================
-            INTERNAL LINKS
-        ==================================================== */}
-
-        <section className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-
-          {categorySlug && (
             <Link
               href={`/category/${encodeURIComponent(
                 categorySlug
@@ -1411,34 +918,71 @@ export default async function ToolPage({
             >
               More {category} Tools →
             </Link>
-          )}
 
-          <Link
-            href="/ai-finder"
-            className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold transition hover:border-blue-300 hover:text-blue-600"
-          >
-            Find AI Tools →
-          </Link>
+            <Link
+              href="/ai-finder"
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold transition hover:border-blue-300 hover:text-blue-600"
+            >
+              Find AI Tools →
+            </Link>
 
-          <Link
-            href="/compare"
-            className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold transition hover:border-blue-300 hover:text-blue-600"
-          >
-            Compare Tools →
-          </Link>
+            <Link
+              href="/compare"
+              className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold transition hover:border-blue-300 hover:text-blue-600"
+            >
+              Compare Tools →
+            </Link>
 
-          <Link
-            href="/"
-            className="rounded-2xl border border-slate-200 bg-white p-5 text-sm font-bold transition hover:border-blue-300 hover:text-blue-600"
-          >
-            Explore Directory →
-          </Link>
+          </div>
 
         </section>
 
-        {/* ===================================================
+        {/* =================================================
+            ALTERNATIVES / RELATED
+        ================================================= */}
+
+        <section className="mt-10 rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-7">
+
+          <h2 className="text-xl font-black">
+            Find Alternatives to {name}
+          </h2>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+            Compare {name} with other tools in the AI Vault directory using category, use case and available product data.
+          </p>
+
+          <div className="mt-5 flex flex-wrap gap-3">
+
+            <Link
+              href={`/best/${encodeURIComponent(
+                categorySlug
+              )}`}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+            >
+              Browse {category} Tools
+            </Link>
+
+            <Link
+              href="/compare"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+            >
+              Compare Tools
+            </Link>
+
+            <Link
+              href="/ai-finder"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 transition hover:border-blue-300 hover:text-blue-600"
+            >
+              Use AI Finder
+            </Link>
+
+          </div>
+
+        </section>
+
+        {/* =================================================
             FINAL CTA
-        ==================================================== */}
+        ================================================= */}
 
         <section className="mt-10 rounded-3xl bg-slate-950 px-6 py-12 text-center text-white sm:px-10">
 
@@ -1446,34 +990,43 @@ export default async function ToolPage({
             Explore {name}
           </h2>
 
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-slate-300">
-            Review the verified information available in AI Vault and check the official platform for the latest product details.
+          <p className="mx-auto mt-3 max-w-xl text-sm text-slate-300">
+            Review the available catalog information and visit the official platform for the latest product details.
           </p>
 
-          {website && (
+          {website ? (
             <a
               href={website}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-6 inline-flex rounded-xl bg-white px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-950 transition hover:bg-blue-50"
+              className="mt-6 inline-flex rounded-xl bg-white px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-950 transition hover:bg-slate-100"
             >
               Visit Official Portal ↗
             </a>
+          ) : (
+            <Link
+              href="/"
+              className="mt-6 inline-flex rounded-xl bg-white px-6 py-3 text-xs font-bold uppercase tracking-wide text-slate-950"
+            >
+              Explore AI Vault
+            </Link>
           )}
 
         </section>
 
       </div>
 
-      {/* =====================================================
+      {/* ===================================================
           FOOTER
-      ====================================================== */}
+      =================================================== */}
 
       <footer className="border-t border-slate-200">
 
         <div className="mx-auto max-w-7xl px-4 py-8 text-xs text-slate-500 sm:px-6 lg:px-8">
 
-          © {new Date().getFullYear()} AI Vault. All rights reserved.
+          ©{" "}
+          {new Date().getFullYear()}{" "}
+          AI Vault. All rights reserved.
 
         </div>
 
