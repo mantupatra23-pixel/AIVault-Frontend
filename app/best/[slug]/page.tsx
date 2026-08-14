@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
-  "https://aivault-backend.onrender.com";
+  "https://aivault-faqc.onrender.com";
 
 type Tool = {
   id?: string;
