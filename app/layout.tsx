@@ -8,6 +8,9 @@ import TrafficTrackerProvider from "@/components/traffic-tracker-provider";
 
 const SITE_NAME = "AI Vault";
 
+const DEFAULT_TITLE =
+  "AI Vault — Discover the World's Best AI Software";
+
 const DEFAULT_DESCRIPTION =
   "Discover, compare, and explore 740+ verified AI tools, developer utilities, and SaaS platforms.";
 
@@ -17,7 +20,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "AI Vault — Discover the World's Best AI Software",
+    default: DEFAULT_TITLE,
     template: "%s | AI Vault",
   },
 
@@ -44,7 +47,6 @@ export const metadata: Metadata = {
     "AI writing tools",
     "AI automation tools",
     "AI agents",
-    "AI SaaS",
     "developer AI tools",
     "business AI tools",
   ],
@@ -84,7 +86,7 @@ export const metadata: Metadata = {
     siteName: SITE_NAME,
     url: SITE_URL,
 
-    title: "AI Vault — Discover the World's Best AI Software",
+    title: DEFAULT_TITLE,
 
     description: DEFAULT_DESCRIPTION,
 
@@ -93,7 +95,7 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt: "AI Vault — Discover the World's Best AI Software",
+        alt: DEFAULT_TITLE,
       },
     ],
   },
@@ -101,7 +103,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
 
-    title: "AI Vault — Discover the World's Best AI Software",
+    title: DEFAULT_TITLE,
 
     description: DEFAULT_DESCRIPTION,
 
@@ -115,8 +117,7 @@ export const metadata: Metadata = {
 
     other: {
       "google-site-verification":
-        process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ||
-        "",
+        process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
     },
   },
 
@@ -140,6 +141,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Search engine directives */}
         <meta
           name="robots"
           content="index, follow"
@@ -150,16 +152,19 @@ export default function RootLayout({
           content="index, follow, max-image-preview:large, max-video-preview:-1, max-snippet:-1"
         />
 
+        {/* Theme */}
         <meta
           name="theme-color"
           content="#ffffff"
         />
 
+        {/* Favicon */}
         <link
           rel="icon"
           href="/favicon.ico"
         />
 
+        {/* Canonical */}
         <link
           rel="canonical"
           href={SITE_URL}
@@ -167,10 +172,20 @@ export default function RootLayout({
       </head>
 
       <body>
-        {/* Global traffic tracking */}
+        {/* =====================================================
+            GLOBAL TRAFFIC TRACKING
+
+            The provider is responsible for sending analytics
+            to the existing backend traffic endpoint.
+
+            Do NOT add another tracker here.
+            This prevents duplicate requests.
+        ===================================================== */}
         <TrafficTrackerProvider />
 
-        {/* Existing application */}
+        {/* =====================================================
+            APPLICATION
+        ===================================================== */}
         {children}
       </body>
     </html>
