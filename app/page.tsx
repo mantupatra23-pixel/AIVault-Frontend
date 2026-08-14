@@ -2,10 +2,22 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import {
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
+
 import ToolLogo from "@/components/ToolLogo";
 import { SITE_URL } from "@/lib/site-url";
+
+import {
+  trackToolClick,
+  trackToolImpression,
+} from "@/lib/traffic-tracker";
 
 type ToolRecord = {
   id?: string | number | null;
@@ -15,7 +27,6 @@ type ToolRecord = {
   category?: string | null;
   pricing?: string | null;
 
-  // Logo fields supported by the database.
   logo_url?: string | null;
   logo?: string | null;
   image_url?: string | null;
@@ -39,7 +50,7 @@ const categories = [
   { name: "Video", icon: "🎬" },
 ];
 
-const normalizeSlug = (value: unknown) => {
+const normalizeSlug = (value: unknown): string => {
   if (!value) return "";
 
   return String(value)
@@ -49,36 +60,51 @@ const normalizeSlug = (value: unknown) => {
     .replace(/^-+|-+$/g, "");
 };
 
-const getToolName = (tool: ToolRecord) =>
+const getToolName = (tool: ToolRecord): string =>
   String(tool.name || "AI Tool").trim();
 
-const getToolDescription = (tool: ToolRecord) =>
+const getToolDescription = (tool: ToolRecord): string =>
   String(
     tool.description ||
-      "Verified AI software platform designed to improve productivity and workflows."
+      "Verified AI software platform designed to improve productivity, creativity, and workflows."
   ).trim();
 
-const getToolCategory = (tool: ToolRecord) =>
+const getToolCategory = (tool: ToolRecord): string =>
   String(tool.category || "General AI").trim();
 
-const getToolPricing = (tool: ToolRecord) =>
+const getToolPricing = (tool: ToolRecord): string =>
   String(tool.pricing || "Freemium").trim();
 
-const getToolLogo = (tool: ToolRecord) => {
-  return (
-    (typeof tool.logo_url === "string" && tool.logo_url.trim()
-      ? tool.logo_url
-      : null) ||
-    (typeof tool.logo === "string" && tool.logo.trim()
-      ? tool.logo
-      : null) ||
-    (typeof tool.image_url === "string" && tool.image_url.trim()
-      ? tool.image_url
-      : null) ||
-    (typeof tool.icon_url === "string" && tool.icon_url.trim()
-      ? tool.icon_url
-      : null)
-  );
+const getToolLogo = (tool: ToolRecord): string | null => {
+  if (
+    typeof tool.logo_url === "string" &&
+    tool.logo_url.trim()
+  ) {
+    return tool.logo_url;
+  }
+
+  if (
+    typeof tool.logo === "string" &&
+    tool.logo.trim()
+  ) {
+    return tool.logo;
+  }
+
+  if (
+    typeof tool.image_url === "string" &&
+    tool.image_url.trim()
+  ) {
+    return tool.image_url;
+  }
+
+  if (
+    typeof tool.icon_url === "string" &&
+    tool.icon_url.trim()
+  ) {
+    return tool.icon_url;
+  }
+
+  return null;
 };
 
 function HomeContent() {
@@ -89,7 +115,14 @@ function HomeContent() {
   const [loading, setLoading] = useState(true);
   const [localSearch, setLocalSearch] = useState("");
 
-  const activeCat = searchParams.get("cat") || "ALL";
+  /*
+   * Prevent duplicate impression events during
+   * React re-renders and state changes.
+   */
+  const impressionSent = useRef<Set<string>>(new Set());
+
+  const activeCat =
+    searchParams.get("cat") || "ALL";
 
   useEffect(() => {
     let cancelled = false;
@@ -99,11 +132,9 @@ function HomeContent() {
 
       try {
         /*
+         * =====================================================
          * 1. GLOBAL EXACT COUNT
-         *
-         * Count the entire ai_tools table independently from
-         * category filtering so the homepage always shows the
-         * real directory size.
+         * =====================================================
          */
         const countResult = await supabase
           .from("ai_tools")
@@ -121,21 +152,20 @@ function HomeContent() {
         }
 
         /*
+         * =====================================================
          * 2. DIRECTORY QUERY
-         *
-         * Fetch the complete directory data.
+         * =====================================================
          */
         let query = supabase
           .from("ai_tools")
           .select("*")
           .order("name", { ascending: true });
 
-        /*
-         * Category filtering is performed by Supabase only when
-         * a real category is selected.
-         */
         if (activeCat !== "ALL") {
-          query = query.ilike("category", `%${activeCat}%`);
+          query = query.ilike(
+            "category",
+            `%${activeCat}%`
+          );
         }
 
         const { data, error } = await query;
@@ -144,17 +174,18 @@ function HomeContent() {
           throw error;
         }
 
-        const rawData: ToolRecord[] = Array.isArray(data)
-          ? (data as ToolRecord[])
-          : [];
+        const rawData: ToolRecord[] =
+          Array.isArray(data)
+            ? (data as ToolRecord[])
+            : [];
 
         /*
+         * =====================================================
          * 3. DEDUPLICATE BY SLUG / NAME
-         *
-         * This prevents duplicate cards from appearing if the
-         * database contains duplicate records.
+         * =====================================================
          */
-        const uniqueMap = new Map<string, ToolRecord>();
+        const uniqueMap =
+          new Map<string, ToolRecord>();
 
         for (const tool of rawData) {
           const key =
@@ -167,15 +198,14 @@ function HomeContent() {
           }
         }
 
-        const uniqueList = Array.from(uniqueMap.values());
+        const uniqueList =
+          Array.from(uniqueMap.values());
 
         if (!cancelled) {
           setTools(uniqueList);
 
           /*
-           * Safety fallback:
-           * if the exact count is unavailable, use the returned
-           * unique directory count.
+           * Safety fallback if exact count is unavailable.
            */
           if (
             !countResult.error &&
@@ -187,7 +217,10 @@ function HomeContent() {
           }
         }
       } catch (error) {
-        console.error("[HOME_FETCH_ERR]", error);
+        console.error(
+          "[HOME_FETCH_ERR]",
+          error
+        );
 
         if (!cancelled) {
           setTools([]);
@@ -207,21 +240,27 @@ function HomeContent() {
   }, [activeCat]);
 
   /*
-   * Local UI search.
-   *
-   * This does not mutate the Supabase data.
+   * ===========================================================
+   * LOCAL SEARCH
+   * ===========================================================
    */
   const filteredTools = useMemo(() => {
-    const term = localSearch.toLowerCase().trim();
+    const term =
+      localSearch.toLowerCase().trim();
 
     if (!term) {
       return tools;
     }
 
     return tools.filter((tool) => {
-      const name = getToolName(tool).toLowerCase();
-      const description = getToolDescription(tool).toLowerCase();
-      const category = getToolCategory(tool).toLowerCase();
+      const name =
+        getToolName(tool).toLowerCase();
+
+      const description =
+        getToolDescription(tool).toLowerCase();
+
+      const category =
+        getToolCategory(tool).toLowerCase();
 
       return (
         name.includes(term) ||
@@ -231,9 +270,56 @@ function HomeContent() {
     });
   }, [tools, localSearch]);
 
-  const totalDisplay =
-    globalTotalCount > 0 ? globalTotalCount : tools.length;
+  /*
+   * ===========================================================
+   * TRAFFIC: TOOL IMPRESSIONS
+   * ===========================================================
+   *
+   * Track each tool once per page/session lifecycle.
+   */
+  useEffect(() => {
+    if (loading) return;
 
+    filteredTools.forEach((tool, index) => {
+      const slug =
+        normalizeSlug(tool.slug) ||
+        normalizeSlug(tool.name) ||
+        String(tool.id || "");
+
+      if (!slug) return;
+
+      if (impressionSent.current.has(slug)) {
+        return;
+      }
+
+      impressionSent.current.add(slug);
+
+      try {
+        trackToolImpression(
+          slug,
+          getToolName(tool),
+          getToolCategory(tool),
+          index
+        );
+      } catch (error) {
+        console.error(
+          "[TRAFFIC_IMPRESSION_ERR]",
+          error
+        );
+      }
+    });
+  }, [filteredTools, loading]);
+
+  const totalDisplay =
+    globalTotalCount > 0
+      ? globalTotalCount
+      : tools.length;
+
+  /*
+   * ===========================================================
+   * WEBSITE SCHEMA
+   * ===========================================================
+   */
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -243,9 +329,11 @@ function HomeContent() {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${SITE_URL}/?q={search_term_string}`,
+        urlTemplate:
+          `${SITE_URL}/?q={search_term_string}`,
       },
-      "query-input": "required name=search_term_string",
+      "query-input":
+        "required name=search_term_string",
     },
   };
 
@@ -254,59 +342,65 @@ function HomeContent() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(websiteSchema),
+          __html: JSON.stringify(
+            websiteSchema
+          ),
         }}
       />
 
       <main className="min-h-screen bg-[#fcfcfc] text-slate-950">
-        {/* =========================================================
+        {/* =====================================================
             NAVIGATION
-        ========================================================= */}
-        <nav className="sticky top-0 z-50 w-full border-b border-slate-100 bg-white/95 backdrop-blur">
+        ====================================================== */}
+        <nav className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
           <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
             <Link
               href="/"
-              className="text-xl font-black tracking-tight text-slate-950"
+              className="text-xl font-black tracking-tight"
             >
               AI Vault
               <span className="text-blue-600">.</span>
             </Link>
 
-            <div className="hidden items-center gap-5 lg:flex">
-              {categories.slice(0, 5).map((category) => (
-                <Link
-                  key={category.name}
-                  href={
-                    category.name === "All"
-                      ? "/"
-                      : `/?cat=${encodeURIComponent(category.name)}`
-                  }
-                  className={`text-sm font-medium transition ${
-                    activeCat.toLowerCase() ===
-                    category.name.toLowerCase()
-                      ? "text-blue-600"
-                      : "text-slate-600 hover:text-blue-600"
-                  }`}
-                >
-                  {category.name}
-                </Link>
-              ))}
+            <div className="hidden items-center gap-5 md:flex">
+              {categories
+                .slice(0, 5)
+                .map((category) => (
+                  <Link
+                    key={category.name}
+                    href={
+                      category.name === "All"
+                        ? "/"
+                        : `/?cat=${encodeURIComponent(
+                            category.name
+                          )}`
+                    }
+                    className={`text-sm font-medium transition ${
+                      activeCat.toLowerCase() ===
+                      category.name.toLowerCase()
+                        ? "text-blue-600"
+                        : "text-slate-600 hover:text-blue-600"
+                    }`}
+                  >
+                    {category.name}
+                  </Link>
+                ))}
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="rounded-full bg-blue-600 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm">
-                {totalDisplay > 0 ? `${totalDisplay}+` : "740+"} ENGINES
+              <div className="rounded-full bg-blue-600 px-4 py-2 text-sm font-bold text-white">
+                {totalDisplay.toLocaleString()}
               </div>
             </div>
           </div>
         </nav>
 
-        {/* =========================================================
+        {/* =====================================================
             HERO
-        ========================================================= */}
-        <header className="mx-auto max-w-7xl px-4 pb-8 pt-14 sm:px-6 sm:pt-20">
+        ====================================================== */}
+        <header className="mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 sm:pt-16">
           <div className="text-center">
-            <h1 className="mx-auto max-w-5xl text-4xl font-black leading-[0.98] tracking-[-0.04em] sm:text-6xl md:text-7xl">
+            <h1 className="mx-auto max-w-5xl text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
               Discover the World&apos;s
               <br />
               <span className="italic text-blue-600">
@@ -314,37 +408,41 @@ function HomeContent() {
               </span>
             </h1>
 
-            <p className="mx-auto mt-6 max-w-2xl text-sm leading-6 text-slate-500 sm:text-base">
-              Discover, compare, and explore {totalDisplay || 740}+
-              production AI tools, developer utilities, and SaaS
-              platforms.
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg">
+              Discover, compare, and explore{" "}
+              {totalDisplay.toLocaleString()}+
+              verified AI tools, productivity
+              software, developer utilities and
+              business platforms.
             </p>
           </div>
 
-          {/* =======================================================
-              SEARCH BAR
-          ======================================================= */}
+          {/* ===================================================
+              SEARCH
+          ==================================================== */}
           <div className="mx-auto mt-8 max-w-2xl">
             <div className="relative">
               <input
                 type="text"
                 value={localSearch}
                 onChange={(event) =>
-                  setLocalSearch(event.target.value)
+                  setLocalSearch(
+                    event.target.value
+                  )
                 }
                 placeholder={
                   totalDisplay > 0
-                    ? `Search ${totalDisplay}+ AI tools by name, category, or workflow...`
-                    : "Search AI tools by name, category, or workflow..."
+                    ? `Search ${totalDisplay.toLocaleString()}+ AI tools...`
+                    : "Search AI tools by name, category..."
                 }
                 aria-label="Search AI tools"
-                className="h-14 w-full rounded-2xl border border-slate-200 bg-white pl-5 pr-16 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                className="h-14 w-full rounded-2xl border border-slate-200 bg-white px-5 pr-14 text-sm font-medium outline-none shadow-sm transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               />
 
-              <div className="absolute right-2 top-2 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm">
+              <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2">
                 <svg
-                  width="18"
-                  height="18"
+                  width="20"
+                  height="20"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -353,16 +451,20 @@ function HomeContent() {
                   strokeLinejoin="round"
                   aria-hidden="true"
                 >
-                  <circle cx="11" cy="11" r="7" />
+                  <circle
+                    cx="11"
+                    cy="11"
+                    r="7"
+                  />
                   <path d="m20 20-4-4" />
                 </svg>
               </div>
             </div>
           </div>
 
-          {/* =======================================================
+          {/* ===================================================
               CATEGORY PILLS
-          ======================================================= */}
+          ==================================================== */}
           <div className="mt-7 flex flex-wrap justify-center gap-2">
             {categories.map((category) => {
               const isActive =
@@ -375,12 +477,14 @@ function HomeContent() {
                   href={
                     category.name === "All"
                       ? "/"
-                      : `/?cat=${encodeURIComponent(category.name)}`
+                      : `/?cat=${encodeURIComponent(
+                          category.name
+                        )}`
                   }
-                  className={`flex items-center gap-2 rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  className={`flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition ${
                     isActive
-                      ? "bg-slate-950 text-white shadow-md"
-                      : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                      ? "border-slate-950 bg-slate-950 text-white shadow-sm"
+                      : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-600"
                   }`}
                 >
                   <span>{category.icon}</span>
@@ -391,20 +495,25 @@ function HomeContent() {
           </div>
         </header>
 
-        {/* =========================================================
+        {/* =====================================================
             DIRECTORY
-        ========================================================= */}
+        ====================================================== */}
         <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
-          <div className="mb-5 flex items-center justify-between border-b border-slate-200 pb-4">
-            <h2 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-              Verified AI Directory ({totalDisplay})
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
+              Verified AI Directory{" "}
+              <span className="text-blue-600">
+                ({totalDisplay.toLocaleString()})
+              </span>
             </h2>
 
             {localSearch && (
               <button
                 type="button"
-                onClick={() => setLocalSearch("")}
-                className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                onClick={() =>
+                  setLocalSearch("")
+                }
+                className="text-xs font-semibold text-slate-600 transition hover:text-blue-600"
               >
                 Clear search
               </button>
@@ -413,137 +522,173 @@ function HomeContent() {
 
           {loading ? (
             <div className="py-20 text-center">
-              <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
+              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+
               <p className="mt-4 text-sm font-medium text-slate-500">
                 Loading Verified AI Engines...
               </p>
             </div>
           ) : filteredTools.length === 0 ? (
-            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+            <div className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-3xl">
                 🔎
               </div>
 
-              <h3 className="mt-5 text-xl font-bold text-slate-950">
+              <h3 className="mt-5 text-xl font-bold">
                 No AI tools found
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                Try another search term or choose a different
-                category.
+                Try another search term or choose
+                a different category.
               </p>
 
               <button
                 type="button"
-                onClick={() => setLocalSearch("")}
-                className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-600"
+                onClick={() => {
+                  setLocalSearch("");
+                  window.history.pushState(
+                    {},
+                    "",
+                    "/"
+                  );
+                  window.location.reload();
+                }}
+                className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 View All Tools
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
-              {filteredTools.map((tool) => {
-                const cleanSlug =
-                  normalizeSlug(tool.slug) ||
-                  normalizeSlug(tool.name);
+            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+              {filteredTools.map(
+                (tool, index) => {
+                  const cleanSlug =
+                    normalizeSlug(
+                      tool.slug
+                    ) ||
+                    normalizeSlug(
+                      tool.name
+                    );
 
-                if (!cleanSlug) {
-                  return null;
-                }
+                  if (!cleanSlug) {
+                    return null;
+                  }
 
-                const name = getToolName(tool);
-                const description = getToolDescription(tool);
-                const category = getToolCategory(tool);
-                const pricing = getToolPricing(tool);
-                const logoUrl = getToolLogo(tool);
+                  const name =
+                    getToolName(tool);
 
-                return (
-                  <Link
-                    key={String(tool.id || cleanSlug)}
-                    href={`/tool/${cleanSlug}`}
-                    className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg"
-                  >
-                    <div className="space-y-4">
-                      {/* =================================================
-                          TOOL HEADER
-                      ================================================= */}
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="flex min-w-0 items-center gap-4">
-                          {/* IMPORTANT:
-                              ToolLogo uses src/fallbackSrc/name.
-                              DO NOT pass tool={tool}.
-                          */}
-                          <ToolLogo
-                            src={logoUrl}
-                            fallbackSrc={
-                              typeof tool.logo === "string"
-                                ? tool.logo
-                                : null
-                            }
-                            name={name}
-                            size="md"
-                          />
+                  const description =
+                    getToolDescription(tool);
 
-                          <div className="min-w-0">
-                            <h3 className="truncate text-xl font-bold tracking-tight text-slate-950">
-                              {name}
-                            </h3>
+                  const category =
+                    getToolCategory(tool);
 
-                            <p className="mt-1 text-xs font-medium text-slate-400">
-                              {category}
-                            </p>
+                  const pricing =
+                    getToolPricing(tool);
+
+                  const logoUrl =
+                    getToolLogo(tool);
+
+                  return (
+                    <Link
+                      key={String(
+                        tool.id ||
+                          cleanSlug
+                      )}
+                      href={`/tool/${cleanSlug}`}
+                      onClick={() => {
+                        try {
+                          trackToolClick(
+                            cleanSlug,
+                            name,
+                            category,
+                            index
+                          );
+                        } catch (error) {
+                          console.error(
+                            "[TRAFFIC_CLICK_ERR]",
+                            error
+                          );
+                        }
+                      }}
+                      className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg"
+                    >
+                      <div className="space-y-4">
+                        {/* TOOL HEADER */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <ToolLogo
+                              src={logoUrl}
+                              fallbackSrc={
+                                typeof tool.logo ===
+                                  "string"
+                                  ? tool.logo
+                                  : null
+                              }
+                              name={name}
+                              size="md"
+                            />
+
+                            <div className="min-w-0">
+                              <h3 className="truncate text-base font-bold text-slate-950">
+                                {name}
+                              </h3>
+
+                              <p className="mt-1 text-xs font-medium text-slate-500">
+                                {category}
+                              </p>
+                            </div>
                           </div>
+
+                          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                            {pricing}
+                          </span>
                         </div>
 
-                        <span className="shrink-0 rounded-full bg-slate-50 px-3 py-1 text-[9px] font-bold uppercase tracking-wide text-slate-500">
-                          {pricing}
-                        </span>
-                      </div>
+                        {/* DESCRIPTION */}
+                        <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">
+                          {description}
+                        </p>
 
-                      {/* =================================================
-                          DESCRIPTION
-                      ================================================= */}
-                      <p className="line-clamp-3 min-h-[60px] text-sm leading-6 text-slate-500">
-                        {description}
-                      </p>
-
-                      {/* =================================================
-                          FOOTER
-                      ================================================= */}
-                      <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-blue-600">
-                          {category}
-                        </span>
-
-                        <span className="flex items-center gap-1 text-sm font-bold text-slate-950 transition group-hover:text-blue-600">
-                          Explore
-                          <span
-                            className="transition-transform group-hover:translate-x-1"
-                            aria-hidden="true"
-                          >
-                            →
+                        {/* FOOTER */}
+                        <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            {category}
                           </span>
-                        </span>
+
+                          <span className="flex items-center gap-1 text-sm font-bold text-slate-900 transition group-hover:text-blue-600">
+                            Explore
+                            <span
+                              className="transition-transform duration-200 group-hover:translate-x-1"
+                              aria-hidden="true"
+                            >
+                              →
+                            </span>
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  </Link>
-                );
-              })}
+                    </Link>
+                  );
+                }
+              )}
             </div>
           )}
         </section>
 
-        {/* =========================================================
+        {/* =====================================================
             FOOTER
-        ========================================================= */}
+        ====================================================== */}
         <footer className="border-t border-slate-200 bg-white">
-          <div className="mx-auto max-w-7xl px-4 py-12 text-center sm:px-6">
-            <h2 className="text-3xl font-black tracking-tight text-slate-950">
-              AI Vault<span className="text-blue-600">.</span>
+          <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
+            <h2 className="text-3xl font-black tracking-tight">
+              AI Vault
+              <span className="text-blue-600">
+                .
+              </span>
             </h2>
 
-            <div className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm text-slate-500">
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-3 text-sm font-medium text-slate-500">
               <Link
                 href="/privacy"
                 className="transition hover:text-blue-600"
@@ -574,8 +719,8 @@ function HomeContent() {
             </div>
 
             <p className="mt-6 text-xs text-slate-400">
-              © {new Date().getFullYear()} AI Vault. All rights
-              reserved.
+              © {new Date().getFullYear()} AI Vault.
+              All rights reserved.
             </p>
           </div>
         </footer>
@@ -586,16 +731,14 @@ function HomeContent() {
 
 /*
  * Next.js App Router:
- *
- * useSearchParams() requires the component using it to be
- * rendered under Suspense during production builds.
+ * useSearchParams() requires a Suspense boundary.
  */
 export default function Home() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen w-full items-center justify-center bg-[#fcfcfc]">
-          <div className="text-sm font-semibold text-slate-500">
+        <div className="flex min-h-screen w-full items-center justify-center bg-white">
+          <div className="text-sm font-semibold text-slate-600">
             Loading AI Vault...
           </div>
         </div>

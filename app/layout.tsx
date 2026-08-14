@@ -1,18 +1,15 @@
-import type {
-  Metadata,
-  Viewport,
-} from "next";
-
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
 import "./globals.css";
 
 import { SITE_URL } from "@/lib/site-url";
+import TrafficTrackerProvider from "@/components/traffic-tracker-provider";
 
 const SITE_NAME = "AI Vault";
 
 const DEFAULT_DESCRIPTION =
-  "Discover, compare, and explore 740+ verified AI tools, AI software, SaaS platforms, developer utilities, productivity apps, creative tools, and more.";
+  "Discover, compare, and explore 740+ verified AI tools, developer utilities, and SaaS platforms.";
 
 const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
@@ -60,7 +57,6 @@ export const metadata: Metadata = {
   ],
 
   creator: SITE_NAME,
-
   publisher: SITE_NAME,
 
   category: "technology",
@@ -84,15 +80,11 @@ export const metadata: Metadata = {
 
   openGraph: {
     type: "website",
-
     locale: "en_US",
-
     siteName: SITE_NAME,
-
     url: SITE_URL,
 
-    title:
-      "AI Vault — Discover the World's Best AI Software",
+    title: "AI Vault — Discover the World's Best AI Software",
 
     description: DEFAULT_DESCRIPTION,
 
@@ -101,8 +93,7 @@ export const metadata: Metadata = {
         url: OG_IMAGE,
         width: 1200,
         height: 630,
-        alt:
-          "AI Vault — Discover the World's Best AI Software",
+        alt: "AI Vault — Discover the World's Best AI Software",
       },
     ],
   },
@@ -110,8 +101,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
 
-    title:
-      "AI Vault — Discover the World's Best AI Software",
+    title: "AI Vault — Discover the World's Best AI Software",
 
     description: DEFAULT_DESCRIPTION,
 
@@ -120,12 +110,18 @@ export const metadata: Metadata = {
 
   verification: {
     google:
-      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ||
+      undefined,
 
     other: {
       "google-site-verification":
-        process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
+        process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ||
+        "",
     },
+  },
+
+  icons: {
+    icon: "/favicon.ico",
   },
 };
 
@@ -151,7 +147,7 @@ export default function RootLayout({
 
         <meta
           name="googlebot"
-          content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+          content="index, follow, max-image-preview:large, max-video-preview:-1, max-snippet:-1"
         />
 
         <meta
@@ -170,7 +166,13 @@ export default function RootLayout({
         />
       </head>
 
-      <body>{children}</body>
+      <body>
+        {/* Global traffic tracking */}
+        <TrafficTrackerProvider />
+
+        {/* Existing application */}
+        {children}
+      </body>
     </html>
   );
 }

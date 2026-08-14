@@ -1,8 +1,19 @@
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
-import ToolLogo from "@/components/ToolLogo";
+import {
+  createClient,
+} from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
+import ToolLogo from "@/components/ToolLogo";
+import ToolDetailTracker from "@/components/tool-detail-tracker";
+import OfficialPortalLink from "@/components/official-portal-link";
+
+import type {
+  Metadata,
+} from "next";
+
+export const dynamic =
+  "force-dynamic";
+
 export const revalidate = 0;
 
 type PageProps = {
@@ -13,48 +24,68 @@ type PageProps = {
 
 type ToolRecord = {
   id?: string | number | null;
+
   name?: string | null;
+
   slug?: string | null;
 
   category?: string | null;
 
   description?: string | null;
+
   short_description?: string | null;
+
   overview?: string | null;
 
   pricing?: string | null;
+
   pricing_model?: string | null;
 
   score?: number | string | null;
-  ai_vault_score?: number | string | null;
+
+  ai_vault_score?:
+    | number
+    | string
+    | null;
 
   logo_url?: string | null;
+
   logo?: string | null;
+
   image_url?: string | null;
 
   website_url?: string | null;
+
   official_url?: string | null;
+
   url?: string | null;
 
   features?: unknown;
+
   key_features?: unknown;
 
   limitations?: unknown;
+
   cons?: unknown;
 
   use_cases?: unknown;
 
   how_to_start?: unknown;
+
   getting_started?: unknown;
+
   how_to_get_started?: unknown;
 
   faqs?: unknown;
+
   faq?: unknown;
 
   operating_system?: string | null;
+
   os?: string | null;
 
   deployment?: string | null;
+
   license?: string | null;
 
   integrations?: unknown;
@@ -67,8 +98,13 @@ type ToolRecord = {
 ========================================================= */
 
 function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url =
+    process.env
+      .NEXT_PUBLIC_SUPABASE_URL;
+
+  const key =
+    process.env
+      .NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     throw new Error(
@@ -76,15 +112,22 @@ function getSupabase() {
     );
   }
 
-  return createClient(url, key);
+  return createClient(
+    url,
+    key
+  );
 }
 
 /* =========================================================
-   BASIC HELPERS
+   HELPERS
 ========================================================= */
 
-function clean(value: unknown): string {
-  if (typeof value === "string") {
+function clean(
+  value: unknown
+): string {
+  if (
+    typeof value === "string"
+  ) {
     return value.trim();
   }
 
@@ -98,84 +141,113 @@ function clean(value: unknown): string {
   return "";
 }
 
-function decodeSlug(value: string): string {
+function decodeSlug(
+  value: string
+): string {
   try {
-    return decodeURIComponent(value);
+    return decodeURIComponent(
+      value
+    );
   } catch {
     return value;
   }
 }
 
-function makeSlug(value: string): string {
+function makeSlug(
+  value: string
+): string {
   return clean(value)
     .toLowerCase()
     .trim()
     .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(
+      /[^a-z0-9]+/g,
+      "-"
+    )
+    .replace(
+      /^-+|-+$/g,
+      "");
 }
 
-function titleFromSlug(slug: string): string {
-  return slug
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) =>
-      char.toUpperCase()
-    );
-}
-
-/* =========================================================
-   TOOL DATA HELPERS
-========================================================= */
-
-function getName(tool: ToolRecord): string {
-  return clean(tool.name) || "AI Tool";
-}
-
-function getSlug(tool: ToolRecord): string {
+function getName(
+  tool: ToolRecord
+): string {
   return (
-    clean(tool.slug) ||
-    makeSlug(getName(tool))
+    clean(tool.name) ||
+    "AI Tool"
   );
 }
 
-function getDescription(tool: ToolRecord): string {
+function getSlug(
+  tool: ToolRecord
+): string {
+  return (
+    clean(tool.slug) ||
+    makeSlug(
+      getName(tool)
+    )
+  );
+}
+
+function getDescription(
+  tool: ToolRecord
+): string {
   return (
     clean(tool.description) ||
-    clean(tool.short_description) ||
+    clean(
+      tool.short_description
+    ) ||
     clean(tool.overview) ||
     "Explore this AI software platform, its features, pricing, use cases, and alternatives."
   );
 }
 
-function getPricing(tool: ToolRecord): string {
+function getPricing(
+  tool: ToolRecord
+): string {
   const value =
-    clean(tool.pricing_model) ||
+    clean(
+      tool.pricing_model
+    ) ||
     clean(tool.pricing);
 
   if (!value) {
     return "Unknown";
   }
 
-  const lower = value.toLowerCase();
+  const lower =
+    value.toLowerCase();
 
-  if (lower.includes("freemium")) {
+  if (
+    lower.includes(
+      "freemium"
+    )
+  ) {
     return "Freemium";
   }
 
   if (
     lower === "free" ||
-    lower.includes("free to use") ||
-    lower.includes("free plan")
+    lower.includes(
+      "free to use"
+    ) ||
+    lower.includes(
+      "free plan"
+    )
   ) {
     return "Free";
   }
 
   if (
-    lower.includes("paid") ||
-    lower.includes("subscription") ||
-    lower.includes("pro plan")
+    lower.includes(
+      "paid"
+    ) ||
+    lower.includes(
+      "subscription"
+    ) ||
+    lower.includes(
+      "pro plan"
+    )
   ) {
     return "Paid";
   }
@@ -183,22 +255,34 @@ function getPricing(tool: ToolRecord): string {
   return value;
 }
 
-function getScore(tool: ToolRecord): number {
+function getScore(
+  tool: ToolRecord
+): number {
   const raw =
-    tool.ai_vault_score !== null &&
-    tool.ai_vault_score !== undefined
+    tool.ai_vault_score !==
+      null &&
+    tool.ai_vault_score !==
+      undefined
       ? tool.ai_vault_score
       : tool.score;
 
-  const number = Number(raw);
+  const number =
+    Number(raw);
 
-  if (!Number.isFinite(number)) {
+  if (
+    !Number.isFinite(
+      number
+    )
+  ) {
     return 90;
   }
 
   return Math.max(
     0,
-    Math.min(100, number)
+    Math.min(
+      100,
+      number
+    )
   );
 }
 
@@ -206,9 +290,13 @@ function getLogoUrl(
   tool: ToolRecord
 ): string | null {
   return (
-    clean(tool.logo_url) ||
+    clean(
+      tool.logo_url
+    ) ||
     clean(tool.logo) ||
-    clean(tool.image_url) ||
+    clean(
+      tool.image_url
+    ) ||
     null
   );
 }
@@ -217,15 +305,19 @@ function getWebsiteUrl(
   tool: ToolRecord
 ): string | null {
   return (
-    clean(tool.website_url) ||
-    clean(tool.official_url) ||
+    clean(
+      tool.website_url
+    ) ||
+    clean(
+      tool.official_url
+    ) ||
     clean(tool.url) ||
     null
   );
 }
 
 /* =========================================================
-   ARRAY / JSON HELPERS
+   ARRAY PARSER
 ========================================================= */
 
 function parseArray(
@@ -234,23 +326,37 @@ function parseArray(
   if (Array.isArray(value)) {
     return value
       .map((item) => {
-        if (typeof item === "string") {
+        if (
+          typeof item ===
+          "string"
+        ) {
           return item.trim();
         }
 
         if (
           item &&
-          typeof item === "object"
+          typeof item ===
+            "object"
         ) {
           const obj =
-            item as Record<string, unknown>;
+            item as Record<
+              string,
+              unknown
+            >;
 
           return (
-            clean(obj.title) ||
-            clean(obj.name) ||
-            clean(obj.question) ||
-            clean(obj.answer) ||
-            clean(obj.text)
+            clean(
+              obj.title
+            ) ||
+            clean(
+              obj.name
+            ) ||
+            clean(
+              obj.text
+            ) ||
+            clean(
+              obj.value
+            )
           );
         }
 
@@ -259,29 +365,46 @@ function parseArray(
       .filter(Boolean);
   }
 
-  if (typeof value === "string") {
-    const text = value.trim();
+  if (
+    typeof value ===
+    "string"
+  ) {
+    const text =
+      value.trim();
 
     if (!text) {
       return [];
     }
 
     try {
-      const parsed = JSON.parse(text);
+      const parsed =
+        JSON.parse(text);
 
-      if (Array.isArray(parsed)) {
-        return parseArray(parsed);
+      if (
+        Array.isArray(
+          parsed
+        )
+      ) {
+        return parseArray(
+          parsed
+        );
       }
     } catch {
-      // Not JSON. Continue below.
+      // plain text
     }
 
     return text
       .split(/\r?\n/)
       .map((item) =>
         item
-          .replace(/^[-•*]\s*/, "")
-          .replace(/^\d+[.)]\s*/, "")
+          .replace(
+            /^[-•*]\s*/,
+            ""
+          )
+          .replace(
+            /^\d+[.)]\s*/,
+            ""
+          )
           .trim()
       )
       .filter(Boolean);
@@ -290,51 +413,70 @@ function parseArray(
   return [];
 }
 
+/* =========================================================
+   CONTENT
+========================================================= */
+
 function getFeatures(
   tool: ToolRecord
 ): string[] {
-  const result =
-    parseArray(tool.key_features);
+  const features =
+    parseArray(
+      tool.key_features
+    );
 
-  if (result.length) {
-    return result;
+  if (
+    features.length
+  ) {
+    return features;
   }
 
   const fallback =
-    parseArray(tool.features);
+    parseArray(
+      tool.features
+    );
 
-  if (fallback.length) {
+  if (
+    fallback.length
+  ) {
     return fallback;
   }
 
   return [
+    "Powerful AI-assisted workflows",
     "User-friendly interface",
-    "Powerful workflow capabilities",
-    "Practical features for everyday use",
+    "Fast and practical productivity tools",
+    "Flexible workflow capabilities",
   ];
 }
 
 function getLimitations(
   tool: ToolRecord
 ): string[] {
-  const result =
-    parseArray(tool.limitations);
+  const limitations =
+    parseArray(
+      tool.limitations
+    );
 
-  if (result.length) {
-    return result;
+  if (
+    limitations.length
+  ) {
+    return limitations;
   }
 
-  const fallback =
-    parseArray(tool.cons);
+  const cons =
+    parseArray(
+      tool.cons
+    );
 
-  if (fallback.length) {
-    return fallback;
+  if (cons.length) {
+    return cons;
   }
 
   return [
     "Some advanced capabilities may require a paid plan",
-    "Feature availability may vary by plan and platform",
-    "Internet connectivity may be required for cloud-based functionality",
+    "Feature availability may vary by plan",
+    "Cloud-based features may require an internet connection",
   ];
 }
 
@@ -342,50 +484,60 @@ function getUseCases(
   tool: ToolRecord
 ): string[] {
   const result =
-    parseArray(tool.use_cases);
+    parseArray(
+      tool.use_cases
+    );
 
   if (result.length) {
     return result;
   }
 
   return [
-    "Productivity Enhancement",
-    "Workflow Optimization",
-    "Task Automation",
+    "Productivity",
+    "Workflow automation",
+    "Content creation",
+    "Business operations",
   ];
 }
 
 function getGettingStarted(
   tool: ToolRecord
 ): string[] {
-  const result =
-    parseArray(tool.how_to_get_started);
+  const first =
+    parseArray(
+      tool.how_to_get_started
+    );
 
-  if (result.length) {
-    return result;
+  if (first.length) {
+    return first;
   }
 
   const second =
-    parseArray(tool.how_to_start);
+    parseArray(
+      tool.how_to_start
+    );
 
   if (second.length) {
     return second;
   }
 
   const third =
-    parseArray(tool.getting_started);
+    parseArray(
+      tool.getting_started
+    );
 
   if (third.length) {
     return third;
   }
 
-  const name = getName(tool);
+  const name =
+    getName(tool);
 
   return [
     `Visit the official ${name} portal`,
-    "Create or authenticate your user account if required",
-    "Configure the available workspace, preferences, or integrations",
-    "Start using the platform and evaluate it against your workflow requirements",
+    "Create or sign in to your account if required",
+    "Configure your workspace and preferences",
+    "Start using the platform for your workflow",
   ];
 }
 
@@ -402,100 +554,101 @@ function getFAQs(
   tool: ToolRecord
 ): FAQItem[] {
   const raw =
-    tool.faqs ?? tool.faq;
+    tool.faqs ??
+    tool.faq;
 
-  if (Array.isArray(raw)) {
-    const parsed = raw
-      .map((item) => {
-        if (
-          !item ||
-          typeof item !== "object"
-        ) {
-          return null;
-        }
+  if (
+    Array.isArray(raw)
+  ) {
+    const parsed =
+      raw
+        .map((item) => {
+          if (
+            !item ||
+            typeof item !==
+              "object"
+          ) {
+            return null;
+          }
 
-        const obj =
-          item as Record<string, unknown>;
+          const obj =
+            item as Record<
+              string,
+              unknown
+            >;
 
-        const question =
-          clean(obj.question) ||
-          clean(obj.q);
+          const question =
+            clean(
+              obj.question
+            ) ||
+            clean(obj.q);
 
-        const answer =
-          clean(obj.answer) ||
-          clean(obj.a);
+          const answer =
+            clean(
+              obj.answer
+            ) ||
+            clean(obj.a);
 
-        if (!question || !answer) {
-          return null;
-        }
+          if (
+            !question ||
+            !answer
+          ) {
+            return null;
+          }
 
-        return {
-          question,
-          answer,
-        };
-      })
-      .filter(
-        Boolean
-      ) as FAQItem[];
+          return {
+            question,
+            answer,
+          };
+        })
+        .filter(
+          Boolean
+        ) as FAQItem[];
 
-    if (parsed.length) {
+    if (
+      parsed.length
+    ) {
       return parsed;
     }
   }
 
-  const name = getName(tool);
-  const pricing = getPricing(tool);
+  const name =
+    getName(tool);
+
+  const pricing =
+    getPricing(tool);
 
   return [
     {
       question: `What is ${name} used for?`,
-      answer: `${name} is a software solution designed to help users improve productivity, simplify workflows, and complete relevant tasks more efficiently.`,
+      answer: `${name} is an AI software platform designed to help users improve productivity and simplify relevant workflows.`,
     },
     {
-      question: `Is ${name} free to use?`,
-      answer: `${name} is currently listed as ${pricing} in the AI Vault directory. Check the official portal for current limits and terms.`,
+      question: `Is ${name} free?`,
+      answer: `${name} is currently listed as ${pricing} in the AI Vault directory. Check the official portal for current pricing and limits.`,
     },
     {
-      question: `Who should use ${name}?`,
-      answer: `${name} is designed for individuals, creators, professionals, and teams looking for a practical solution that can improve efficiency and simplify everyday workflows.`,
+      question: `Who can use ${name}?`,
+      answer: `${name} can be useful for individuals, creators, professionals, developers, and teams depending on its supported features.`,
     },
     {
-      question: `Does ${name} require software installation?`,
-      answer: `${name} availability depends on its current platform. Users should check the official portal for supported web, desktop, mobile, API, or other deployment options.`,
+      question: `How do I get started with ${name}?`,
+      answer: `Use the Visit Official Portal button on this page and follow the platform's current onboarding process.`,
     },
     {
       question: `Where can I access ${name}?`,
-      answer: `You can access ${name} through its official website or portal using the Visit Official Portal button on this page.`,
+      answer: `The official access link is provided through the Visit Official Portal button.`,
     },
   ];
 }
-
-/* =========================================================
-   OVERVIEW
-========================================================= */
-
-function getOverview(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.overview) ||
-    clean(tool.description) ||
-    clean(tool.short_description) ||
-    `Explore ${getName(
-      tool
-    )}, including its features, pricing, use cases, limitations, and official access information.`
-  );
-}
-
-/* =========================================================
-   SPECIFICATION HELPERS
-========================================================= */
 
 function getOperatingSystem(
   tool: ToolRecord
 ): string {
   return (
-    clean(tool.operating_system) ||
+    clean(
+      tool.operating_system
+    ) ||
     clean(tool.os) ||
     "Web / Cloud"
   );
@@ -505,7 +658,9 @@ function getDeployment(
   tool: ToolRecord
 ): string {
   return (
-    clean(tool.deployment) ||
+    clean(
+      tool.deployment
+    ) ||
     "Hosted SaaS"
   );
 }
@@ -523,16 +678,115 @@ function getIntegrations(
   tool: ToolRecord
 ): string[] {
   const result =
-    parseArray(tool.integrations);
+    parseArray(
+      tool.integrations
+    );
 
   if (result.length) {
     return result;
   }
 
   return [
-    "Web APIs",
-    "Cloud Services",
+    "Web",
+    "Cloud services",
+    "API integrations",
   ];
+}
+
+/* =========================================================
+   METADATA
+========================================================= */
+
+export async function generateMetadata({
+  params,
+}: PageProps): Promise<Metadata> {
+  const { slug } =
+    await params;
+
+  const requestedSlug =
+    decodeSlug(slug);
+
+  try {
+    const supabase =
+      getSupabase();
+
+    const result =
+      await supabase
+        .from("ai_tools")
+        .select(
+          "name,slug,description,short_description,category,logo_url,image_url"
+        )
+        .eq(
+          "slug",
+          requestedSlug
+        )
+        .maybeSingle();
+
+    const tool =
+      result.data as
+        | ToolRecord
+        | null;
+
+    if (!tool) {
+      return {
+        title:
+          "AI Tool | AI Vault",
+        description:
+          "Discover verified AI software on AI Vault.",
+      };
+    }
+
+    const name =
+      getName(tool);
+
+    const description =
+      getDescription(tool);
+
+    return {
+      title:
+        `${name} — Features, Pricing & Review | AI Vault`,
+      description,
+      alternates: {
+        canonical:
+          `/tool/${makeSlug(
+            getSlug(tool)
+          )}`,
+      },
+      openGraph: {
+        title:
+          `${name} | AI Vault`,
+        description,
+        type: "website",
+        images:
+          getLogoUrl(
+            tool
+          )
+            ? [
+                {
+                  url:
+                    getLogoUrl(
+                      tool
+                    ) as string,
+                },
+              ]
+            : undefined,
+      },
+      twitter: {
+        card:
+          "summary_large_image",
+        title:
+          `${name} | AI Vault`,
+        description,
+      },
+    };
+  } catch {
+    return {
+      title:
+        "AI Vault — AI Tools Directory",
+      description:
+        "Discover verified AI tools and software.",
+    };
+  }
 }
 
 /* =========================================================
@@ -542,145 +796,136 @@ function getIntegrations(
 export default async function ToolPage({
   params,
 }: PageProps) {
-  const { slug } = await params;
+  const { slug } =
+    await params;
 
   const requestedSlug =
     decodeSlug(slug);
 
-  let tool: ToolRecord | null = null;
-  let databaseError: string | null = null;
+  let tool:
+    | ToolRecord
+    | null = null;
+
+  let databaseError:
+    | string
+    | null = null;
 
   /* =======================================================
-     DATABASE LOAD
+     LOAD TOOL
   ======================================================= */
 
   try {
-    const supabase = getSupabase();
+    const supabase =
+      getSupabase();
 
-    /*
-     * First try exact slug.
-     */
-    const exactResult =
+    const exact =
       await supabase
         .from("ai_tools")
         .select("*")
-        .eq("slug", requestedSlug)
+        .eq(
+          "slug",
+          requestedSlug
+        )
         .maybeSingle();
 
     if (
-      !exactResult.error &&
-      exactResult.data
+      !exact.error &&
+      exact.data
     ) {
       tool =
-        exactResult.data as ToolRecord;
+        exact.data as ToolRecord;
     } else {
-      /*
-       * Fallback: load all tools and compare normalized
-       * slugs. This keeps old database rows working.
-       */
-      const allResult =
+      const all =
         await supabase
           .from("ai_tools")
           .select("*")
-          .order("name", {
-            ascending: true,
-          });
+          .order(
+            "name",
+            {
+              ascending:
+                true,
+            }
+          );
 
-      if (allResult.error) {
+      if (all.error) {
         databaseError =
-          allResult.error.message;
+          all.error.message;
       } else {
         const rows =
-          (allResult.data ||
+          (all.data ||
             []) as ToolRecord[];
 
-        const normalizedRequested =
-          makeSlug(requestedSlug);
+        const target =
+          makeSlug(
+            requestedSlug
+          );
 
         tool =
-          rows.find((row) => {
-            const rowSlug =
+          rows.find(
+            (row) =>
               makeSlug(
-                clean(row.slug) ||
-                  getName(row)
-              );
-
-            return (
-              rowSlug ===
-              normalizedRequested
-            );
-          }) || null;
+                clean(
+                  row.slug
+                ) ||
+                  getName(
+                    row
+                  )
+              ) === target
+          ) || null;
       }
     }
   } catch (error) {
     databaseError =
       error instanceof Error
         ? error.message
-        : "Unable to connect to the AI Vault database.";
+        : "Unable to connect to AI Vault database.";
   }
 
   /* =======================================================
-     ERROR
+     DATABASE ERROR
   ======================================================= */
 
   if (databaseError) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-white text-slate-950">
+      <main className="min-h-screen bg-white text-slate-950">
 
-        <header className="border-b border-slate-100 bg-white">
-          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-
+        <header className="border-b border-slate-100">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
             <Link
               href="/"
-              className="shrink-0 text-base font-bold text-slate-950 sm:text-xl"
+              className="text-xl font-black"
             >
-              AI Vault.
+              AI Vault
+              <span className="text-blue-600">
+                .
+              </span>
             </Link>
-
-            <Link
-              href="/"
-              className="shrink-0 rounded-full bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-white sm:px-4 sm:text-[10px]"
-            >
-              Visit Official Portal ↗
-            </Link>
-
           </div>
         </header>
 
-        <div className="mx-auto max-w-3xl px-4 py-16 sm:px-6">
+        <section className="mx-auto max-w-2xl px-4 py-20 text-center">
 
-          <section className="rounded-2xl border border-red-100 bg-white p-6 text-center shadow-sm sm:p-10">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-2xl font-black text-red-600">
+            !
+          </div>
 
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-xl font-bold text-red-600">
-              !
-            </div>
+          <h1 className="mt-6 text-2xl font-black">
+            Unable to load this tool
+          </h1>
 
-            <h1 className="mt-5 text-xl font-bold">
-              Unable to load this tool
-            </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            The AI Vault database could not
+            return this tool.
+          </p>
 
-            <p className="mt-3 text-sm leading-6 text-slate-500">
-              The AI Vault database returned an error while loading this tool.
-            </p>
+          <Link
+            href="/"
+            className="mt-7 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
+          >
+            Back to AI Vault
+          </Link>
 
-            {process.env.NODE_ENV !==
-              "production" && (
-              <pre className="mt-5 overflow-x-auto rounded-xl bg-red-50 p-4 text-left text-xs text-red-700">
-                {databaseError}
-              </pre>
-            )}
-
-            <Link
-              href="/"
-              className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
-            >
-              Back to AI Vault
-            </Link>
-
-          </section>
-
-        </div>
-
+        </section>
       </main>
     );
   }
@@ -691,65 +936,73 @@ export default async function ToolPage({
 
   if (!tool) {
     return (
-      <main className="min-h-screen overflow-x-hidden bg-white text-slate-950">
+      <main className="min-h-screen bg-white text-slate-950">
 
-        <header className="border-b border-slate-100 bg-white">
-          <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <header className="border-b border-slate-100">
+          <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
 
             <Link
               href="/"
-              className="shrink-0 text-base font-bold sm:text-xl"
+              className="text-xl font-black"
             >
-              AI Vault.
+              AI Vault
+              <span className="text-blue-600">
+                .
+              </span>
             </Link>
 
             <Link
               href="/"
-              className="shrink-0 rounded-full bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase text-white sm:px-4 sm:text-[10px]"
+              className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white"
             >
-              Visit Official Portal ↗
+              Browse AI Tools
             </Link>
 
           </div>
         </header>
 
-        <div className="mx-auto max-w-2xl px-4 py-16 text-center sm:px-6">
+        <section className="mx-auto max-w-2xl px-4 py-20 text-center">
 
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-50 text-2xl">
-            ?
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+            🔎
           </div>
 
-          <h1 className="mt-6 text-2xl font-black sm:text-3xl">
+          <h1 className="mt-6 text-3xl font-black">
             Tool Not Found
           </h1>
 
           <p className="mt-3 text-sm leading-6 text-slate-500">
-            We couldn't find the requested AI tool in the AI Vault directory.
+            This AI tool could not be found in the AI Vault directory.
           </p>
 
           <Link
-            href="/categories"
+            href="/"
             className="mt-7 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
           >
-            Browse AI Tools
+            Back to Directory
           </Link>
 
-        </div>
-
+        </section>
       </main>
     );
   }
 
   /* =======================================================
-     DATA
+     TOOL DATA
   ======================================================= */
 
   const name =
     getName(tool);
 
+  const toolSlug =
+    getSlug(tool);
+
   const category =
     clean(tool.category) ||
     "AI Tools";
+
+  const description =
+    getDescription(tool);
 
   const pricing =
     getPricing(tool);
@@ -762,9 +1015,6 @@ export default async function ToolPage({
 
   const websiteUrl =
     getWebsiteUrl(tool);
-
-  const overview =
-    getOverview(tool);
 
   const features =
     getFeatures(tool);
@@ -784,61 +1034,144 @@ export default async function ToolPage({
   const integrations =
     getIntegrations(tool);
 
-  const toolSlug =
-    getSlug(tool);
+  const operatingSystem =
+    getOperatingSystem(tool);
 
-  const categorySlug =
-    makeSlug(category);
+  const deployment =
+    getDeployment(tool);
 
-  /* =======================================================
-     EXTERNAL WEBSITE
-  ======================================================= */
-
-  function isExternalUrl(
-    value: string
-  ): boolean {
-    return /^https?:\/\//i.test(value);
-  }
+  const license =
+    getLicense(tool);
 
   const officialLink =
     websiteUrl &&
-    isExternalUrl(websiteUrl)
+    /^https?:\/\//i.test(
+      websiteUrl
+    )
       ? websiteUrl
       : null;
 
   /* =======================================================
-     PAGE
+     STRUCTURED DATA
+  ======================================================= */
+
+  const schema = {
+    "@context":
+      "https://schema.org",
+    "@type":
+      "SoftwareApplication",
+
+    name,
+
+    description,
+
+    applicationCategory:
+      "BusinessApplication",
+
+    operatingSystem,
+
+    url:
+      officialLink ||
+      `/tool/${toolSlug}`,
+
+    offers: {
+      "@type":
+        "Offer",
+      price:
+        pricing === "Free"
+          ? "0"
+          : undefined,
+      priceCurrency:
+        "USD",
+    },
+
+    aggregateRating: {
+      "@type":
+        "AggregateRating",
+      ratingValue:
+        Math.max(
+          1,
+          Math.min(
+            5,
+            score / 20
+          )
+        ).toFixed(1),
+      bestRating:
+        "5",
+      worstRating:
+        "1",
+      ratingCount:
+        "1",
+    },
+  };
+
+  /* =======================================================
+     UI
   ======================================================= */
 
   return (
     <main className="min-h-screen w-full overflow-x-hidden bg-white text-slate-950">
 
-      {/* ===================================================
+      {/* =================================================
+          TRACK DETAIL IMPRESSION
+      ================================================= */}
+
+      <ToolDetailTracker
+        slug={toolSlug}
+        name={name}
+        category={category}
+      />
+
+      {/* =================================================
+          JSON-LD
+      ================================================= */}
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html:
+            JSON.stringify(
+              schema
+            ),
+        }}
+      />
+
+      {/* =================================================
           HEADER
-      =================================================== */}
+      ================================================= */}
 
-      <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-slate-100 bg-white/95 backdrop-blur">
 
-        <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
 
           <Link
             href="/"
-            className="shrink-0 text-base font-bold tracking-tight text-slate-950 sm:text-xl"
+            className="shrink-0 text-lg font-black tracking-tight sm:text-xl"
           >
             AI Vault
+            <span className="text-blue-600">
+              .
+            </span>
           </Link>
 
           {officialLink ? (
-            <a
-              href={officialLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="shrink-0 rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:px-5 sm:py-2.5 sm:text-[10px]"
+            <OfficialPortalLink
+              href={
+                officialLink
+              }
+              slug={
+                toolSlug
+              }
+              name={name}
+              category={
+                category
+              }
+              className="shrink-0 rounded-xl bg-slate-950 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-white transition hover:bg-blue-600 sm:px-5 sm:py-2.5 sm:text-[10px]"
             >
-              Visit Official Portal ↗
-            </a>
+              VISIT OFFICIAL PORTAL ↗
+            </OfficialPortalLink>
           ) : (
-            <span className="shrink-0 rounded-xl bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-400 sm:px-5 sm:py-2.5 sm:text-[10px]">
+            <span className="rounded-xl bg-slate-100 px-3 py-2 text-[9px] font-bold uppercase tracking-wide text-slate-400">
               Official Portal Unavailable
             </span>
           )}
@@ -847,21 +1180,19 @@ export default async function ToolPage({
 
       </header>
 
-      {/* ===================================================
-          MAIN CONTAINER
-      =================================================== */}
+      {/* =================================================
+          CONTENT
+      ================================================= */}
 
-      <div className="mx-auto w-full max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6 sm:py-10 lg:px-8">
 
-        {/* =================================================
-            BREADCRUMB
-        ================================================= */}
+        {/* BREADCRUMB */}
 
-        <nav className="mb-7 flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-400">
+        <nav className="mb-7 flex flex-wrap items-center gap-2 text-xs text-slate-400">
 
           <Link
             href="/"
-            className="transition hover:text-slate-700"
+            className="hover:text-blue-600"
           >
             Home
           </Link>
@@ -869,107 +1200,109 @@ export default async function ToolPage({
           <span>/</span>
 
           <Link
-            href="/categories"
-            className="transition hover:text-slate-700"
+            href="/"
+            className="hover:text-blue-600"
           >
             AI Tools
           </Link>
 
           <span>/</span>
 
-          <Link
-            href={`/category/${encodeURIComponent(
-              categorySlug
-            )}`}
-            className="font-medium text-slate-700"
-          >
-            {category}
-          </Link>
-
-          <span>/</span>
-
-          <span className="min-w-0 break-words font-medium text-slate-700">
+          <span className="font-medium text-slate-700">
             {name}
           </span>
 
         </nav>
 
         {/* =================================================
-            HERO CARD
+            HERO
         ================================================= */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:rounded-3xl sm:p-8 lg:p-10">
+        <section className="grid gap-7 lg:grid-cols-[1fr_320px]">
 
-          {/* Hero content */}
+          <div className="min-w-0">
 
-          <div className="flex min-w-0 flex-col gap-7 md:flex-row md:items-center md:justify-between">
-
-            {/* LEFT */}
-
-            <div className="flex min-w-0 flex-1 flex-col gap-5 sm:flex-row sm:items-center">
-
-              {/* LOGO */}
+            <div className="flex items-start gap-4 sm:gap-5">
 
               <div className="shrink-0">
-
                 <ToolLogo
                   src={logoUrl}
-                  fallbackSrc={logoUrl}
-                  websiteUrl={websiteUrl}
+                  fallbackSrc={
+                    clean(
+                      tool.logo
+                    ) ||
+                    null
+                  }
                   name={name}
                   size="lg"
                 />
-
               </div>
 
-              {/* TITLE */}
+              <div className="min-w-0">
 
-              <div className="min-w-0 flex-1">
+                <div className="mb-2 flex flex-wrap items-center gap-2">
 
-                <div className="mb-3 flex flex-wrap gap-2">
-
-                  <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-bold text-slate-600">
-                    {category}
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
+                    Verified AI Tool
                   </span>
 
-                  <span
-                    className={`rounded-full px-3 py-1.5 text-[10px] font-bold ${
-                      pricing === "Free"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : pricing === "Paid"
-                        ? "bg-amber-50 text-amber-700"
-                        : "bg-slate-50 text-slate-600"
-                    }`}
-                  >
-                    {pricing}
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                    {category}
                   </span>
 
                 </div>
 
-                <h1 className="max-w-full break-words text-3xl font-black leading-tight tracking-tight text-slate-950 sm:text-4xl lg:text-5xl">
+                <h1 className="break-words text-3xl font-black tracking-tight sm:text-4xl lg:text-5xl">
                   {name}
                 </h1>
 
-                {/* SCORE */}
+                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600 sm:text-base">
+                  {description}
+                </p>
 
-                <div className="mt-5">
+              </div>
 
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    AI Vault Score
-                  </p>
+            </div>
 
-                  <div className="mt-1 flex items-baseline gap-1">
+            {/* SCORE / PRICING */}
 
-                    <span className="text-3xl font-black text-slate-950 sm:text-4xl">
-                      {score}
-                    </span>
+            <div className="mt-7 flex flex-wrap gap-3">
 
-                    <span className="text-sm font-bold text-slate-400">
-                      /10
-                    </span>
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
 
-                  </div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  AI Vault Score
+                </div>
 
+                <div className="mt-1 text-2xl font-black text-slate-950">
+                  {score}
+                  <span className="text-sm text-slate-400">
+                    /100
+                  </span>
+                </div>
+
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Pricing
+                </div>
+
+                <div className="mt-1 text-lg font-black text-slate-950">
+                  {pricing}
+                </div>
+
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+
+                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Category
+                </div>
+
+                <div className="mt-1 text-lg font-black text-slate-950">
+                  {category}
                 </div>
 
               </div>
@@ -978,22 +1311,56 @@ export default async function ToolPage({
 
           </div>
 
-          {/* HERO BUTTON */}
+          {/* =================================================
+              ACTION CARD
+          ================================================= */}
 
-          {officialLink && (
-            <div className="mt-7 w-full">
+          <aside className="h-fit rounded-3xl border border-slate-200 bg-slate-50 p-5">
 
-              <a
-                href={officialLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-center text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:min-h-14 sm:text-sm"
-              >
-                Visit Official Portal ↗
-              </a>
-
+            <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+              Official Access
             </div>
-          )}
+
+            <h2 className="mt-2 text-xl font-black">
+              Try {name}
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Visit the official platform for the latest features, plans and availability.
+            </p>
+
+            {officialLink ? (
+              <OfficialPortalLink
+                href={
+                  officialLink
+                }
+                slug={
+                  toolSlug
+                }
+                name={
+                  name
+                }
+                category={
+                  category
+                }
+                className="mt-5 flex w-full items-center justify-center rounded-2xl bg-blue-600 px-5 py-4 text-sm font-black text-white transition hover:bg-blue-700"
+              >
+                VISIT OFFICIAL PORTAL ↗
+              </OfficialPortalLink>
+            ) : (
+              <div className="mt-5 rounded-2xl bg-slate-200 px-5 py-4 text-center text-xs font-bold text-slate-500">
+                Official URL not available
+              </div>
+            )}
+
+            <Link
+              href="/"
+              className="mt-3 flex w-full items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 py-4 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:text-blue-600"
+            >
+              ← Back to Directory
+            </Link>
+
+          </aside>
 
         </section>
 
@@ -1001,159 +1368,82 @@ export default async function ToolPage({
             OVERVIEW
         ================================================= */}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+        <section className="mt-12">
 
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
-            Overview
-          </h2>
+          <div className="max-w-4xl">
 
-          <div className="mt-5 max-w-none">
+            <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+              About {name}
+            </h2>
 
-            <p className="whitespace-pre-line break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
-              {overview}
+            <p className="mt-4 text-sm leading-7 text-slate-600 sm:text-base">
+              {description}
             </p>
 
           </div>
 
-          {/* TAGS */}
+        </section>
 
-          <div className="mt-6 flex max-w-full flex-wrap gap-2">
+        {/* =================================================
+            FEATURES
+        ================================================= */}
 
-            <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
-              AI
-            </span>
+        <section className="mt-12">
 
-            <span className="rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
-              {category}
-            </span>
+          <h2 className="text-2xl font-black tracking-tight">
+            Key Features
+          </h2>
 
-            <span className="max-w-full break-all rounded-full bg-slate-50 px-3 py-1.5 text-[10px] font-semibold text-slate-600">
-              {name}
-            </span>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
+            {features.map(
+              (
+                feature,
+                index
+              ) => (
+                <div
+                  key={`${feature}-${index}`}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                >
+                  <div className="flex gap-3">
+
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-black text-blue-600">
+                      ✓
+                    </div>
+
+                    <p className="text-sm font-semibold leading-6 text-slate-700">
+                      {feature}
+                    </p>
+
+                  </div>
+                </div>
+              )
+            )}
 
           </div>
 
         </section>
-
-        {/* =================================================
-            WHO SHOULD USE
-        ================================================= */}
-
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
-
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
-            Who Should Use {name}?
-          </h2>
-
-          <p className="mt-4 break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
-            {name} is designed for individuals, creators, professionals, and teams looking for a practical {category.toLowerCase()} solution that can improve efficiency and simplify everyday workflows.
-          </p>
-
-        </section>
-
-        {/* =================================================
-            PRICING
-        ================================================= */}
-
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
-
-          <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
-            Pricing
-          </h2>
-
-          <p className="mt-4 break-words text-sm leading-7 text-slate-500 sm:text-[15px] sm:leading-8">
-            {name} currently appears in the AI Vault directory with a{" "}
-            <strong className="font-bold text-slate-700">
-              {pricing}
-            </strong>{" "}
-            pricing model. Users should check the official portal for the latest pricing, feature limits, and usage terms.
-          </p>
-
-        </section>
-
-        {/* =================================================
-            FEATURES + LIMITATIONS
-        ================================================= */}
-
-        <div className="mt-6 grid min-w-0 gap-6 lg:grid-cols-2">
-
-          {/* FEATURES */}
-
-          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-
-            <h2 className="text-xl font-extrabold text-slate-900">
-              Key Features
-            </h2>
-
-            <ul className="mt-5 space-y-4">
-
-              {features.map(
-                (feature, index) => (
-                  <li
-                    key={`feature-${index}`}
-                    className="flex min-w-0 gap-3 text-sm leading-6 text-slate-500"
-                  >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-blue-600" />
-
-                    <span className="min-w-0 break-words">
-                      {feature}
-                    </span>
-                  </li>
-                )
-              )}
-
-            </ul>
-
-          </section>
-
-          {/* LIMITATIONS */}
-
-          <section className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
-
-            <h2 className="text-xl font-extrabold text-slate-900">
-              Limitations
-            </h2>
-
-            <ul className="mt-5 space-y-4">
-
-              {limitations.map(
-                (limitation, index) => (
-                  <li
-                    key={`limitation-${index}`}
-                    className="flex min-w-0 gap-3 text-sm leading-6 text-slate-500"
-                  >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" />
-
-                    <span className="min-w-0 break-words">
-                      {limitation}
-                    </span>
-                  </li>
-                )
-              )}
-
-            </ul>
-
-          </section>
-
-        </div>
 
         {/* =================================================
             USE CASES
         ================================================= */}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+        <section className="mt-12">
 
-          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
+          <h2 className="text-2xl font-black tracking-tight">
             Use Cases
           </h2>
 
-          <div className="mt-5 flex max-w-full flex-wrap gap-2">
+          <div className="mt-5 flex flex-wrap gap-3">
 
             {useCases.map(
-              (useCase, index) => (
+              (
+                useCase,
+                index
+              ) => (
                 <span
-                  key={`use-case-${index}`}
-                  className="max-w-full break-words rounded-full bg-slate-50 px-3 py-2 text-[10px] font-semibold text-slate-600"
+                  key={`${useCase}-${index}`}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm"
                 >
                   {useCase}
                 </span>
@@ -1165,65 +1455,115 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
-            HOW TO GET STARTED
+            TECHNICAL DETAILS
         ================================================= */}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+        <section className="mt-12">
 
-          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-            How To Get Started
+          <h2 className="text-2xl font-black tracking-tight">
+            Platform Details
           </h2>
 
-          <ol className="mt-5 space-y-4">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 
-            {gettingStarted.map(
-              (step, index) => (
-                <li
-                  key={`step-${index}`}
-                  className="flex min-w-0 items-start gap-3"
-                >
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Operating System
+              </div>
+              <div className="mt-2 text-sm font-bold">
+                {operatingSystem}
+              </div>
+            </div>
 
-                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-50 text-[10px] font-bold text-slate-600">
-                    {index + 1}
-                  </span>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Deployment
+              </div>
+              <div className="mt-2 text-sm font-bold">
+                {deployment}
+              </div>
+            </div>
 
-                  <span className="min-w-0 break-words pt-0.5 text-sm leading-6 text-slate-500">
-                    {step}
-                  </span>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                License
+              </div>
+              <div className="mt-2 text-sm font-bold">
+                {license}
+              </div>
+            </div>
 
-                </li>
-              )
-            )}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Pricing
+              </div>
+              <div className="mt-2 text-sm font-bold">
+                {pricing}
+              </div>
+            </div>
 
-          </ol>
+          </div>
 
         </section>
 
         {/* =================================================
-            FAQ
+            INTEGRATIONS
         ================================================= */}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+        <section className="mt-12">
 
-          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-            Frequently Asked Questions
+          <h2 className="text-2xl font-black tracking-tight">
+            Integrations
           </h2>
 
-          <div className="mt-5 divide-y divide-slate-100">
+          <div className="mt-5 flex flex-wrap gap-3">
 
-            {faqs.map(
-              (faq, index) => (
+            {integrations.map(
+              (
+                integration,
+                index
+              ) => (
+                <span
+                  key={`${integration}-${index}`}
+                  className="rounded-xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700"
+                >
+                  {integration}
+                </span>
+              )
+            )}
+
+          </div>
+
+        </section>
+
+        {/* =================================================
+            GETTING STARTED
+        ================================================= */}
+
+        <section className="mt-12">
+
+          <h2 className="text-2xl font-black tracking-tight">
+            How to Get Started
+          </h2>
+
+          <div className="mt-5 space-y-3">
+
+            {gettingStarted.map(
+              (
+                step,
+                index
+              ) => (
                 <div
-                  key={`faq-${index}`}
-                  className="py-5 first:pt-0 last:pb-0"
+                  key={`${step}-${index}`}
+                  className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-5"
                 >
 
-                  <h3 className="break-words text-sm font-bold text-slate-800">
-                    {faq.question}
-                  </h3>
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-950 text-sm font-black text-white">
+                    {index + 1}
+                  </div>
 
-                  <p className="mt-2 break-words text-sm leading-7 text-slate-500">
-                    {faq.answer}
+                  <p className="pt-1 text-sm font-medium leading-6 text-slate-700">
+                    {step}
                   </p>
 
                 </div>
@@ -1235,191 +1575,183 @@ export default async function ToolPage({
         </section>
 
         {/* =================================================
-            TOOL SPECIFICATIONS
+            LIMITATIONS
         ================================================= */}
 
-        <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7 lg:p-9">
+        <section className="mt-12">
 
-          <h2 className="text-xl font-extrabold text-slate-900 sm:text-2xl">
-            Tool Specifications
+          <h2 className="text-2xl font-black tracking-tight">
+            Limitations
           </h2>
 
-          <div className="mt-5 divide-y divide-slate-100">
+          <div className="mt-5 grid gap-4 md:grid-cols-2">
 
-            {/* CATEGORY */}
+            {limitations.map(
+              (
+                limitation,
+                index
+              ) => (
+                <div
+                  key={`${limitation}-${index}`}
+                  className="rounded-2xl border border-amber-100 bg-amber-50 p-5"
+                >
 
-            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex gap-3">
 
-              <span className="text-sm text-slate-500">
-                Category
-              </span>
-
-              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
-                {category}
-              </span>
-
-            </div>
-
-            {/* PRICING */}
-
-            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <span className="text-sm text-slate-500">
-                Pricing Model
-              </span>
-
-              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
-                {pricing}
-              </span>
-
-            </div>
-
-            {/* OS */}
-
-            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <span className="text-sm text-slate-500">
-                Operating System
-              </span>
-
-              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
-                {getOperatingSystem(tool)}
-              </span>
-
-            </div>
-
-            {/* DEPLOYMENT */}
-
-            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <span className="text-sm text-slate-500">
-                Deployment
-              </span>
-
-              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
-                {getDeployment(tool)}
-              </span>
-
-            </div>
-
-            {/* LICENSE */}
-
-            <div className="flex flex-col gap-2 py-4 sm:flex-row sm:items-center sm:justify-between">
-
-              <span className="text-sm text-slate-500">
-                License
-              </span>
-
-              <span className="break-words text-sm font-bold text-slate-800 sm:text-right">
-                {getLicense(tool)}
-              </span>
-
-            </div>
-
-            {/* INTEGRATIONS */}
-
-            <div className="flex flex-col gap-4 py-4 sm:flex-row sm:items-start sm:justify-between">
-
-              <span className="shrink-0 text-sm text-slate-500">
-                Integrations
-              </span>
-
-              <div className="flex max-w-full flex-wrap justify-start gap-2 sm:justify-end">
-
-                {integrations.map(
-                  (integration, index) => (
-                    <span
-                      key={`integration-${index}`}
-                      className="max-w-full break-words rounded-lg bg-slate-50 px-3 py-2 text-[10px] font-semibold text-slate-600"
-                    >
-                      {integration}
+                    <span className="text-lg">
+                      !
                     </span>
-                  )
-                )}
 
-              </div>
+                    <p className="text-sm leading-6 text-amber-900">
+                      {limitation}
+                    </p>
 
-            </div>
+                  </div>
+
+                </div>
+              )
+            )}
 
           </div>
-
-          {/* FINAL CTA */}
-
-          {officialLink && (
-            <a
-              href={officialLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-7 flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-950 px-5 py-3 text-center text-xs font-extrabold uppercase tracking-wide text-white transition hover:bg-blue-600 sm:min-h-14 sm:text-sm"
-            >
-              Visit Official Portal ↗
-            </a>
-          )}
 
         </section>
 
         {/* =================================================
-            BACK BUTTON
+            FAQ
         ================================================= */}
 
-        <div className="mt-6">
+        <section className="mt-12">
 
-          <Link
-            href={`/category/${encodeURIComponent(
-              categorySlug
-            )}`}
-            className="inline-flex max-w-full items-center rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-          >
-            ← Back to AI Directory
-          </Link>
+          <h2 className="text-2xl font-black tracking-tight">
+            Frequently Asked Questions
+          </h2>
 
-        </div>
+          <div className="mt-5 space-y-3">
+
+            {faqs.map(
+              (
+                faq,
+                index
+              ) => (
+                <details
+                  key={`${faq.question}-${index}`}
+                  className="group rounded-2xl border border-slate-200 bg-white p-5"
+                >
+
+                  <summary className="cursor-pointer list-none pr-6 text-sm font-bold text-slate-900">
+                    {faq.question}
+                  </summary>
+
+                  <p className="mt-4 text-sm leading-7 text-slate-600">
+                    {faq.answer}
+                  </p>
+
+                </details>
+              )
+            )}
+
+          </div>
+
+        </section>
+
+        {/* =================================================
+            FINAL CTA
+        ================================================= */}
+
+        <section className="mt-14 overflow-hidden rounded-3xl bg-slate-950 px-6 py-10 text-center text-white sm:px-10">
+
+          <h2 className="text-2xl font-black sm:text-3xl">
+            Ready to explore {name}?
+          </h2>
+
+          <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-300">
+            Visit the official platform to see its latest features, pricing, plans and availability.
+          </p>
+
+          {officialLink && (
+            <OfficialPortalLink
+              href={
+                officialLink
+              }
+              slug={
+                toolSlug
+              }
+              name={
+                name
+              }
+              category={
+                category
+              }
+              className="mt-6 inline-flex rounded-2xl bg-white px-6 py-3.5 text-sm font-black text-slate-950 transition hover:bg-blue-600 hover:text-white"
+            >
+              VISIT OFFICIAL PORTAL ↗
+            </OfficialPortalLink>
+          )}
+
+        </section>
 
       </div>
 
-      {/* ===================================================
+      {/* =================================================
           FOOTER
-      =================================================== */}
+      ================================================= */}
 
-      <footer className="mt-12 border-t border-slate-100 bg-white">
+      <footer className="mt-16 border-t border-slate-200 bg-white">
 
-        <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-7 text-center sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
 
-          <p className="text-xs text-slate-400">
-            © {new Date().getFullYear()} AI Vault. All rights reserved.
-          </p>
+          <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
 
-          <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-400 sm:gap-5">
+            <div>
+              <div className="text-xl font-black">
+                AI Vault
+                <span className="text-blue-600">
+                  .
+                </span>
+              </div>
 
-            <Link
-              href="/about"
-              className="hover:text-slate-700"
-            >
-              About
-            </Link>
+              <p className="mt-2 text-xs text-slate-400">
+                Discover, compare and explore verified AI software.
+              </p>
+            </div>
 
-            <Link
-              href="/contact"
-              className="hover:text-slate-700"
-            >
-              Contact
-            </Link>
+            <div className="flex flex-wrap gap-5 text-xs font-semibold text-slate-500">
 
-            <Link
-              href="/privacy"
-              className="hover:text-slate-700"
-            >
-              Privacy
-            </Link>
+              <Link
+                href="/privacy"
+                className="hover:text-blue-600"
+              >
+                Privacy
+              </Link>
 
-            <Link
-              href="/terms"
-              className="hover:text-slate-700"
-            >
-              Terms
-            </Link>
+              <Link
+                href="/terms"
+                className="hover:text-blue-600"
+              >
+                Terms
+              </Link>
+
+              <Link
+                href="/about"
+                className="hover:text-blue-600"
+              >
+                About
+              </Link>
+
+              <Link
+                href="/contact"
+                className="hover:text-blue-600"
+              >
+                Contact
+              </Link>
+
+            </div>
 
           </div>
+
+          <p className="mt-7 text-xs text-slate-400">
+            © {new Date().getFullYear()} AI Vault. All rights reserved.
+          </p>
 
         </div>
 
