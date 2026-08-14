@@ -3,7 +3,7 @@
 const BACKEND_ORIGIN =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.NEXT_PUBLIC_TRAFFIC_ENGINE_URL ||
-  "https://aivault-faqc.onrender.com";
+  "https://aivault-faqc.onrender.com/api/traffic";
 
 const SESSION_KEY = "aivault_traffic_session";
 
