@@ -29,7 +29,8 @@ type ToolRecord = {
   /*
    * IMPORTANT:
    * slug is the canonical database identifier.
-   * NEVER generate this from name.
+   *
+   * NEVER generate a slug from tool.name.
    */
   slug?: string | null;
 
@@ -65,10 +66,18 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-const supabase = createClient(
-  SUPABASE_URL,
-  SUPABASE_ANON_KEY
-);
+const getSupabase = () => {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error(
+      "Supabase environment variables are missing."
+    );
+  }
+
+  return createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+};
 
 /* =========================================================
    CATEGORIES
@@ -106,21 +115,19 @@ const categories = [
 ];
 
 /* =========================================================
-   CANONICAL SLUG HELPERS
+   CANONICAL SLUG
 ========================================================= */
 
-/**
- * IMPORTANT:
+/*
+ * This function ONLY reads the database slug.
  *
- * This function does NOT create a slug.
+ * NEVER:
  *
- * It only safely reads the canonical database slug.
+ * normalizeSlug(tool.name)
  *
- * DO NOT:
- *   normalizeSlug(tool.name)
+ * NEVER:
  *
- * DO NOT:
- *   create a slug from the tool name.
+ * create a slug from the tool name.
  */
 const getCanonicalSlug = (
   tool: ToolRecord
@@ -134,13 +141,9 @@ const getCanonicalSlug = (
   return tool.slug.trim();
 };
 
-/**
- * URL path segment.
- *
- * The database slug remains unchanged.
- *
- * encodeURIComponent is only used when
- * placing that canonical slug into a URL.
+/*
+ * Generate the frontend route ONLY
+ * from the canonical database slug.
  */
 const getToolHref = (
   tool: ToolRecord
@@ -163,61 +166,210 @@ const getToolHref = (
 
 const getToolName = (
   tool: ToolRecord
-): string =>
-  typeof tool.name === "string" &&
-  tool.name.trim()
-    ? tool.name.trim()
-    : "AI Tool";
+): string => {
+  if (
+    typeof tool.name === "string" &&
+    tool.name.trim()
+  ) {
+    return tool.name.trim();
+  }
+
+  return "AI Tool";
+};
+
+/*
+ * Remove known generated template language
+ * from DISPLAYED canonical content.
+ *
+ * This does not modify Supabase.
+ *
+ * Database cleanup must be done separately
+ * after the audit.
+ */
+const cleanGeneratedContent = (
+  value: unknown
+): string => {
+  if (
+    typeof value !== "string"
+  ) {
+    return "";
+  }
+
+  let text = value.trim();
+
+  if (!text) {
+    return "";
+  }
+
+  text = text.replace(
+    /As a Senior SEO & AI Analyst for Visora AI,?\s*/gi,
+    ""
+  );
+
+  text = text.replace(
+    /As a Senior SEO and AI Analyst for Visora AI,?\s*/gi,
+    ""
+  );
+
+  text = text.replace(
+    /In this professional review,?\s*/gi,
+    ""
+  );
+
+  text = text.replace(
+    /Our professional review aims to provide an in-depth analysis of the tool,?\s*/gi,
+    ""
+  );
+
+  return text
+    .replace(/\s{2,}/g, " ")
+    .trim();
+};
 
 const getToolDescription = (
   tool: ToolRecord
 ): string => {
-  const value =
-    typeof tool.description ===
-      "string" &&
-    tool.description.trim()
-      ? tool.description
-      : typeof tool.short_description ===
-          "string" &&
-        tool.short_description.trim()
-      ? tool.short_description
-      : typeof tool.overview ===
-          "string" &&
-        tool.overview.trim()
-      ? tool.overview
-      : "Verified AI software platform designed to improve productivity, creativity, and workflows.";
+  const candidates = [
+    tool.description,
+    tool.short_description,
+    tool.overview,
+  ];
 
-  return value.trim();
+  for (
+    const candidate of candidates
+  ) {
+    const cleaned =
+      cleanGeneratedContent(
+        candidate
+      );
+
+    if (cleaned) {
+      return cleaned;
+    }
+  }
+
+  /*
+   * IMPORTANT:
+   *
+   * Do NOT fabricate a generic description.
+   */
+  return "Description not specified.";
 };
 
 const getToolCategory = (
   tool: ToolRecord
-): string =>
-  typeof tool.category ===
-    "string" &&
-  tool.category.trim()
-    ? tool.category.trim()
-    : "General AI";
+): string => {
+  if (
+    typeof tool.category === "string" &&
+    tool.category.trim()
+  ) {
+    return tool.category.trim();
+  }
+
+  return "General AI";
+};
+
+/* =========================================================
+   PRICING NORMALIZATION
+========================================================= */
+
+const normalizePricing = (
+  value: unknown
+): string => {
+  if (
+    typeof value !== "string"
+  ) {
+    return "Unknown";
+  }
+
+  const raw =
+    value.trim();
+
+  if (!raw) {
+    return "Unknown";
+  }
+
+  const v =
+    raw.toLowerCase();
+
+  if (
+    v.includes("freemium")
+  ) {
+    return "Freemium";
+  }
+
+  if (
+    v === "free" ||
+    v.includes("free plan") ||
+    v.includes("free to use")
+  ) {
+    return "Free";
+  }
+
+  if (
+    v.includes("free trial") ||
+    v.includes("trial")
+  ) {
+    return "Free Trial";
+  }
+
+  if (
+    v.includes("contact sales") ||
+    v.includes("contact us")
+  ) {
+    return "Contact Sales";
+  }
+
+  if (
+    v.includes("open source") ||
+    v.includes("opensource")
+  ) {
+    return "Open Source";
+  }
+
+  if (
+    v.includes("enterprise")
+  ) {
+    return "Enterprise";
+  }
+
+  if (
+    v.includes("paid") ||
+    v.includes("subscription")
+  ) {
+    return "Paid";
+  }
+
+  /*
+   * Preserve the actual DB value
+   * when it doesn't match a controlled
+   * value rather than inventing data.
+   */
+  return raw;
+};
 
 const getToolPricing = (
   tool: ToolRecord
 ): string => {
-  const value =
+  const pricingModel =
     typeof tool.pricing_model ===
-      "string" &&
-    tool.pricing_model.trim()
-      ? tool.pricing_model
-      : typeof tool.pricing ===
-          "string" &&
-        tool.pricing.trim()
-      ? tool.pricing
-      : "Unknown";
+      "string"
+      ? tool.pricing_model.trim()
+      : "";
 
-  return value.trim();
+  const pricing =
+    typeof tool.pricing ===
+      "string"
+      ? tool.pricing.trim()
+      : "";
+
+  return normalizePricing(
+    pricingModel || pricing
+  );
 };
 
 /* =========================================================
-   CANONICAL SCORE
+   AI VAULT SCORE
 ========================================================= */
 
 const getToolScore = (
@@ -259,7 +411,9 @@ const getToolLogo = (
     tool.icon_url,
   ];
 
-  for (const value of candidates) {
+  for (
+    const value of candidates
+  ) {
     if (
       typeof value === "string" &&
       value.trim()
@@ -272,7 +426,7 @@ const getToolLogo = (
 };
 
 /* =========================================================
-   HOMEPAGE
+   HOME CONTENT
 ========================================================= */
 
 function HomeContent() {
@@ -295,12 +449,18 @@ function HomeContent() {
   ] = useState(true);
 
   const [
+    errorMessage,
+    setErrorMessage,
+  ] = useState("");
+
+  const [
     localSearch,
     setLocalSearch,
   ] = useState("");
 
   /*
-   * Prevent duplicate impression events.
+   * Prevent duplicate impression events
+   * during React re-renders.
    */
   const impressionSent =
     useRef<Set<string>>(
@@ -321,7 +481,7 @@ function HomeContent() {
     "all";
 
   /* =======================================================
-     FETCH DIRECTORY
+     FETCH TOOLS
   ======================================================= */
 
   useEffect(() => {
@@ -329,18 +489,15 @@ function HomeContent() {
 
     async function fetchTools() {
       setLoading(true);
+      setErrorMessage("");
 
       try {
-        /*
-         * ===================================================
-         * 1. EXACT DATABASE COUNT
-         * ===================================================
-         *
-         * No hardcoded:
-         * 740
-         * 742
-         * 419
-         */
+        const supabase =
+          getSupabase();
+
+        /* =================================================
+           1. EXACT DATABASE COUNT
+        ================================================= */
 
         let countQuery =
           supabase
@@ -372,11 +529,9 @@ function HomeContent() {
           );
         }
 
-        /*
-         * ===================================================
-         * 2. DIRECTORY QUERY
-         * ===================================================
-         */
+        /* =================================================
+           2. DIRECTORY QUERY
+        ================================================= */
 
         let query =
           supabase
@@ -389,17 +544,6 @@ function HomeContent() {
                 nullsFirst: false,
               }
             );
-
-        /*
-         * Category filtering is database-side.
-         *
-         * This means:
-         *
-         * All      -> all tools
-         * Chatbot  -> Chatbot tools
-         * Coding   -> Coding tools
-         * etc.
-         */
 
         if (
           !isAllCategory
@@ -425,17 +569,9 @@ function HomeContent() {
             ? (data as ToolRecord[])
             : [];
 
-        /*
-         * ===================================================
-         * 3. SAFE DEDUPLICATION
-         * ===================================================
-         *
-         * IMPORTANT:
-         *
-         * We deduplicate using the database slug.
-         *
-         * We DO NOT create a slug from name.
-         */
+        /* =================================================
+           3. SAFE DEDUPLICATION
+        ================================================= */
 
         const uniqueMap =
           new Map<
@@ -443,39 +579,45 @@ function HomeContent() {
             ToolRecord
           >();
 
-        for (
-          const tool of rawData
-        ) {
-          const canonicalSlug =
-            getCanonicalSlug(
-              tool
-            );
+        rawData.forEach(
+          (
+            tool,
+            index
+          ) => {
+            const slug =
+              getCanonicalSlug(
+                tool
+              );
 
-          /*
-           * If database slug is missing,
-           * do NOT manufacture a route from name.
-           *
-           * Keep the record in the catalog,
-           * but give it an internal unique key.
-           */
+            /*
+             * If slug exists:
+             *
+             * slug is the unique identity.
+             *
+             * If slug is missing:
+             *
+             * DO NOT manufacture a slug
+             * from name.
+             */
+            const key =
+              slug
+                ? `slug:${slug}`
+                : tool.id != null
+                ? `id:${String(
+                    tool.id
+                  )}`
+                : `missing:${index}`;
 
-          const key =
-            canonicalSlug
-              ? `slug:${canonicalSlug}`
-              : `id:${String(
-                  tool.id ??
-                    `missing-${Math.random()}`
-                )}`;
-
-          if (
-            !uniqueMap.has(key)
-          ) {
-            uniqueMap.set(
-              key,
-              tool
-            );
+            if (
+              !uniqueMap.has(key)
+            ) {
+              uniqueMap.set(
+                key,
+                tool
+              );
+            }
           }
-        }
+        );
 
         const uniqueList =
           Array.from(
@@ -492,12 +634,9 @@ function HomeContent() {
           uniqueList
         );
 
-        /*
-         * Exact DB count.
-         *
-         * If count query fails, use loaded list only
-         * as a visual fallback.
-         */
+        /* =================================================
+           4. COUNT
+        ================================================= */
 
         if (
           !countResult.error &&
@@ -508,6 +647,9 @@ function HomeContent() {
             countResult.count
           );
         } else {
+          /*
+           * Visual fallback only.
+           */
           setTotalCount(
             uniqueList.length
           );
@@ -523,6 +665,10 @@ function HomeContent() {
         ) {
           setTools([]);
           setTotalCount(0);
+
+          setErrorMessage(
+            "Unable to load the AI tool directory. Please try again."
+          );
         }
       } finally {
         if (
@@ -609,21 +755,14 @@ function HomeContent() {
     filteredTools.forEach(
       (tool, index) => {
         /*
-         * CRITICAL:
-         *
-         * Traffic must also use canonical DB slug.
+         * Traffic tracking uses ONLY
+         * canonical database slug.
          */
 
         const slug =
           getCanonicalSlug(
             tool
           );
-
-        /*
-         * Missing slug:
-         *
-         * No fake tracking identifier from name.
-         */
 
         if (!slug) {
           return;
@@ -705,6 +844,23 @@ function HomeContent() {
         "required name=search_term_string",
     },
   };
+
+  /* =========================================================
+     RESET
+  ========================================================= */
+
+  const handleViewAll =
+    () => {
+      setLocalSearch("");
+
+      window.history.replaceState(
+        null,
+        "",
+        "/"
+      );
+
+      window.location.reload();
+    };
 
   /* =========================================================
      RENDER
@@ -921,7 +1077,6 @@ function HomeContent() {
                         : "border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-600"
                     }`}
                   >
-
                     <span>
                       {
                         category.icon
@@ -933,7 +1088,6 @@ function HomeContent() {
                         category.name
                       }
                     </span>
-
                   </Link>
                 );
               }
@@ -953,7 +1107,11 @@ function HomeContent() {
 
             <h2 className="text-xl font-extrabold tracking-tight sm:text-2xl">
 
-              Verified AI Directory{" "}
+              {isAllCategory
+                ? "Verified AI Directory"
+                : `${activeCat} AI Tools`}
+
+              {" "}
 
               <span className="text-blue-600">
                 (
@@ -967,7 +1125,9 @@ function HomeContent() {
               <button
                 type="button"
                 onClick={() =>
-                  setLocalSearch("")
+                  setLocalSearch(
+                    ""
+                  )
                 }
                 className="text-xs font-semibold text-slate-600 transition hover:text-blue-600"
               >
@@ -978,10 +1138,41 @@ function HomeContent() {
           </div>
 
           {/* =================================================
-              LOADING
+              ERROR
           ================================================= */}
 
-          {loading ? (
+          {errorMessage ? (
+            <div className="rounded-3xl border border-red-100 bg-white px-6 py-16 text-center shadow-sm">
+
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-2xl">
+                !
+              </div>
+
+              <h3 className="mt-5 text-xl font-bold">
+                Directory unavailable
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
+                {errorMessage}
+              </p>
+
+              <button
+                type="button"
+                onClick={() =>
+                  window.location.reload()
+                }
+                className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+              >
+                Try Again
+              </button>
+
+            </div>
+          ) : loading ? (
+
+            /* =================================================
+               LOADING
+            ================================================= */
+
             <div className="py-20 text-center">
 
               <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
@@ -991,8 +1182,9 @@ function HomeContent() {
               </p>
 
             </div>
-          ) : filteredTools.length ===
-            0 ? (
+
+          ) : filteredTools.length === 0 ? (
+
             /* =================================================
                EMPTY
             ================================================= */
@@ -1008,57 +1200,104 @@ function HomeContent() {
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-                Try another search term or choose
-                a different category.
+                Try another search term or choose a different category.
               </p>
 
-              <Link
-                href="/"
-                onClick={() =>
-                  setLocalSearch("")
+              <button
+                type="button"
+                onClick={
+                  handleViewAll
                 }
-                className="mt-6 inline-flex rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                className="mt-6 rounded-xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
               >
                 View All Tools
-              </Link>
+              </button>
 
             </div>
+
           ) : (
+
             /* =================================================
-               CARDS
+               TOOL GRID
             ================================================= */
 
             <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
 
               {filteredTools.map(
-                (tool, index) => {
-                  /*
-                   * =================================================
-                   * CANONICAL ROUTING
-                   * =================================================
-                   *
-                   * NEVER:
-                   *
-                   * normalizeSlug(tool.name)
-                   *
-                   * NEVER:
-                   *
-                   * `/tool/${tool.name}`
-                   *
-                   * ONLY:
-                   *
-                   * `/tool/${tool.slug}`
-                   */
+                (
+                  tool,
+                  index
+                ) => {
 
-                  const toolHref =
+                  const href =
                     getToolHref(
                       tool
                     );
 
-                  const canonicalSlug =
-                    getCanonicalSlug(
-                      tool
+                  /*
+                   * No canonical slug =
+                   * no clickable fake route.
+                   */
+                  if (!href) {
+                    return (
+                      <article
+                        key={
+                          tool.id != null
+                            ? String(
+                                tool.id
+                              )
+                            : `missing-${index}`
+                        }
+                        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"
+                      >
+
+                        <div className="flex items-start gap-3">
+
+                          <ToolLogo
+                            src={getToolLogo(
+                              tool
+                            )}
+                            fallbackSrc={
+                              typeof tool.logo ===
+                                "string"
+                                ? tool.logo
+                                : null
+                            }
+                            name={getToolName(
+                              tool
+                            )}
+                            size="md"
+                          />
+
+                          <div className="min-w-0">
+
+                            <h3 className="truncate text-base font-bold text-slate-950">
+                              {
+                                getToolName(
+                                  tool
+                                )
+                              }
+                            </h3>
+
+                            <p className="mt-1 text-xs font-medium text-slate-500">
+                              {
+                                getToolCategory(
+                                  tool
+                                )
+                              }
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <p className="mt-4 text-sm leading-6 text-slate-500">
+                          This tool does not currently have a canonical database URL.
+                        </p>
+
+                      </article>
                     );
+                  }
 
                   const name =
                     getToolName(
@@ -1080,105 +1319,45 @@ function HomeContent() {
                       tool
                     );
 
-                  const score =
-                    getToolScore(
-                      tool
-                    );
-
                   const logoUrl =
                     getToolLogo(
                       tool
                     );
 
-                  /*
-                   * If slug is missing, don't create a
-                   * fake route from the name.
-                   *
-                   * Keep card visible so the database
-                   * issue is not hidden.
-                   */
-
-                  if (!toolHref) {
-                    return (
-                      <div
-                        key={String(
-                          tool.id ??
-                            `missing-${index}`
-                        )}
-                        className="rounded-3xl border border-amber-200 bg-white p-5 shadow-sm"
-                      >
-
-                        <div className="space-y-4">
-
-                          <div className="flex items-start justify-between gap-3">
-
-                            <div className="flex min-w-0 items-center gap-3">
-
-                              <ToolLogo
-                                src={
-                                  logoUrl
-                                }
-                                fallbackSrc={
-                                  typeof tool.logo ===
-                                  "string"
-                                    ? tool.logo
-                                    : null
-                                }
-                                name={
-                                  name
-                                }
-                                size="md"
-                              />
-
-                              <div className="min-w-0">
-
-                                <h3 className="truncate text-base font-bold text-slate-950">
-                                  {
-                                    name
-                                  }
-                                </h3>
-
-                                <p className="mt-1 text-xs font-medium text-slate-500">
-                                  {
-                                    category
-                                  }
-                                </p>
-
-                              </div>
-
-                            </div>
-
-                            <span className="shrink-0 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
-                              Slug Missing
-                            </span>
-
-                          </div>
-
-                          <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">
-                            {
-                              description
-                            }
-                          </p>
-
-                        </div>
-
-                      </div>
+                  const score =
+                    getToolScore(
+                      tool
                     );
-                  }
 
                   return (
                     <Link
-                      key={String(
-                        tool.id ??
-                          canonicalSlug
-                      )}
+                      key={
+                        tool.id != null
+                          ? String(
+                              tool.id
+                            )
+                          : getCanonicalSlug(
+                              tool
+                            )
+                      }
                       href={
-                        toolHref
+                        href
                       }
                       onClick={() => {
                         try {
+                          const slug =
+                            getCanonicalSlug(
+                              tool
+                            );
+
+                          if (
+                            !slug
+                          ) {
+                            return;
+                          }
+
                           trackToolClick(
-                            canonicalSlug,
+                            slug,
                             name,
                             category,
                             index
@@ -1197,9 +1376,9 @@ function HomeContent() {
 
                       <div className="space-y-4">
 
-                        {/* =================================================
+                        {/* =================================
                             TOOL HEADER
-                        ================================================= */}
+                        ================================== */}
 
                         <div className="flex items-start justify-between gap-3">
 
@@ -1211,7 +1390,7 @@ function HomeContent() {
                               }
                               fallbackSrc={
                                 typeof tool.logo ===
-                                "string"
+                                  "string"
                                   ? tool.logo
                                   : null
                               }
@@ -1229,7 +1408,7 @@ function HomeContent() {
                                 }
                               </h3>
 
-                              <p className="mt-1 text-xs font-medium text-slate-500">
+                              <p className="mt-1 truncate text-xs font-medium text-slate-500">
                                 {
                                   category
                                 }
@@ -1247,9 +1426,9 @@ function HomeContent() {
 
                         </div>
 
-                        {/* =================================================
+                        {/* =================================
                             DESCRIPTION
-                        ================================================= */}
+                        ================================== */}
 
                         <p className="line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-slate-600">
                           {
@@ -1257,44 +1436,39 @@ function HomeContent() {
                           }
                         </p>
 
-                        {/* =================================================
+                        {/* =================================
                             FOOTER
-                        ================================================= */}
+                        ================================== */}
 
                         <div className="flex items-center justify-between border-t border-slate-100 pt-4">
 
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            {
+                              category
+                            }
+                          </span>
+
                           <div className="flex items-center gap-3">
 
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            <span
+                              className="text-[10px] font-bold text-slate-400"
+                              title="AI Vault catalog/data quality score"
+                            >
+                              AV Score{" "}
                               {
-                                category
+                                score
                               }
+                              /100
                             </span>
 
-                            {score >
-                              0 && (
-                              <span className="text-[10px] font-bold text-slate-500">
-                                {
-                                  score
-                                }
-                                /100
+                            <span className="flex items-center gap-1 text-sm font-bold text-blue-600 transition group-hover:translate-x-0.5">
+                              Explore
+                              <span aria-hidden="true">
+                                →
                               </span>
-                            )}
+                            </span>
 
                           </div>
-
-                          <span className="flex items-center gap-1 text-sm font-bold text-slate-950 transition group-hover:text-blue-600">
-
-                            Explore
-
-                            <span
-                              aria-hidden="true"
-                              className="transition-transform group-hover:translate-x-1"
-                            >
-                              →
-                            </span>
-
-                          </span>
 
                         </div>
 
@@ -1310,32 +1484,82 @@ function HomeContent() {
 
         </section>
 
+        {/* =================================================
+            FOOTER
+        ================================================= */}
+
+        <footer className="border-t border-slate-200 bg-white">
+
+          <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-xs text-slate-500 sm:px-6 md:flex-row md:items-center md:justify-between">
+
+            <p>
+              ©{" "}
+              {new Date().getFullYear()}{" "}
+              AI Vault. All rights reserved.
+            </p>
+
+            <div className="flex flex-wrap gap-4">
+
+              <Link
+                href="/"
+                className="transition hover:text-blue-600"
+              >
+                AI Tools
+              </Link>
+
+              <Link
+                href="/ai-finder"
+                className="transition hover:text-blue-600"
+              >
+                AI Finder
+              </Link>
+
+              <Link
+                href="/compare"
+                className="transition hover:text-blue-600"
+              >
+                Compare
+              </Link>
+
+              <Link
+                href="/saved"
+                className="transition hover:text-blue-600"
+              >
+                Saved
+              </Link>
+
+            </div>
+
+          </div>
+
+        </footer>
+
       </main>
     </>
   );
 }
 
 /* =========================================================
-   PAGE EXPORT
+   PAGE WRAPPER
 ========================================================= */
 
+/*
+ * useSearchParams() requires a Suspense boundary
+ * in the App Router for reliable production builds.
+ */
 export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <main className="min-h-screen bg-[#fcfcfc] text-slate-950">
+        <main className="flex min-h-screen items-center justify-center bg-[#fcfcfc] text-slate-950">
 
-          <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
 
-            <div className="text-center">
+            <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
 
-              <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
-
-              <p className="mt-4 text-sm font-medium text-slate-500">
-                Loading AI Vault...
-              </p>
-
-            </div>
+            <p className="mt-4 text-sm font-medium text-slate-500">
+              Loading AI Vault...
+            </p>
 
           </div>
 

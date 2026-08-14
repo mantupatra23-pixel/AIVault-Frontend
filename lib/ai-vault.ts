@@ -1,29 +1,29 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-/* =========================================================
-   TYPES
-========================================================= */
+export const SITE_URL = "https://aivault.pp.ua";
 
 export type ToolRecord = {
   id?: string | number | null;
-
-  name?: string | null;
   slug?: string | null;
-  category?: string | null;
+  name?: string | null;
 
   description?: string | null;
   short_description?: string | null;
   overview?: string | null;
+
+  category?: string | null;
 
   pricing?: string | null;
   pricing_model?: string | null;
 
   score?: number | string | null;
   ai_vault_score?: number | string | null;
+  rating?: number | string | null;
 
   logo_url?: string | null;
   logo?: string | null;
   image_url?: string | null;
+  icon_url?: string | null;
 
   website_url?: string | null;
   official_url?: string | null;
@@ -32,17 +32,12 @@ export type ToolRecord = {
   features?: unknown;
   key_features?: unknown;
 
+  use_cases?: unknown;
+
   limitations?: unknown;
   cons?: unknown;
 
-  use_cases?: unknown;
-
-  how_to_start?: unknown;
-  getting_started?: unknown;
-  how_to_get_started?: unknown;
-
-  faqs?: unknown;
-  faq?: unknown;
+  integrations?: unknown;
 
   operating_system?: string | null;
   os?: string | null;
@@ -50,16 +45,13 @@ export type ToolRecord = {
   deployment?: string | null;
   license?: string | null;
 
-  integrations?: unknown;
+  faqs?: unknown;
+  faq?: unknown;
 
   [key: string]: unknown;
 };
 
-/* =========================================================
-   SUPABASE
-========================================================= */
-
-function getSupabase() {
+export function getSupabase(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -73,38 +65,22 @@ function getSupabase() {
 }
 
 /* =========================================================
-   STRING HELPERS
+   TEXT
 ========================================================= */
 
 export function clean(value: unknown): string {
-  if (typeof value === "string") {
-    return value.trim();
-  }
-
   if (
+    typeof value === "string" ||
     typeof value === "number" ||
     typeof value === "boolean"
   ) {
-    return String(value);
+    return String(value).trim();
   }
 
   return "";
 }
 
-/* =========================================================
-   CANONICAL SLUG
-========================================================= */
-
-/**
- * IMPORTANT:
- *
- * This function is ONLY for URL normalization/comparison.
- *
- * It must NOT be used to create a database slug.
- *
- * The database `public.ai_tools.slug` remains canonical.
- */
-export function decodeSlug(value: string): string {
+export function safeDecode(value: string): string {
   try {
     return decodeURIComponent(value);
   } catch {
@@ -112,221 +88,104 @@ export function decodeSlug(value: string): string {
   }
 }
 
-/**
- * Used only for audit/debugging.
- * NEVER use this to silently choose another tool.
+/*
+ * IMPORTANT:
+ * This is ONLY for auditing / comparison.
+ * It must NEVER replace the canonical database slug.
  */
-export function normalizeSlugForAudit(
-  value: string
-): string {
+export function normalizedSlug(value: unknown): string {
   return clean(value)
     .toLowerCase()
-    .replace(/^\/+/, "")
-    .replace(/\/+$/, "")
-    .replace(/\s+/g, "-");
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 }
 
-/* =========================================================
-   EXACT TOOL LOOKUP
-========================================================= */
-
-export async function getToolBySlug(
-  slug: string
-): Promise<ToolRecord | null> {
-  const canonicalSlug = decodeSlug(slug).trim();
-
-  if (!canonicalSlug) {
-    return null;
-  }
-
-  const supabase = getSupabase();
-
-  /*
-   * CRITICAL:
-   *
-   * Exact canonical lookup only.
-   *
-   * NO:
-   * - ilike
-   * - name lookup
-   * - fuzzy matching
-   * - fallback to another record
-   */
-
-  const { data, error } = await supabase
-    .from("ai_tools")
-    .select("*")
-    .eq("slug", canonicalSlug)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(
-      `Supabase tool lookup failed: ${error.message}`
-    );
-  }
-
-  return (data as ToolRecord | null) ?? null;
+export function getCanonicalSlug(tool: ToolRecord): string {
+  return clean(tool.slug);
 }
 
-/* =========================================================
-   CANONICAL SCORE
-========================================================= */
-
-export function getToolScore(
-  tool: ToolRecord
-): number {
-  const raw =
-    tool.ai_vault_score ??
-    tool.score;
-
-  const value = Number(raw);
-
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
-  /*
-   * Database score is treated as a 0-100 score.
-   *
-   * Example:
-   * 85 -> 85/100
-   *
-   * We intentionally do NOT convert 8.5 -> 85
-   * because that could alter the underlying meaning.
-   */
-
-  return Math.max(
-    0,
-    Math.min(100, Math.round(value))
-  );
+export function getToolName(tool: ToolRecord): string {
+  return clean(tool.name) || "AI Tool";
 }
 
-/* =========================================================
-   TOOL NAME
-========================================================= */
-
-export function getToolName(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.name) ||
-    "AI Tool"
-  );
-}
-
-/* =========================================================
-   DESCRIPTION
-========================================================= */
-
-export function getToolDescription(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.description) ||
-    clean(tool.short_description) ||
-    clean(tool.overview) ||
-    "Explore this AI tool, including its features, pricing, use cases, and official access information."
-  );
-}
-
-/* =========================================================
-   CATEGORY
-========================================================= */
-
-export function getToolCategory(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.category) ||
-    "AI Tools"
-  );
+export function getToolCategory(tool: ToolRecord): string {
+  return clean(tool.category) || "AI Tools";
 }
 
 /* =========================================================
    PRICING
 ========================================================= */
 
-export function getToolPricing(
-  tool: ToolRecord
-): string {
-  const value =
-    clean(tool.pricing_model) ||
-    clean(tool.pricing);
+export type PricingValue =
+  | "Free"
+  | "Freemium"
+  | "Paid"
+  | "Free Trial"
+  | "Contact Sales"
+  | "Open Source"
+  | "Enterprise"
+  | "Unknown";
 
-  if (!value) {
-    return "Unknown";
-  }
+export function normalizePricing(
+  value: unknown
+): PricingValue {
+  const raw = clean(value);
 
-  const lower =
-    value.toLowerCase();
+  if (!raw) return "Unknown";
 
-  if (
-    lower.includes("freemium")
-  ) {
+  const v = raw.toLowerCase();
+
+  if (v.includes("freemium")) {
     return "Freemium";
   }
 
   if (
-    lower === "free" ||
-    lower.includes("free plan") ||
-    lower.includes("free to use")
+    v === "free" ||
+    v.includes("free plan") ||
+    v.includes("free to use")
   ) {
     return "Free";
   }
 
   if (
-    lower.includes("paid") ||
-    lower.includes("subscription") ||
-    lower.includes("pro plan")
+    v.includes("free trial") ||
+    v.includes("trial")
+  ) {
+    return "Free Trial";
+  }
+
+  if (
+    v.includes("contact sales") ||
+    v.includes("contact us")
+  ) {
+    return "Contact Sales";
+  }
+
+  if (
+    v.includes("open source") ||
+    v.includes("opensource")
+  ) {
+    return "Open Source";
+  }
+
+  if (v.includes("enterprise")) {
+    return "Enterprise";
+  }
+
+  if (
+    v.includes("paid") ||
+    v.includes("subscription") ||
+    v.includes("pro")
   ) {
     return "Paid";
   }
 
-  return value;
+  return "Unknown";
 }
 
 /* =========================================================
-   LOGO
-========================================================= */
-
-export function getToolLogo(
-  tool: ToolRecord
-): string | null {
-  return (
-    clean(tool.logo_url) ||
-    clean(tool.logo) ||
-    clean(tool.image_url) ||
-    null
-  );
-}
-
-/* =========================================================
-   OFFICIAL URL
-========================================================= */
-
-export function getOfficialUrl(
-  tool: ToolRecord
-): string | null {
-  const value =
-    clean(tool.website_url) ||
-    clean(tool.official_url) ||
-    clean(tool.url);
-
-  if (!value) {
-    return null;
-  }
-
-  if (
-    !/^https?:\/\//i.test(value)
-  ) {
-    return null;
-  }
-
-  return value;
-}
-
-/* =========================================================
-   ARRAY PARSER
+   ARRAY / JSON
 ========================================================= */
 
 export function parseArray(
@@ -335,9 +194,7 @@ export function parseArray(
   if (Array.isArray(value)) {
     return value
       .map((item) => {
-        if (
-          typeof item === "string"
-        ) {
+        if (typeof item === "string") {
           return item.trim();
         }
 
@@ -345,17 +202,14 @@ export function parseArray(
           item &&
           typeof item === "object"
         ) {
-          const object =
-            item as Record<
-              string,
-              unknown
-            >;
+          const obj =
+            item as Record<string, unknown>;
 
           return (
-            clean(object.title) ||
-            clean(object.name) ||
-            clean(object.text) ||
-            clean(object.value)
+            clean(obj.name) ||
+            clean(obj.title) ||
+            clean(obj.text) ||
+            clean(obj.value)
           );
         }
 
@@ -364,371 +218,487 @@ export function parseArray(
       .filter(Boolean);
   }
 
-  if (
-    typeof value === "string"
-  ) {
-    const text = value.trim();
+  if (typeof value !== "string") {
+    return [];
+  }
 
-    if (!text) {
-      return [];
+  const text = value.trim();
+
+  if (!text) return [];
+
+  try {
+    const parsed = JSON.parse(text);
+
+    if (Array.isArray(parsed)) {
+      return parseArray(parsed);
     }
-
-    try {
-      const parsed =
-        JSON.parse(text);
-
-      if (
-        Array.isArray(parsed)
-      ) {
-        return parseArray(parsed);
-      }
-    } catch {
-      // Plain text.
-    }
-
-    return text
-      .split(/\r?\n/)
-      .map((item) =>
-        item
-          .replace(
-            /^[-•*]\s*/,
-            ""
-          )
-          .replace(
-            /^\d+[.)]\s*/,
-            ""
-          )
-          .trim()
-      )
-      .filter(Boolean);
+  } catch {
+    // normal text
   }
 
-  return [];
+  return text
+    .split(/\r?\n|;/)
+    .map((item) =>
+      item
+        .replace(/^[-•*]\s*/, "")
+        .replace(/^\d+[.)]\s*/, "")
+        .trim()
+    )
+    .filter(Boolean);
 }
 
 /* =========================================================
-   FEATURES
+   CONTENT
 ========================================================= */
 
-export function getToolFeatures(
-  tool: ToolRecord
-): string[] {
-  const primary =
-    parseArray(
-      tool.key_features
-    );
+const GENERIC_PATTERNS = [
+  /senior seo/i,
+  /visora ai/i,
+  /professional review/i,
+  /our analysis reveals/i,
+  /ever-evolving landscape/i,
+  /cutting-edge/i,
+  /powerful features/i,
+  /user-friendly interface/i,
+  /excellent option/i,
+  /streamline workflows/i,
+  /enhance overall efficiency/i,
+  /valuable tool/i,
+  /robust tool/i,
+  /wide range of users/i,
+  /make informed decisions/i,
+  /designed to help users/i,
+  /pricing 2026/i,
+  /best .* alternatives/i,
+];
 
-  if (primary.length) {
-    return primary;
-  }
-
-  const secondary =
-    parseArray(tool.features);
-
-  if (secondary.length) {
-    return secondary;
-  }
-
-  return [
-    "User-friendly interface",
-    "Practical workflow capabilities",
-  ];
+export function genericPhraseCount(
+  text: string
+): number {
+  return GENERIC_PATTERNS.filter((pattern) =>
+    pattern.test(text)
+  ).length;
 }
 
-/* =========================================================
-   LIMITATIONS
-========================================================= */
-
-export function getToolLimitations(
-  tool: ToolRecord
-): string[] {
-  const primary =
-    parseArray(
-      tool.limitations
-    );
-
-  if (primary.length) {
-    return primary;
-  }
-
-  const secondary =
-    parseArray(tool.cons);
-
-  if (secondary.length) {
-    return secondary;
-  }
-
-  return [
-    "Feature availability may vary by plan",
-    "Cloud-based features may require an internet connection",
-  ];
+export function hasGenericContent(
+  text: string
+): boolean {
+  return genericPhraseCount(text) > 0;
 }
 
-/* =========================================================
-   USE CASES
-========================================================= */
+export function cleanCanonicalText(
+  value: unknown
+): string {
+  let text = clean(value);
 
-export function getToolUseCases(
-  tool: ToolRecord
-): string[] {
-  const values =
-    parseArray(tool.use_cases);
+  if (!text) return "";
 
-  if (values.length) {
-    return values;
-  }
+  /*
+   * Remove known template language only.
+   * Do not invent replacement facts.
+   */
+  text = text.replace(
+    /As a Senior SEO & AI Analyst for Visora AI,?\s*/gi,
+    ""
+  );
 
-  return [
-    "Productivity",
-    "Workflow automation",
-    "Business operations",
-  ];
+  text = text.replace(
+    /In this professional review,?\s*/gi,
+    ""
+  );
+
+  text = text.replace(
+    /Our professional review aims to provide an in-depth analysis of the tool,?\s*/gi,
+    ""
+  );
+
+  return text
+    .replace(/\s{2,}/g, " ")
+    .trim();
 }
 
-/* =========================================================
-   GETTING STARTED
-========================================================= */
-
-export function getToolGettingStarted(
-  tool: ToolRecord
-): string[] {
-  const first =
-    parseArray(
-      tool.how_to_get_started
-    );
-
-  if (first.length) {
-    return first;
-  }
-
-  const second =
-    parseArray(
-      tool.how_to_start
-    );
-
-  if (second.length) {
-    return second;
-  }
-
-  const third =
-    parseArray(
-      tool.getting_started
-    );
-
-  if (third.length) {
-    return third;
-  }
-
-  const name =
-    getToolName(tool);
-
-  return [
-    `Visit the official ${name} portal`,
-    "Create or sign in to your account if required",
-    "Configure your workspace and preferences",
-    "Start using the platform for your workflow",
-  ];
-}
-
-/* =========================================================
-   PLATFORM
-========================================================= */
-
-export function getToolOS(
+export function getDescription(
   tool: ToolRecord
 ): string {
   return (
+    cleanCanonicalText(tool.description) ||
+    cleanCanonicalText(tool.short_description) ||
+    cleanCanonicalText(tool.overview)
+  );
+}
+
+export function getOverview(
+  tool: ToolRecord
+): string {
+  return (
+    cleanCanonicalText(tool.overview) ||
+    getDescription(tool)
+  );
+}
+
+export function getFeatures(
+  tool: ToolRecord
+): string[] {
+  return parseArray(
+    tool.key_features
+  ).length
+    ? parseArray(tool.key_features)
+    : parseArray(tool.features);
+}
+
+export function getUseCases(
+  tool: ToolRecord
+): string[] {
+  return parseArray(tool.use_cases);
+}
+
+export function getLimitations(
+  tool: ToolRecord
+): string[] {
+  return parseArray(
+    tool.limitations
+  ).length
+    ? parseArray(tool.limitations)
+    : parseArray(tool.cons);
+}
+
+export function getIntegrations(
+  tool: ToolRecord
+): string[] {
+  return parseArray(tool.integrations);
+}
+
+/* =========================================================
+   URL
+========================================================= */
+
+export function getWebsiteUrl(
+  tool: ToolRecord
+): string | null {
+  const value =
+    clean(tool.website_url) ||
+    clean(tool.official_url) ||
+    clean(tool.url);
+
+  if (!value) return null;
+
+  if (!/^https?:\/\//i.test(value)) {
+    return null;
+  }
+
+  return value;
+}
+
+export function toolUrl(
+  tool: ToolRecord
+): string {
+  const slug = getCanonicalSlug(tool);
+
+  if (!slug) {
+    return SITE_URL;
+  }
+
+  return `${SITE_URL}/tool/${encodeURIComponent(
+    slug
+  )}`;
+}
+
+/* =========================================================
+   AI VAULT SCORE
+========================================================= */
+
+function scoreCompleteness(
+  value: unknown,
+  max: number
+): number {
+  return clean(value) ? max : 0;
+}
+
+function scoreArray(
+  value: unknown,
+  max: number
+): number {
+  return parseArray(value).length
+    ? max
+    : 0;
+}
+
+/*
+ * Deterministic score.
+ *
+ * This is NOT a user rating.
+ * It measures catalog-data quality.
+ */
+export function calculateAiVaultScore(
+  tool: ToolRecord
+): number {
+  const description =
+    getDescription(tool);
+
+  const features =
+    getFeatures(tool);
+
+  const useCases =
+    getUseCases(tool);
+
+  const integrations =
+    getIntegrations(tool);
+
+  let score = 0;
+
+  // Description / data completeness
+  if (description.length >= 120) {
+    score += 20;
+  } else if (description.length >= 60) {
+    score += 12;
+  } else if (description.length > 0) {
+    score += 6;
+  }
+
+  // Content uniqueness
+  if (
+    description &&
+    !hasGenericContent(description)
+  ) {
+    score += 15;
+  }
+
+  // Features
+  if (features.length >= 5) {
+    score += 15;
+  } else if (features.length >= 2) {
+    score += 10;
+  } else if (features.length === 1) {
+    score += 5;
+  }
+
+  // Use cases
+  if (useCases.length >= 3) {
+    score += 10;
+  } else if (useCases.length > 0) {
+    score += 6;
+  }
+
+  // Pricing
+  if (
+    normalizePricing(
+      tool.pricing_model ||
+        tool.pricing
+    ) !== "Unknown"
+  ) {
+    score += 10;
+  }
+
+  // Platform
+  if (
     clean(tool.operating_system) ||
     clean(tool.os) ||
-    "Web / Cloud"
-  );
-}
-
-export function getToolDeployment(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.deployment) ||
-    "Hosted SaaS"
-  );
-}
-
-export function getToolLicense(
-  tool: ToolRecord
-): string {
-  return (
-    clean(tool.license) ||
-    "Proprietary"
-  );
-}
-
-/* =========================================================
-   INTEGRATIONS
-========================================================= */
-
-export function getToolIntegrations(
-  tool: ToolRecord
-): string[] {
-  const values =
-    parseArray(
-      tool.integrations
-    );
-
-  if (values.length) {
-    return values;
+    clean(tool.deployment)
+  ) {
+    score += 10;
   }
 
-  return [
-    "Web",
-    "Cloud services",
-    "API integrations",
-  ];
-}
+  // Integrations
+  if (integrations.length) {
+    score += 5;
+  }
 
-/* =========================================================
-   FAQ
-========================================================= */
-
-export type FAQItem = {
-  question: string;
-  answer: string;
-};
-
-export function getToolFAQs(
-  tool: ToolRecord
-): FAQItem[] {
-  const raw =
-    tool.faqs ??
-    tool.faq;
+  // Verified external rating only if present.
+  const rating = Number(
+    tool.rating
+  );
 
   if (
-    Array.isArray(raw)
+    Number.isFinite(rating) &&
+    rating > 0
   ) {
-    const parsed =
-      raw
-        .map((item) => {
-          if (
-            !item ||
-            typeof item !== "object"
-          ) {
-            return null;
-          }
-
-          const object =
-            item as Record<
-              string,
-              unknown
-            >;
-
-          const question =
-            clean(
-              object.question
-            ) ||
-            clean(object.q);
-
-          const answer =
-            clean(
-              object.answer
-            ) ||
-            clean(object.a);
-
-          if (
-            !question ||
-            !answer
-          ) {
-            return null;
-          }
-
-          return {
-            question,
-            answer,
-          };
-        })
-        .filter(
-          Boolean
-        ) as FAQItem[];
-
-    if (parsed.length) {
-      return parsed;
-    }
+    score += 10;
   }
 
-  const name =
-    getToolName(tool);
+  // Freshness is intentionally not fabricated.
+  // No points without a real freshness field.
 
-  const pricing =
-    getToolPricing(tool);
+  return Math.max(
+    0,
+    Math.min(100, Math.round(score))
+  );
+}
 
-  return [
-    {
-      question:
-        `What is ${name} used for?`,
-      answer:
-        `${name} is listed in the AI Vault directory as a software tool for relevant productivity and workflow use cases.`,
-    },
-    {
-      question:
-        `Is ${name} free?`,
-      answer:
-        `${name} is currently listed as ${pricing}. Check the official website for the latest pricing, limits, and terms.`,
-    },
-    {
-      question:
-        `Who can use ${name}?`,
-      answer:
-        `${name} may be useful for individuals, professionals, creators, or teams depending on its supported workflows.`,
-    },
-    {
-      question:
-        `How do I get started with ${name}?`,
-      answer:
-        `Use the official portal button on this page and follow the provider's current onboarding process.`,
-    },
-    {
-      question:
-        `Where can I access ${name}?`,
-      answer:
-        `Use the Visit Official Portal button on this page to open the official website.`,
-    },
-  ];
+export function getAiVaultScore(
+  tool: ToolRecord
+): number {
+  return calculateAiVaultScore(tool);
 }
 
 /* =========================================================
-   DATABASE COUNT
+   SEO
 ========================================================= */
 
-export async function getToolCount(
-  category?: string
-): Promise<number> {
+export function getSeoTitle(
+  tool: ToolRecord
+): string {
+  const name = getToolName(tool);
+  const category =
+    getToolCategory(tool);
+
+  return `${name} — Features, Pricing, Use Cases & Alternatives | AI Vault`;
+}
+
+export function getSeoDescription(
+  tool: ToolRecord
+): string {
+  const name = getToolName(tool);
+  const category =
+    getToolCategory(tool);
+
+  const description =
+    getDescription(tool);
+
+  const short =
+    description.length > 110
+      ? `${description.slice(0, 107)}...`
+      : description;
+
+  if (short) {
+    return `${short} Explore verified ${category.toLowerCase()} information, pricing, features and alternatives on AI Vault.`;
+  }
+
+  return `Explore ${name}, a ${category.toLowerCase()} tool. View verified information, pricing, features, use cases and alternatives on AI Vault.`;
+}
+
+/* =========================================================
+   DATABASE
+========================================================= */
+
+export async function getToolBySlug(
+  slug: string
+): Promise<ToolRecord | null> {
   const supabase =
     getSupabase();
 
-  let query =
-    supabase
+  const canonicalSlug =
+    safeDecode(slug);
+
+  if (!canonicalSlug) {
+    return null;
+  }
+
+  /*
+   * CRITICAL:
+   * Exact canonical slug lookup only.
+   */
+  const { data, error } =
+    await supabase
+      .from("ai_tools")
+      .select("*")
+      .eq("slug", canonicalSlug)
+      .maybeSingle();
+
+  if (error) {
+    console.error(
+      "[AI_VAULT_TOOL_LOOKUP]",
+      error
+    );
+
+    throw new Error(
+      error.message
+    );
+  }
+
+  return data
+    ? (data as ToolRecord)
+    : null;
+}
+
+export async function getToolCount(): Promise<number> {
+  const supabase =
+    getSupabase();
+
+  const { count, error } =
+    await supabase
       .from("ai_tools")
       .select("id", {
         count: "exact",
         head: true,
       });
 
-  if (category) {
-    query =
-      query.eq(
-        "category",
-        category
-      );
-  }
-
-  const {
-    count,
-    error,
-  } = await query;
-
   if (error) {
     throw new Error(
-      `Tool count failed: ${error.message}`
+      error.message
     );
   }
 
-  return count ?? 0;
+  return count || 0;
+}
+
+export async function getCategoryCount(
+  category: string
+): Promise<number> {
+  const supabase =
+    getSupabase();
+
+  const { count, error } =
+    await supabase
+      .from("ai_tools")
+      .select("id", {
+        count: "exact",
+        head: true,
+      })
+      .ilike(
+        "category",
+        category
+      );
+
+  if (error) {
+    throw new Error(
+      error.message
+    );
+  }
+
+  return count || 0;
+}
+
+/* =========================================================
+   CATEGORY SEO
+========================================================= */
+
+const CATEGORY_COPY: Record<
+  string,
+  string
+> = {
+  productivity:
+    "Explore productivity software for task management, workflow automation, organization, note-taking and everyday work efficiency.",
+
+  marketing:
+    "Explore marketing platforms for SEO, content creation, advertising, analytics, lead generation and campaign workflows.",
+
+  chatbot:
+    "Explore chatbot and conversational AI software for customer support, assistants, knowledge access and automated conversations.",
+
+  coding:
+    "Explore developer and coding tools for software development, debugging, code generation, testing and engineering workflows.",
+
+  image:
+    "Explore image and visual AI tools for generation, editing, design, enhancement and creative production.",
+
+  writing:
+    "Explore writing software for drafting, editing, rewriting, research assistance, content production and communication.",
+
+  audio:
+    "Explore audio tools for speech, transcription, voice generation, sound editing and audio production.",
+
+  video:
+    "Explore video tools for generation, editing, production, subtitles, animation and video workflows.",
+};
+
+export function getCategoryDescription(
+  category: string
+): string {
+  const key =
+    normalizedSlug(category);
+
+  return (
+    CATEGORY_COPY[key] ||
+    `Explore verified ${category} software and tools, with practical information about their capabilities, pricing and use cases.`
+  );
 }

@@ -1,30 +1,41 @@
 import Link from "next/link";
-import { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "404 – Tool Not Found | AI Vault",
-  description: "The requested AI tool could not be found in the AI Vault directory.",
-  robots: { index: false, follow: true },
-};
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-[#FDFDFD] text-slate-900 flex flex-col items-center justify-center px-4 text-center">
-      <div className="space-y-6 max-w-md">
-        <span className="text-6xl font-black text-blue-600 font-serif">404</span>
-        <h1 className="text-3xl font-bold tracking-tight">AI Asset Not Found</h1>
-        <p className="text-slate-500 text-sm leading-relaxed">
-          The requested tool specification or slug does not exist in our verified database index.
+    <main className="flex min-h-screen items-center justify-center bg-white px-5 text-slate-950">
+      <section className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-2xl font-black">
+          ?
+        </div>
+
+        <h1 className="mt-6 text-3xl font-black">
+          Tool Not Found
+        </h1>
+
+        <p className="mt-3 text-sm leading-6 text-slate-500">
+          The requested AI tool does not exist in the AI Vault directory.
         </p>
-        <div>
+
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-center">
+
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-6 py-3 text-xs font-extrabold uppercase tracking-wider text-white bg-blue-600 hover:bg-blue-700 rounded-full transition shadow-md"
+            className="rounded-xl bg-slate-950 px-5 py-3 text-sm font-bold text-white"
           >
-            ← Return to AI Directory
+            Back to AI Directory
           </Link>
+
+          <Link
+            href="/ai-finder"
+            className="rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700"
+          >
+            Search AI Tools
+          </Link>
+
         </div>
-      </div>
-    </div>
+
+      </section>
+    </main>
   );
 }
