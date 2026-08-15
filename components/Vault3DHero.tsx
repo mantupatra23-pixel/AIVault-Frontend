@@ -1,934 +1,295 @@
 "use client";
 
-import {
-  Canvas,
-  useFrame,
-  useThree,
-} from "@react-three/fiber";
-
-import {
-  Float,
-  OrbitControls,
-  Sparkles,
-  Text,
-} from "@react-three/drei";
-
-import {
-  Suspense,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-
+import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
+import { useMemo, useRef } from "react";
 
-/* =========================================================
-   TYPES
-========================================================= */
-
-type CoreProps = {
-  count?: number;
+type HeroProps = {
+  toolCount?: number;
 };
 
-type FloatingLabelProps = {
-  position: [number, number, number];
-  children: string;
-};
+function ParticleField() {
+  const pointsRef = useRef<THREE.Points>(null);
 
-/* =========================================================
-   AI CORE
-========================================================= */
+  const geometry = useMemo(() => {
+    const count = 900;
+    const positions = new Float32Array(count * 3);
 
-function AICore() {
-  const group = useRef<THREE.Group | null>(null);
-  const inner = useRef<THREE.Mesh | null>(null);
-  const outer = useRef<THREE.Mesh | null>(null);
-  const ring1 = useRef<THREE.Mesh | null>(null);
-  const ring2 = useRef<THREE.Mesh | null>(null);
+    for (let i = 0; i < count; i++) {
+      const radius = 3.2 + Math.random() * 4.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
 
-  useFrame((state, delta) => {
-    if (!group.current) return;
+      positions[i * 3] =
+        radius * Math.sin(phi) * Math.cos(theta);
 
-    const time = state.clock.elapsedTime;
+      positions[i * 3 + 1] =
+        radius * Math.sin(phi) * Math.sin(theta);
 
-    group.current.rotation.y += delta * 0.16;
-
-    group.current.rotation.x =
-      Math.sin(time * 0.45) * 0.08;
-
-    if (inner.current) {
-      inner.current.rotation.x += delta * 0.45;
-      inner.current.rotation.y += delta * 0.7;
+      positions[i * 3 + 2] =
+        radius * Math.cos(phi);
     }
 
-    if (outer.current) {
-      outer.current.rotation.y -= delta * 0.18;
-      outer.current.rotation.z += delta * 0.04;
-    }
+    const g = new THREE.BufferGeometry();
 
-    if (ring1.current) {
-      ring1.current.rotation.x += delta * 0.5;
-      ring1.current.rotation.z += delta * 0.18;
-    }
+    g.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(positions, 3)
+    );
 
-    if (ring2.current) {
-      ring2.current.rotation.y -= delta * 0.42;
-      ring2.current.rotation.z += delta * 0.12;
-    }
+    return g;
+  }, []);
+
+  useFrame((_, delta) => {
+    if (!pointsRef.current) return;
+
+    pointsRef.current.rotation.y += delta * 0.025;
+    pointsRef.current.rotation.x += delta * 0.008;
   });
 
   return (
-    <group
-      ref={group}
-      scale={1.25}
+    <points ref={pointsRef} geometry={geometry}>
+      <pointsMaterial
+        size={0.025}
+        color="#8b9cff"
+        transparent
+        opacity={0.65}
+        sizeAttenuation
+      />
+    </points>
+  );
+}
+
+function Orbit({
+  rotation,
+  radius,
+  color,
+  speed,
+}: {
+  rotation: [number, number, number];
+  radius: number;
+  color: string;
+  speed: number;
+}) {
+  const ref = useRef<THREE.Mesh>(null);
+
+  useFrame((_, delta) => {
+    if (!ref.current) return;
+
+    ref.current.rotation.z += delta * speed;
+    ref.current.rotation.y += delta * speed * 0.35;
+  });
+
+  return (
+    <mesh
+      ref={ref}
+      rotation={rotation}
     >
-      {/* =================================================
-          MAIN CORE
-      ================================================= */}
+      <torusGeometry
+        args={[radius, 0.018, 16, 160]}
+      />
 
-      <mesh ref={inner}>
-        <icosahedronGeometry args={[1.15, 3]} />
+      <meshBasicMaterial
+        color={color}
+        transparent
+        opacity={0.8}
+      />
+    </mesh>
+  );
+}
 
-        <meshPhysicalMaterial
-          color="#3157ff"
-          emissive="#183bff"
-          emissiveIntensity={2.5}
-          roughness={0.12}
-          metalness={0.65}
-          transmission={0.15}
-          transparent
-          opacity={0.95}
-        />
-      </mesh>
+function Core() {
+  const group = useRef<THREE.Group>(null);
 
-      {/* =================================================
-          INNER GLASS
-      ================================================= */}
+  useFrame((_, delta) => {
+    if (!group.current) return;
 
-      <mesh scale={0.72}>
-        <icosahedronGeometry args={[1, 3]} />
+    group.current.rotation.y += delta * 0.25;
+    group.current.rotation.x += delta * 0.06;
+  });
 
-        <meshPhysicalMaterial
-          color="#8ea2ff"
-          emissive="#536dff"
-          emissiveIntensity={3}
-          roughness={0.04}
-          metalness={0.2}
-          transmission={0.75}
-          thickness={0.5}
-          transparent
-          opacity={0.72}
-        />
-      </mesh>
-
-      {/* =================================================
-          OUTER WIREFRAME
-      ================================================= */}
-
-      <mesh
-        ref={outer}
-        scale={1.45}
-      >
-        <icosahedronGeometry args={[1, 2]} />
+  return (
+    <group ref={group}>
+      {/* Outer wire sphere */}
+      <mesh>
+        <sphereGeometry args={[1.05, 32, 32]} />
 
         <meshBasicMaterial
-          color="#5270ff"
+          color="#647cff"
           wireframe
           transparent
           opacity={0.28}
         />
       </mesh>
 
-      {/* =================================================
-          ORBIT RING 1
-      ================================================= */}
+      {/* Inner intelligence core */}
+      <mesh>
+        <sphereGeometry args={[0.72, 48, 48]} />
 
-      <mesh
-        ref={ring1}
-        rotation={[
-          Math.PI / 2.5,
-          0,
-          0,
-        ]}
-      >
-        <torusGeometry
-          args={[
-            1.75,
-            0.025,
-            16,
-            160,
-          ]}
-        />
-
-        <meshBasicMaterial
-          color="#4f7cff"
+        <meshStandardMaterial
+          color="#7c5cff"
+          emissive="#4f46e5"
+          emissiveIntensity={1.8}
+          roughness={0.18}
+          metalness={0.35}
           transparent
-          opacity={0.9}
+          opacity={0.94}
         />
       </mesh>
 
-      {/* =================================================
-          ORBIT RING 2
-      ================================================= */}
-
-      <mesh
-        ref={ring2}
-        rotation={[
-          0,
-          Math.PI / 3,
-          0,
-        ]}
-      >
-        <torusGeometry
-          args={[
-            2.05,
-            0.018,
-            16,
-            160,
-          ]}
-        />
+      {/* Inner glow */}
+      <mesh scale={1.16}>
+        <sphereGeometry args={[0.72, 32, 32]} />
 
         <meshBasicMaterial
-          color="#9c6cff"
+          color="#6366f1"
           transparent
-          opacity={0.7}
+          opacity={0.08}
         />
       </mesh>
-
-      {/* =================================================
-          ENERGY RING
-      ================================================= */}
-
-      <mesh
-        rotation={[
-          Math.PI / 2,
-          0,
-          0,
-        ]}
-      >
-        <torusGeometry
-          args={[
-            1.42,
-            0.012,
-            12,
-            120,
-          ]}
-        />
-
-        <meshBasicMaterial
-          color="#ffffff"
-          transparent
-          opacity={0.8}
-        />
-      </mesh>
-
-      {/* =================================================
-          CORE LIGHT
-      ================================================= */}
-
-      <pointLight
-        color="#3d68ff"
-        intensity={8}
-        distance={8}
-      />
     </group>
   );
 }
 
-/* =========================================================
-   ORBIT PARTICLES
-========================================================= */
-
-function OrbitParticles({
-  count = 100,
-}: CoreProps) {
-  const positions = useMemo(() => {
-    const result = new Float32Array(count * 3);
-
-    for (let i = 0; i < count; i++) {
-      const radius =
-        2.2 + Math.random() * 3.5;
-
-      const angle =
-        Math.random() *
-        Math.PI *
-        2;
-
-      const y =
-        (Math.random() - 0.5) * 4;
-
-      result[i * 3] =
-        Math.cos(angle) * radius;
-
-      result[i * 3 + 1] = y;
-
-      result[i * 3 + 2] =
-        Math.sin(angle) * radius;
-    }
-
-    return result;
-  }, [count]);
-
-  /*
-   * IMPORTANT:
-   * Do NOT use:
-   *
-   * <bufferAttribute
-          attach="attributes-position"
-          args={[points, 3]}
-        />
-   *
-   * Newer React Three Fiber typings require
-   * the BufferAttribute constructor arguments.
-   */
-
-  const geometry = useMemo(() => {
-    const geometry =
-      new THREE.BufferGeometry();
-
-    const attribute =
-      new THREE.Float32BufferAttribute(
-        positions,
-        3
-      );
-
-    geometry.setAttribute(
-      "position",
-      attribute
-    );
-
-    return geometry;
-  }, [positions]);
-
-  const ref =
-    useRef<THREE.Points | null>(null);
-
-  useFrame((_state, delta) => {
-    if (!ref.current) return;
-
-    ref.current.rotation.y +=
-      delta * 0.025;
-
-    ref.current.rotation.x +=
-      delta * 0.008;
-  });
-
-  return (
-    <points ref={ref}>
-      <primitive
-        object={geometry}
-        attach="geometry"
-      />
-
-      <pointsMaterial
-        color="#6685ff"
-        size={0.035}
-        sizeAttenuation
-        transparent
-        opacity={0.7}
-        depthWrite={false}
-      />
-    </points>
-  );
-}
-
-/* =========================================================
-   FLOATING LABEL
-========================================================= */
-
-function FloatingLabel({
-  position,
-  children,
-}: FloatingLabelProps) {
-  return (
-    <Float
-      speed={1.4}
-      rotationIntensity={0.2}
-      floatIntensity={0.4}
-    >
-      <Text
-        position={position}
-        fontSize={0.15}
-        color="#9caeff"
-        anchorX="center"
-        anchorY="middle"
-        outlineWidth={0.01}
-        outlineColor="#111936"
-      >
-        {children}
-      </Text>
-    </Float>
-  );
-}
-
-/* =========================================================
-   SCENE
-========================================================= */
-
 function Scene() {
-  const { viewport } = useThree();
-
-  const scale = Math.min(
-    1,
-    viewport.width / 5.8
-  );
-
   return (
     <>
-      {/* =================================================
-          LIGHTING
-      ================================================= */}
+      <ambientLight intensity={0.55} />
 
-      <ambientLight intensity={0.35} />
-
-      <directionalLight
-        position={[4, 5, 5]}
-        intensity={2.2}
+      <pointLight
+        position={[3, 3, 4]}
+        intensity={8}
+        color="#6366f1"
       />
 
       <pointLight
-        position={[-4, -2, 3]}
-        color="#684cff"
-        intensity={6}
+        position={[-3, -2, 2]}
+        intensity={5}
+        color="#8b5cf6"
       />
 
-      <pointLight
-        position={[4, 1, -3]}
-        color="#3157ff"
-        intensity={3}
+      <Core />
+
+      <Orbit
+        radius={1.65}
+        rotation={[0.8, 0.25, 0.2]}
+        color="#5b8cff"
+        speed={0.22}
       />
 
-      {/* =================================================
-          MAIN SYSTEM
-      ================================================= */}
-
-      <group scale={scale}>
-        <AICore />
-
-        <OrbitParticles count={100} />
-
-        <FloatingLabel
-          position={[-2.5, 1.3, 0]}
-        >
-          SEARCH
-        </FloatingLabel>
-
-        <FloatingLabel
-          position={[2.4, 1.1, 0]}
-        >
-          DISCOVER
-        </FloatingLabel>
-
-        <FloatingLabel
-          position={[2.4, -1.35, 0]}
-        >
-          COMPARE
-        </FloatingLabel>
-
-        <FloatingLabel
-          position={[-2.5, -1.3, 0]}
-        >
-          INTELLIGENCE
-        </FloatingLabel>
-      </group>
-
-      {/* =================================================
-          AMBIENT PARTICLES
-      ================================================= */}
-
-      <Sparkles
-        count={70}
-        scale={8}
-        size={1.4}
-        speed={0.25}
-        opacity={0.45}
+      <Orbit
+        radius={1.95}
+        rotation={[1.45, 0.15, 0.75]}
+        color="#a855f7"
+        speed={-0.16}
       />
 
-      {/* =================================================
-          CAMERA
-      ================================================= */}
-
-      <OrbitControls
-        enableZoom={false}
-        enablePan={false}
-        autoRotate
-        autoRotateSpeed={0.28}
-        minPolarAngle={
-          Math.PI / 2.5
-        }
-        maxPolarAngle={
-          Math.PI / 1.7
-        }
+      <Orbit
+        radius={2.25}
+        rotation={[0.15, 1.2, 0.35]}
+        color="#8b9cff"
+        speed={0.1}
       />
+
+      <ParticleField />
     </>
   );
 }
 
-/* =========================================================
-   3D FALLBACK
-========================================================= */
-
-function ThreeDFallback() {
-  return (
-    <div className="flex h-full w-full items-center justify-center">
-      <div
-        className="
-          relative
-          h-40
-          w-40
-          rounded-full
-          border
-          border-blue-400/30
-          bg-blue-500/10
-          shadow-[0_0_100px_rgba(59,130,246,.25)]
-        "
-      >
-        <div
-          className="
-            absolute
-            inset-8
-            rounded-full
-            border
-            border-violet-400/30
-            bg-violet-500/10
-            animate-pulse
-          "
-        />
-      </div>
-    </div>
-  );
-}
-
-/* =========================================================
-   HERO
-========================================================= */
-
 export default function Vault3DHero({
   toolCount = 740,
-}: {
-  toolCount?: number;
-}) {
-  const [
-    interactive,
-    setInteractive,
-  ] = useState(true);
-
-  const formattedToolCount =
-    toolCount.toLocaleString();
-
+}: HeroProps) {
   return (
-    <section
-      className="
-        relative
-        overflow-hidden
-        bg-[#050714]
-        text-white
-      "
-    >
-      {/* =================================================
-          BACKGROUND
-      ================================================= */}
+    <section className="relative min-h-[620px] overflow-hidden bg-[#050714]">
+      {/* Background glow */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-600/10 blur-[100px]" />
 
-      <div
-        className="
-          pointer-events-none
-          absolute
-          inset-0
-        "
-      >
-        <div
-          className="
-            absolute
-            left-1/2
-            top-1/2
-            h-[650px]
-            w-[650px]
-            -translate-x-1/2
-            -translate-y-1/2
-            rounded-full
-            bg-blue-600/10
-            blur-[130px]
-          "
-        />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.12),transparent_52%)]" />
 
         <div
-          className="
-            absolute
-            left-[15%]
-            top-[15%]
-            h-40
-            w-40
-            rounded-full
-            bg-indigo-500/10
-            blur-[90px]
-          "
-        />
-
-        <div
-          className="
-            absolute
-            bottom-[10%]
-            right-[10%]
-            h-52
-            w-52
-            rounded-full
-            bg-violet-500/10
-            blur-[110px]
-          "
-        />
-
-        <div
-          className="
-            absolute
-            inset-0
-            opacity-[0.07]
-          "
+          className="absolute inset-0 opacity-20"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(255,255,255,.25) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.25) 1px, transparent 1px)",
-            backgroundSize:
-              "48px 48px",
+              "linear-gradient(rgba(129,140,248,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(129,140,248,0.12) 1px, transparent 1px)",
+            backgroundSize: "55px 55px",
           }}
         />
       </div>
 
-      {/* =================================================
-          CONTENT
-      ================================================= */}
-
-      <div
-        className="
-          relative
-          mx-auto
-          grid
-          min-h-[700px]
-          max-w-7xl
-          items-center
-          gap-8
-          px-5
-          py-14
-          sm:px-8
-          lg:grid-cols-[1fr_1fr]
-          lg:py-20
-        "
-      >
-        {/* =================================================
-            LEFT CONTENT
-        ================================================= */}
-
-        <div
-          className="
-            relative
-            z-10
-            text-center
-            lg:text-left
-          "
+      {/* 3D */}
+      <div className="absolute inset-0">
+        <Canvas
+          camera={{
+            position: [0, 0, 6],
+            fov: 45,
+          }}
+          dpr={[1, 1.5]}
+          gl={{
+            antialias: true,
+            alpha: true,
+            powerPreference: "high-performance",
+          }}
         >
-          {/* Badge */}
+          <Scene />
+        </Canvas>
+      </div>
 
-          <div
-            className="
-              mb-6
-              inline-flex
-              items-center
-              gap-2
-              rounded-full
-              border
-              border-white/10
-              bg-white/[0.06]
-              px-4
-              py-2
-              text-xs
-              font-semibold
-              text-blue-200
-              backdrop-blur-xl
-            "
-          >
-            <span
-              className="
-                h-2
-                w-2
-                animate-pulse
-                rounded-full
-                bg-blue-400
-              "
-            />
-
-            AI INTELLIGENCE VAULT
-          </div>
-
-          {/* Heading */}
-
-          <h1
-            className="
-              text-5xl
-              font-black
-              leading-[0.95]
-              tracking-[-0.055em]
-              sm:text-6xl
-              lg:text-7xl
-            "
-          >
-            Discover
-
-            <br />
-
-            <span
-              className="
-                bg-gradient-to-r
-                from-blue-300
-                via-white
-                to-violet-300
-                bg-clip-text
-                text-transparent
-              "
-            >
-              Intelligence.
-            </span>
-          </h1>
-
-          {/* Description */}
-
-          <p
-            className="
-              mt-7
-              max-w-xl
-              text-base
-              leading-7
-              text-slate-300
-              sm:text-lg
-              lg:text-xl
-            "
-          >
-            Explore, compare and discover{" "}
-            <strong className="text-white">
-              {formattedToolCount}+
-            </strong>{" "}
-            AI tools through the
-            world&apos;s intelligent
-            software vault.
-          </p>
-
-          {/* Stats */}
-
-          <div
-            className="
-              mt-8
-              flex
-              flex-wrap
-              justify-center
-              gap-3
-              lg:justify-start
-            "
-          >
-            {/* Tools */}
-
-            <div
-              className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-white/[0.06]
-                px-5
-                py-3
-                backdrop-blur-xl
-              "
-            >
-              <div className="text-xl font-black">
-                {formattedToolCount}+
-              </div>
-
-              <div
-                className="
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-widest
-                  text-slate-400
-                "
-              >
-                AI Tools
-              </div>
-            </div>
-
-            {/* Discoverable */}
-
-            <div
-              className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-white/[0.06]
-                px-5
-                py-3
-                backdrop-blur-xl
-              "
-            >
-              <div className="text-xl font-black">
-                100%
-              </div>
-
-              <div
-                className="
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-widest
-                  text-slate-400
-                "
-              >
-                Discoverable
-              </div>
-            </div>
-
-            {/* Intelligence */}
-
-            <div
-              className="
-                rounded-2xl
-                border
-                border-white/10
-                bg-white/[0.06]
-                px-5
-                py-3
-                backdrop-blur-xl
-              "
-            >
-              <div className="text-xl font-black">
-                AI
-              </div>
-
-              <div
-                className="
-                  text-[10px]
-                  font-semibold
-                  uppercase
-                  tracking-widest
-                  text-slate-400
-                "
-              >
-                Intelligence
-              </div>
-            </div>
-          </div>
+      {/* Hero text */}
+      <div className="relative z-10 flex min-h-[620px] flex-col items-center justify-start px-5 pt-12 text-center pointer-events-none">
+        <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-200 backdrop-blur-md">
+          AI INTELLIGENCE VAULT
         </div>
 
-        {/* =================================================
-            3D AREA
-        ================================================= */}
+        <h2 className="mt-6 max-w-3xl text-4xl font-black tracking-[-0.04em] text-white sm:text-6xl">
+          Discover
+          <span className="block bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+            Intelligence.
+          </span>
+        </h2>
 
-        <div
-          className="
-            relative
-            h-[420px]
-            w-full
-            sm:h-[520px]
-            lg:h-[600px]
-          "
-        >
-          {/* Glow */}
+        <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
+          Explore, compare and discover{" "}
+          <strong className="text-white">
+            {toolCount}+
+          </strong>{" "}
+          AI tools through the world&apos;s intelligent software vault.
+        </p>
 
-          <div
-            className="
-              pointer-events-none
-              absolute
-              inset-0
-              rounded-full
-              bg-blue-600/5
-              blur-3xl
-            "
-          />
+        <div className="mt-6 flex gap-2">
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
+            <div className="text-lg font-bold text-white">
+              {toolCount}+
+            </div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-400">
+              AI Tools
+            </div>
+          </div>
 
-          {/* Canvas */}
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
+            <div className="text-lg font-bold text-white">
+              100%
+            </div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-400">
+              Discoverable
+            </div>
+          </div>
 
-          {interactive ? (
-            <Canvas
-              dpr={[1, 1.5]}
-              camera={{
-                position: [0, 0, 7],
-                fov: 45,
-              }}
-              gl={{
-                antialias: true,
-                alpha: true,
-                powerPreference:
-                  "high-performance",
-              }}
-              frameloop="always"
-            >
-              <Suspense
-                fallback={
-                  <ThreeDFallback />
-                }
-              >
-                <Scene />
-              </Suspense>
-            </Canvas>
-          ) : (
-            <ThreeDFallback />
-          )}
-
-          {/* =================================================
-              3D TOGGLE
-          ================================================= */}
-
-          <button
-            type="button"
-            aria-label={
-              interactive
-                ? "Disable 3D"
-                : "Enable 3D"
-            }
-            onClick={() =>
-              setInteractive(
-                (value) => !value
-              )
-            }
-            className="
-              absolute
-              bottom-4
-              right-4
-              rounded-full
-              border
-              border-white/10
-              bg-black/40
-              px-4
-              py-2
-              text-[10px]
-              font-bold
-              uppercase
-              tracking-wider
-              text-slate-300
-              backdrop-blur-xl
-              transition
-              hover:bg-white/10
-              active:scale-95
-            "
-          >
-            {interactive
-              ? "3D ON"
-              : "3D OFF"}
-          </button>
+          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
+            <div className="text-lg font-bold text-white">
+              AI
+            </div>
+            <div className="text-[9px] uppercase tracking-wider text-slate-400">
+              Intelligence
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* =================================================
-          BOTTOM GLOW
-      ================================================= */}
-
-      <div
-        className="
-          absolute
-          bottom-0
-          left-0
-          right-0
-          h-px
-          bg-gradient-to-r
-          from-transparent
-          via-blue-500/50
-          to-transparent
-        "
-      />
+      {/* Mobile performance hint */}
+      <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[8px] uppercase tracking-wider text-slate-400 backdrop-blur-md">
+        AI 3D
+      </div>
     </section>
   );
 }
