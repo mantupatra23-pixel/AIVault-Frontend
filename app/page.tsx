@@ -147,7 +147,6 @@ function HomeContent() {
     loadCatalog();
   }, []);
 
-  // Filtered List
   const filteredTools = useMemo(() => {
     return tools
       .filter((t) => {
@@ -177,12 +176,10 @@ function HomeContent() {
       });
   }, [tools, selectedCat, selectedPricing, search, sortBy]);
 
-  // Reset to page 1 on filter/search change
   useEffect(() => {
     setCurrentPage(1);
   }, [search, selectedCat, selectedPricing, sortBy]);
 
-  // Pagination calculation
   const totalPages = Math.ceil(filteredTools.length / ITEMS_PER_PAGE) || 1;
   const paginatedTools = useMemo(() => {
     const start = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -196,15 +193,21 @@ function HomeContent() {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* Top Navbar */}
+      {/* Top Navbar with Direct Compare Action */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
           <div className="flex items-center gap-3">
+            <Link
+              href="/compare"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>⚖️ Compare Matrix</span>
+            </Link>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
-              {tools.length} AI Tools
+              {tools.length} Tools
             </span>
           </div>
         </div>
@@ -249,7 +252,6 @@ function HomeContent() {
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Category & Pricing Filters */}
         <section className="mb-8 space-y-4">
-          {/* Category Chips */}
           <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
             {CATEGORIES.map((cat) => (
               <button
@@ -267,7 +269,6 @@ function HomeContent() {
             ))}
           </div>
 
-          {/* Pricing & Sort Control Row */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200/80 py-3">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-slate-400 uppercase">Pricing:</span>
@@ -330,7 +331,6 @@ function HomeContent() {
                 ))}
               </div>
 
-              {/* PAGINATION CONTROLS (PAGES DATA) */}
               {totalPages > 1 && (
                 <div className="mt-10 flex items-center justify-center gap-2">
                   <button

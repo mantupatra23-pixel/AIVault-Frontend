@@ -44,7 +44,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [related, setRelated] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Retention & Engagement States
   const [upvoted, setUpvoted] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(140);
   const [bookmarked, setBookmarked] = useState(false);
@@ -53,15 +52,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [pollVoted, setPollVoted] = useState<"yes" | "no" | null>(null);
   const [pollStats, setPollStats] = useState({ yes: 94, no: 6 });
 
-  // Interactive Prompt Copy State
   const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
   const [notionExported, setNotionExported] = useState(false);
 
-  // Diagnostic Quiz State
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
 
-  // Alert Modal / Lead Magnet State
   const [alertEmail, setAlertEmail] = useState("");
   const [alertSubscribed, setAlertSubscribed] = useState(false);
 
@@ -71,7 +67,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         setLoading(true);
         const supabase = getSupabase();
 
-        // 1. Fetch Target Tool Record
         const { data: toolData, error: toolErr } = await supabase
           .from("ai_tools")
           .select("*")
@@ -94,7 +89,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         );
         setUpvoteCount(95 + (seed % 110));
 
-        // 2. Fetch Category Peers
         const cat = toolData.category || "Productivity";
         const { data: relatedData } = await supabase
           .from("ai_tools")
@@ -133,11 +127,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     cleanAiContent(rawOverview) ||
     `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with automated precision and speed.`;
 
-  // Calculated ROI Metrics
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
 
-  // Playbook Prompts Tailored by Category
   const playbookPrompts = useMemo(() => {
     const cat = category.toLowerCase();
     if (cat.includes("market") || cat.includes("invest")) {
@@ -311,7 +303,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Top Sticky Header */}
+      {/* Top Navbar with Compare Link */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -319,12 +311,18 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </Link>
 
           <div className="flex items-center gap-2.5">
+            <Link
+              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>⚖️ Compare</span>
+            </Link>
+
             <button
               onClick={handleExportNotion}
               className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-              title="Copy Markdown for Notion"
             >
-              <span>{notionExported ? "✓ Markdown Copied!" : "📋 Export Notion"}</span>
+              <span>{notionExported ? "✓ Copied" : "📋 Notion"}</span>
             </button>
 
             <button
@@ -349,7 +347,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb & Badges */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-blue-600">Directory</Link>
@@ -387,7 +384,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               </div>
             </div>
 
-            {/* Interactive Upvote & Bookmark */}
             <div className="flex items-center gap-2 self-start">
               <button
                 onClick={handleUpvote}
@@ -419,7 +415,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
             {cleanOverview}
           </p>
 
-          {/* Quick Metrics */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">AI Vault Score</p>
@@ -439,7 +434,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
             </div>
           </div>
 
-          {/* Score Indicator */}
           <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -465,7 +459,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* 1. INTERACTIVE PROMPT & WORKFLOW PLAYBOOK (REPEAT VALUE ENGINE) */}
+        {/* PROMPT PLAYBOOK */}
         <section className="mt-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div>
@@ -476,7 +470,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 Copy-Paste Prompts for {toolName}
               </h2>
             </div>
-            <span className="text-[10px] font-bold text-slate-400">1-Click Copied into Clipboard</span>
+            <span className="text-[10px] font-bold text-slate-400">1-Click Copied to Clipboard</span>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -499,7 +493,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* 2. INTERACTIVE FIT DIAGNOSTIC QUIZ ("Is this tool right for you?") */}
+        {/* DECISION ENGINE */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Quick Decision Engine</span>
           <h2 className="text-base font-black text-slate-950 mt-0.5">Is {toolName} right for your stack?</h2>
@@ -573,7 +567,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           )}
         </section>
 
-        {/* DETAILED ABOUT SECTION */}
+        {/* ABOUT SECTION */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <span className="h-2 w-2 rounded-full bg-blue-600" />
@@ -595,7 +589,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* CORE FEATURES */}
+        {/* FEATURES */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <h2 className="text-base font-black text-slate-950 mb-4">
             Key Capabilities & Features
@@ -650,7 +644,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* INTERACTIVE WORKFLOW ROI ESTIMATOR */}
+        {/* ROI CALCULATOR */}
         <section className="mt-6 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white p-6 shadow-sm sm:p-7">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-md">
@@ -761,108 +755,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* 3. PRICE DROP & FEATURE TRACKER (RETENTION HOOK) */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="max-w-md">
-              <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Daily Intelligence Tracker</span>
-              <h3 className="text-base font-black text-slate-950 mt-0.5">Get Price Drop & Update Alerts for {toolName}</h3>
-              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-                Be notified when new features, lifetime discounts, or pricing model updates launch for this tool.
-              </p>
-            </div>
-
-            {alertSubscribed ? (
-              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-5 py-3 text-xs font-bold text-emerald-800">
-                ✓ Tracking active! You will receive verified update digests.
-              </div>
-            ) : (
-              <form onSubmit={handleAlertSubscribe} className="flex gap-2 w-full sm:w-auto">
-                <input
-                  type="email"
-                  required
-                  value={alertEmail}
-                  onChange={(e) => setAlertEmail(e.target.value)}
-                  placeholder="Enter work email..."
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white flex-1 sm:w-64"
-                />
-                <button
-                  type="submit"
-                  className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-600 transition"
-                >
-                  Track Tool
-                </button>
-              </form>
-            )}
-          </div>
-        </section>
-
-        {/* COMMUNITY SENTIMENT POLL */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm text-center">
-          <h3 className="text-sm font-black text-slate-950">
-            Would you recommend {toolName} to your team?
-          </h3>
-          <p className="mt-1 text-xs text-slate-400">
-            Join the verified community voting for {toolName}.
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={() => handlePoll("yes")}
-              disabled={pollVoted !== null}
-              className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition ${
-                pollVoted === "yes"
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
-              }`}
-            >
-              <span>👍 Yes, Recommended</span>
-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{pollStats.yes}%</span>
-            </button>
-
-            <button
-              onClick={() => handlePoll("no")}
-              disabled={pollVoted !== null}
-              className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition ${
-                pollVoted === "no"
-                  ? "border-rose-600 bg-rose-50 text-rose-700"
-                  : "border-slate-200 bg-white text-slate-700 hover:border-rose-300"
-              }`}
-            >
-              <span>👎 Needs Improvement</span>
-              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{pollStats.no}%</span>
-            </button>
-          </div>
-          {pollVoted && (
-            <p className="mt-2.5 text-[11px] font-bold text-emerald-600">
-              ✓ Thank you for submitting your feedback!
-            </p>
-          )}
-        </section>
-
-        {/* FAQS */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm">
-          <div className="mb-4">
-            <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Q&A Knowledge Base</span>
-            <h2 className="text-base font-black text-slate-950 mt-0.5">Frequently Asked Questions</h2>
-          </div>
-
-          <div className="space-y-3">
-            {faqs.map((faq, idx) => (
-              <details key={idx} className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition open:bg-white open:shadow-sm">
-                <summary className="flex cursor-pointer list-none items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
-                  <span>{faq.q}</span>
-                  <span className="ml-2 font-bold text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <p className="mt-2.5 text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-2.5">
-                  {faq.a}
-                </p>
-              </details>
-            ))}
-          </div>
-        </section>
-
-        {/* SIMILAR TOOLS (COMPARISON LAUNCHER) */}
+        {/* SIMILAR TOOLS (DIRECT 1-CLICK COMPARE LAUNCHER) */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">
@@ -870,38 +763,48 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Ecosystem Comparison</span>
                 <h2 className="text-lg font-black text-slate-950">Top Similar {category} Tools</h2>
               </div>
-              <Link href={`/?cat=${encodeURIComponent(category)}`} className="text-xs font-bold text-blue-600 hover:underline">
-                View All {category} →
+              <Link href={`/compare?tools=${encodeURIComponent(rawSlug)}`} className="text-xs font-bold text-blue-600 hover:underline">
+                Compare All In Matrix →
               </Link>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((item) => (
-                <Link
-                  key={String(item.id ?? item.slug ?? item.name)}
-                  href={`/tool/${encodeURIComponent(String(item.slug || ""))}`}
-                  className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <ToolLogo name={String(item.name || "AI Tool")} src={item.logo_url as string} size="sm" />
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
-                        {String(item.name || "AI Tool")}
-                      </p>
-                      <p className="text-[10px] text-slate-400 capitalize">{String(item.category || category)}</p>
+              {related.map((item) => {
+                const itemSlug = String(item.slug || item.name || "");
+                const compareHref = `/compare?tools=${encodeURIComponent(rawSlug)},${encodeURIComponent(itemSlug)}`;
+
+                return (
+                  <div
+                    key={String(item.id ?? itemSlug)}
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
+                  >
+                    <Link href={`/tool/${encodeURIComponent(itemSlug)}`} className="flex items-center gap-3 min-w-0">
+                      <ToolLogo name={String(item.name || "AI Tool")} src={item.logo_url as string} size="sm" />
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
+                          {String(item.name || "AI Tool")}
+                        </p>
+                        <p className="text-[10px] text-slate-400 capitalize">{String(item.category || category)}</p>
+                      </div>
+                    </Link>
+
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
+                      <span className="font-bold text-slate-500">{String(item.pricing || "Freemium")}</span>
+                      <Link
+                        href={compareHref}
+                        className="font-black text-blue-600 hover:underline"
+                      >
+                        Compare vs {toolName} →
+                      </Link>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
-                    <span className="font-bold text-slate-500">{String(item.pricing || "Freemium")}</span>
-                    <span className="font-bold text-blue-600">Compare →</span>
-                  </div>
-                </Link>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
 
-        {/* HIGH-CONTRAST BOTTOM CTA BANNER */}
+        {/* BOTTOM CTA BANNER */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
@@ -929,10 +832,10 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               </Link>
             )}
             <Link
-              href="/"
+              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
               className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
             >
-              ← Back to Directory
+              ⚖️ Compare Tool
             </Link>
           </div>
         </section>
@@ -954,13 +857,12 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
 
           <div className="flex w-full sm:w-auto items-center justify-end gap-2.5">
-            <button
-              onClick={handleUpvote}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700"
+            <Link
+              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
             >
-              <span>▲</span>
-              <span>{upvoteCount}</span>
-            </button>
+              ⚖️ Compare
+            </Link>
 
             {officialWebsite ? (
               <a
