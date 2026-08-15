@@ -31,6 +31,11 @@ type CoreProps = {
   count?: number;
 };
 
+type FloatingLabelProps = {
+  position: [number, number, number];
+  children: string;
+};
+
 /* =========================================================
    AI CORE
 ========================================================= */
@@ -51,6 +56,9 @@ function AICore() {
   const ring2 =
     useRef<THREE.Mesh>(null);
 
+  const energyRing =
+    useRef<THREE.Mesh>(null);
+
   useFrame(
     (
       state,
@@ -60,15 +68,19 @@ function AICore() {
         return;
       }
 
+      const time =
+        state.clock.elapsedTime;
+
+      /* Main core movement */
+
       group.current.rotation.y +=
         delta * 0.16;
 
       group.current.rotation.x =
-        Math.sin(
-          state.clock.elapsedTime *
-            0.45
-        ) *
+        Math.sin(time * 0.45) *
         0.08;
+
+      /* Inner crystal */
 
       if (inner.current) {
         inner.current.rotation.x +=
@@ -76,12 +88,28 @@ function AICore() {
 
         inner.current.rotation.y +=
           delta * 0.7;
+
+        const pulse =
+          1 +
+          Math.sin(time * 2.2) *
+            0.025;
+
+        inner.current.scale.setScalar(
+          0.72 * pulse
+        );
       }
+
+      /* Outer shell */
 
       if (outer.current) {
         outer.current.rotation.y -=
           delta * 0.18;
+
+        outer.current.rotation.z +=
+          delta * 0.05;
       }
+
+      /* Orbit ring */
 
       if (ring1.current) {
         ring1.current.rotation.x +=
@@ -98,6 +126,19 @@ function AICore() {
         ring2.current.rotation.z +=
           delta * 0.12;
       }
+
+      /* Energy ring */
+
+      if (energyRing.current) {
+        energyRing.current.rotation.y +=
+          delta * 0.9;
+
+        energyRing.current.scale.setScalar(
+          1 +
+            Math.sin(time * 2.8) *
+              0.035
+        );
+      }
     }
   );
 
@@ -106,11 +147,16 @@ function AICore() {
       ref={group}
       scale={1.25}
     >
-      {/* CORE GLOW */}
+      {/* =====================================================
+          CORE GLOW
+      ====================================================== */}
 
       <mesh ref={inner}>
         <icosahedronGeometry
-          args={[1.15, 3]}
+          args={[
+            1.15,
+            3,
+          ]}
         />
 
         <meshPhysicalMaterial
@@ -125,13 +171,16 @@ function AICore() {
         />
       </mesh>
 
-      {/* INNER GLASS */}
+      {/* =====================================================
+          INNER GLASS
+      ====================================================== */}
 
-      <mesh
-        scale={0.72}
-      >
+      <mesh scale={0.72}>
         <icosahedronGeometry
-          args={[1, 3]}
+          args={[
+            1,
+            3,
+          ]}
         />
 
         <meshPhysicalMaterial
@@ -147,14 +196,19 @@ function AICore() {
         />
       </mesh>
 
-      {/* OUTER SHELL */}
+      {/* =====================================================
+          OUTER WIREFRAME SHELL
+      ====================================================== */}
 
       <mesh
         ref={outer}
         scale={1.45}
       >
         <icosahedronGeometry
-          args={[1, 2]}
+          args={[
+            1,
+            2,
+          ]}
         />
 
         <meshBasicMaterial
@@ -165,7 +219,9 @@ function AICore() {
         />
       </mesh>
 
-      {/* ORBIT RING 1 */}
+      {/* =====================================================
+          ORBIT RING 1
+      ====================================================== */}
 
       <mesh
         ref={ring1}
@@ -191,7 +247,9 @@ function AICore() {
         />
       </mesh>
 
-      {/* ORBIT RING 2 */}
+      {/* =====================================================
+          ORBIT RING 2
+      ====================================================== */}
 
       <mesh
         ref={ring2}
@@ -217,9 +275,12 @@ function AICore() {
         />
       </mesh>
 
-      {/* ENERGY RING */}
+      {/* =====================================================
+          ENERGY RING
+      ====================================================== */}
 
       <mesh
+        ref={energyRing}
         rotation={[
           Math.PI / 2,
           0,
@@ -242,12 +303,25 @@ function AICore() {
         />
       </mesh>
 
-      {/* CORE LIGHT */}
+      {/* =====================================================
+          CORE LIGHT
+      ====================================================== */}
 
       <pointLight
         color="#3d68ff"
         intensity={8}
         distance={8}
+      />
+
+      <pointLight
+        color="#9c6cff"
+        intensity={3}
+        distance={5}
+        position={[
+          -1.5,
+          1.5,
+          1,
+        ]}
       />
     </group>
   );
@@ -287,9 +361,7 @@ function OrbitParticles({
             0.5) *
           4;
 
-        positions[
-          i * 3
-        ] =
+        positions[i * 3] =
           Math.cos(angle) *
           radius;
 
@@ -330,11 +402,21 @@ function OrbitParticles({
   return (
     <points ref={ref}>
       <bufferGeometry>
+        {/*
+         * IMPORTANT:
+         * React Three Fiber expects the
+         * BufferAttribute constructor
+         * arguments through `args`.
+         *
+         * This fixes the production
+         * TypeScript error.
+         */}
         <bufferAttribute
           attach="attributes-position"
-          count={count}
-          array={points}
-          itemSize={3}
+          args={[
+            points,
+            3,
+          ]}
         />
       </bufferGeometry>
 
@@ -344,26 +426,20 @@ function OrbitParticles({
         sizeAttenuation
         transparent
         opacity={0.7}
+        depthWrite={false}
       />
     </points>
   );
 }
 
 /* =========================================================
-   FLOATING LABELS
+   FLOATING LABEL
 ========================================================= */
 
 function FloatingLabel({
   position,
   children,
-}: {
-  position: [
-    number,
-    number,
-    number
-  ];
-  children: string;
-}) {
+}: FloatingLabelProps) {
   return (
     <Float
       speed={1.4}
@@ -402,6 +478,10 @@ function Scene() {
 
   return (
     <>
+      {/* ===================================================
+          LIGHTING
+      ==================================================== */}
+
       <ambientLight
         intensity={0.35}
       />
@@ -425,16 +505,34 @@ function Scene() {
         intensity={6}
       />
 
+      <pointLight
+        position={[
+          3,
+          1,
+          -2,
+        ]}
+        color="#2f65ff"
+        intensity={4}
+      />
+
+      {/* ===================================================
+          ENVIRONMENT
+      ==================================================== */}
+
       <Environment
         preset="city"
       />
 
-      <group
-        scale={scale}
-      >
+      {/* ===================================================
+          MAIN AI WORLD
+      ==================================================== */}
+
+      <group scale={scale}>
         <AICore />
 
-        <OrbitParticles />
+        <OrbitParticles
+          count={100}
+        />
 
         <FloatingLabel
           position={[
@@ -477,6 +575,10 @@ function Scene() {
         </FloatingLabel>
       </group>
 
+      {/* ===================================================
+          ATMOSPHERIC PARTICLES
+      ==================================================== */}
+
       <Sparkles
         count={70}
         scale={8}
@@ -484,6 +586,10 @@ function Scene() {
         speed={0.25}
         opacity={0.45}
       />
+
+      {/* ===================================================
+          INTERACTION
+      ==================================================== */}
 
       <OrbitControls
         enableZoom={false}
@@ -518,15 +624,27 @@ export default function Vault3DHero({
   return (
     <section className="relative overflow-hidden bg-[#050714] text-white">
 
-      {/* BACKGROUND */}
+      {/* ===================================================
+          PREMIUM BACKGROUND
+      ==================================================== */}
 
-      <div className="absolute inset-0">
+      <div
+        className="pointer-events-none absolute inset-0"
+        aria-hidden="true"
+      >
+        {/* Main blue aura */}
 
         <div className="absolute left-1/2 top-1/2 h-[650px] w-[650px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/10 blur-[130px]" />
 
+        {/* Top-left aura */}
+
         <div className="absolute left-[15%] top-[15%] h-40 w-40 rounded-full bg-indigo-500/10 blur-[90px]" />
 
+        {/* Bottom-right aura */}
+
         <div className="absolute bottom-[10%] right-[10%] h-52 w-52 rounded-full bg-violet-500/10 blur-[110px]" />
+
+        {/* Grid */}
 
         <div
           className="absolute inset-0 opacity-[0.07]"
@@ -538,21 +656,38 @@ export default function Vault3DHero({
           }}
         />
 
+        {/* Top vignette */}
+
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/30 to-transparent" />
+
+        {/* Bottom vignette */}
+
+        <div className="absolute inset-x-0 bottom-0 h-48 bg-gradient-to-t from-black/40 to-transparent" />
       </div>
+
+      {/* ===================================================
+          HERO CONTENT
+      ==================================================== */}
 
       <div className="relative mx-auto grid min-h-[700px] max-w-7xl items-center gap-8 px-5 py-14 sm:px-8 lg:grid-cols-[1fr_1fr] lg:py-20">
 
-        {/* LEFT */}
+        {/* =================================================
+            LEFT CONTENT
+        ================================================== */}
 
         <div className="relative z-10 text-center lg:text-left">
 
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-blue-200 backdrop-blur-xl">
+          {/* Badge */}
 
-            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2 text-xs font-semibold text-blue-200 shadow-[0_0_40px_rgba(59,130,246,.08)] backdrop-blur-xl">
+
+            <span className="h-2 w-2 animate-pulse rounded-full bg-blue-400 shadow-[0_0_12px_rgba(96,165,250,.9)]" />
 
             AI INTELLIGENCE VAULT
 
           </div>
+
+          {/* Main heading */}
 
           <h1 className="text-5xl font-black leading-[0.95] tracking-[-0.055em] sm:text-6xl lg:text-7xl">
 
@@ -566,21 +701,32 @@ export default function Vault3DHero({
 
           </h1>
 
+          {/* Description */}
+
           <p className="mt-7 max-w-xl text-base leading-7 text-slate-300 sm:text-lg lg:text-xl">
 
-            Explore, compare and discover{" "}
+            Explore, compare and
+            discover{" "}
 
             <strong className="text-white">
               {toolCount.toLocaleString()}+
             </strong>{" "}
 
-            AI tools through the world&apos;s intelligent software vault.
+            AI tools through the
+            world&apos;s intelligent
+            software vault.
 
           </p>
 
+          {/* =================================================
+              STATS
+          ================================================== */}
+
           <div className="mt-8 flex flex-wrap justify-center gap-3 lg:justify-start">
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 backdrop-blur-xl">
+            {/* AI Tools */}
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 shadow-[0_10px_40px_rgba(0,0,0,.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
 
               <div className="text-xl font-black">
                 {toolCount.toLocaleString()}+
@@ -592,7 +738,9 @@ export default function Vault3DHero({
 
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 backdrop-blur-xl">
+            {/* Discoverable */}
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 shadow-[0_10px_40px_rgba(0,0,0,.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
 
               <div className="text-xl font-black">
                 100%
@@ -604,7 +752,9 @@ export default function Vault3DHero({
 
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 backdrop-blur-xl">
+            {/* Intelligence */}
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.06] px-5 py-3 shadow-[0_10px_40px_rgba(0,0,0,.18)] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:bg-white/[0.09]">
 
               <div className="text-xl font-black">
                 AI
@@ -620,11 +770,27 @@ export default function Vault3DHero({
 
         </div>
 
-        {/* 3D */}
+        {/* =================================================
+            3D EXPERIENCE
+        ================================================== */}
 
         <div className="relative h-[420px] w-full sm:h-[520px] lg:h-[600px]">
 
-          <div className="absolute inset-0 rounded-full bg-blue-600/5 blur-3xl" />
+          {/* 3D background glow */}
+
+          <div
+            className="pointer-events-none absolute inset-0 rounded-full bg-blue-600/5 blur-3xl"
+            aria-hidden="true"
+          />
+
+          <div
+            className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-500/[0.04] blur-[90px]"
+            aria-hidden="true"
+          />
+
+          {/* =================================================
+              CANVAS
+          ================================================== */}
 
           {interactive ? (
             <Canvas
@@ -646,6 +812,10 @@ export default function Vault3DHero({
                 powerPreference:
                   "high-performance",
               }}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
             >
               <Suspense
                 fallback={
@@ -657,6 +827,7 @@ export default function Vault3DHero({
                         32,
                       ]}
                     />
+
                     <meshBasicMaterial
                       color="#3157ff"
                       wireframe
@@ -668,12 +839,26 @@ export default function Vault3DHero({
               </Suspense>
             </Canvas>
           ) : (
+            /* =================================================
+               STATIC FALLBACK
+            ================================================== */
+
             <div className="flex h-full items-center justify-center">
 
-              <div className="h-40 w-40 rounded-full border border-blue-400/30 bg-blue-500/10 shadow-[0_0_100px_rgba(59,130,246,.25)]" />
+              <div className="relative">
+
+                <div className="absolute inset-[-45px] rounded-full bg-blue-500/10 blur-3xl" />
+
+                <div className="h-40 w-40 rounded-full border border-blue-400/30 bg-blue-500/10 shadow-[0_0_100px_rgba(59,130,246,.25)]" />
+
+              </div>
 
             </div>
           )}
+
+          {/* =================================================
+              3D TOGGLE
+          ================================================== */}
 
           <button
             type="button"
@@ -683,7 +868,12 @@ export default function Vault3DHero({
                   !value
               )
             }
-            className="absolute bottom-4 right-4 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-300 backdrop-blur-xl transition hover:bg-white/10"
+            aria-label={
+              interactive
+                ? "Disable 3D experience"
+                : "Enable 3D experience"
+            }
+            className="absolute bottom-4 right-4 rounded-full border border-white/10 bg-black/40 px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-300 shadow-lg backdrop-blur-xl transition duration-300 hover:border-blue-400/30 hover:bg-white/10 hover:text-white"
           >
             {interactive
               ? "3D ON"
@@ -691,12 +881,16 @@ export default function Vault3DHero({
           </button>
 
         </div>
-
       </div>
 
-      {/* BOTTOM GLOW */}
+      {/* ===================================================
+          BOTTOM GLOW
+      ==================================================== */}
 
-      <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
+      <div
+        className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-blue-500/50 to-transparent"
+        aria-hidden="true"
+      />
 
     </section>
   );
