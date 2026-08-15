@@ -58,7 +58,6 @@ function MatcherContent() {
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Wizard Steps
   const [step, setStep] = useState(1);
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [selectedBudget, setSelectedBudget] = useState<string | null>(null);
@@ -81,7 +80,6 @@ function MatcherContent() {
     loadCatalog();
   }, []);
 
-  // Recommendation Matches
   const matchedResults = useMemo(() => {
     if (!selectedCat || !selectedBudget) return [];
 
@@ -150,7 +148,7 @@ function MatcherContent() {
           </p>
         </div>
 
-        {/* PROGRESS STEP BAR */}
+        {/* STEP INDICATOR */}
         <div className="mb-8 flex items-center justify-between relative max-w-xs mx-auto">
           <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-slate-200 -translate-y-1/2 z-0" />
           {[1, 2, 3].map((num) => (
@@ -158,7 +156,7 @@ function MatcherContent() {
               key={num}
               className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full text-xs font-black transition-all ${
                 step >= num
-                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 ring-2 ring-blue-600 ring-offset-2"
                   : "bg-white border border-slate-300 text-slate-400"
               }`}
             >
@@ -167,7 +165,7 @@ function MatcherContent() {
           ))}
         </div>
 
-        {/* STEP 1: CATEGORY SELECTION */}
+        {/* STEP 1 */}
         {step === 1 && (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
             <h2 className="text-base font-black text-slate-950 mb-1">
@@ -200,7 +198,7 @@ function MatcherContent() {
           </section>
         )}
 
-        {/* STEP 2: BUDGET SELECTION */}
+        {/* STEP 2 */}
         {step === 2 && (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
             <h2 className="text-base font-black text-slate-950 mb-1">
@@ -238,7 +236,7 @@ function MatcherContent() {
           </section>
         )}
 
-        {/* STEP 3: PRIORITY SELECTION */}
+        {/* STEP 3 */}
         {step === 3 && (
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
             <h2 className="text-base font-black text-slate-950 mb-1">
@@ -276,7 +274,7 @@ function MatcherContent() {
           </section>
         )}
 
-        {/* RESULTS SCREEN */}
+        {/* STEP 4: RESULTS (VIBRANT BLUE BUTTONS) */}
         {step === 4 && (
           <section className="space-y-6">
             <div className="flex items-center justify-between">
@@ -290,7 +288,7 @@ function MatcherContent() {
               </div>
               <button
                 onClick={handleReset}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50"
+                className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
               >
                 Restart Wizard
               </button>
@@ -304,7 +302,12 @@ function MatcherContent() {
                   const pricing = String(t.pricing_model || t.pricing || "Freemium");
                   const score = getToolScore(t);
                   const formatted = formatAIScore(score);
-                  const desc = cleanAiContent(t.overview || t.description) || `${name} matches your selected requirements.`;
+                  
+                  const rawDesc = String(t.overview || t.description || "")
+                    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
+                    .replace(/I will provide an overview[^.]*\.\s*/gi, "");
+                    
+                  const desc = cleanAiContent(rawDesc) || `${name} matches your selected requirements.`;
 
                   return (
                     <div
@@ -312,7 +315,7 @@ function MatcherContent() {
                       className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 transition hover:border-blue-300"
                     >
                       <div className="flex items-start gap-4 min-w-0">
-                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white shadow-sm">
                           #{idx + 1}
                         </span>
                         <div className="min-w-0">
@@ -334,7 +337,7 @@ function MatcherContent() {
                         </span>
                         <Link
                           href={`/tool/${encodeURIComponent(slug)}`}
-                          className="rounded-xl bg-slate-950 px-4 py-2 text-xs font-bold text-white hover:bg-blue-600 transition"
+                          className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
                         >
                           View Tool →
                         </Link>
@@ -359,7 +362,7 @@ function MatcherContent() {
                 <p className="text-xs font-bold text-slate-500">No exact tool matches found for this filter combination.</p>
                 <button
                   onClick={handleReset}
-                  className="mt-4 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white"
+                  className="mt-4 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md hover:bg-blue-700 transition"
                 >
                   Reset Questions
                 </button>

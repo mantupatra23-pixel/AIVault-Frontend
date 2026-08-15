@@ -122,7 +122,6 @@ export default function VaultPage() {
                 const name = String(tool.name || "AI Tool");
                 const slug = String(tool.slug || "");
                 const category = String(tool.category || "AI");
-                const pricing = String(tool.pricing_model || tool.pricing || "Freemium");
                 const score = getToolScore(tool);
                 const desc = cleanAiContent(tool.overview || tool.description) || `${name} provides software capabilities for ${category.toLowerCase()}.`;
 
@@ -160,7 +159,7 @@ export default function VaultPage() {
                       </span>
                       <Link
                         href={`/tool/${encodeURIComponent(slug)}`}
-                        className="text-xs font-bold text-slate-900 hover:text-blue-600"
+                        className="text-xs font-black text-blue-600 hover:underline"
                       >
                         Open Dossier →
                       </Link>
@@ -182,12 +181,12 @@ export default function VaultPage() {
             )}
           </div>
         ) : (
-          <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
+          <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
             <p className="text-sm font-bold text-slate-800">No saved tools in your vault yet.</p>
             <p className="mt-1 text-xs text-slate-400">Click the star (★) button on any tool card to bookmark it here.</p>
             <Link
               href="/"
-              className="mt-5 inline-block rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-600 transition"
+              className="mt-5 inline-block rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
             >
               Browse 745+ AI Directory
             </Link>

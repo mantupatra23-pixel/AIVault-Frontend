@@ -61,7 +61,9 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   
   const rawDesc = String(tool.description || tool.overview || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
-    .replace(/As a Senior SEO[^.]*\.\s*/gi, "");
+    .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
+    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
+    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "");
     
   const desc = cleanAiContent(rawDesc) || `${name} provides software solutions for ${category.toLowerCase()}.`;
   const score = getToolScore(tool);
@@ -197,7 +199,7 @@ function HomeContent() {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* Top Navbar with All Phase 3 Hub Links */}
+      {/* Top Navbar */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -275,7 +277,7 @@ function HomeContent() {
                 onClick={() => setSelectedCat(cat.name)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all ${
                   selectedCat === cat.name
-                    ? "bg-slate-950 text-white shadow-sm"
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black"
                     : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300"
                 }`}
               >
@@ -293,9 +295,9 @@ function HomeContent() {
                   <button
                     key={p}
                     onClick={() => setSelectedPricing(p)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
                       selectedPricing === p
-                        ? "bg-blue-50 text-blue-600 font-bold"
+                        ? "bg-blue-600 text-white font-black shadow-sm"
                         : "text-slate-500 hover:bg-slate-100"
                     }`}
                   >
@@ -347,30 +349,32 @@ function HomeContent() {
                 ))}
               </div>
 
+              {/* HIGH CONTRAST PAGINATION BUTTONS */}
               {totalPages > 1 && (
                 <div className="mt-10 flex items-center justify-center gap-2">
                   <button
                     disabled={currentPage === 1}
                     onClick={() => handlePageChange(currentPage - 1)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
                   >
                     ← Prev
                   </button>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
                       let p = idx + 1;
                       if (currentPage > 3 && totalPages > 5) {
                         p = currentPage - 2 + idx;
                         if (p > totalPages) p = totalPages - (4 - idx);
                       }
+                      const isActive = currentPage === p;
                       return (
                         <button
                           key={p}
                           onClick={() => handlePageChange(p)}
-                          className={`h-9 w-9 rounded-xl text-xs font-bold transition ${
-                            currentPage === p
-                              ? "bg-slate-950 text-white shadow-sm"
+                          className={`h-9 w-9 rounded-xl text-xs font-black transition ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600 ring-offset-2"
                               : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                           }`}
                         >
@@ -383,7 +387,7 @@ function HomeContent() {
                   <button
                     disabled={currentPage === totalPages}
                     onClick={() => handlePageChange(currentPage + 1)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
                   >
                     Next →
                   </button>
