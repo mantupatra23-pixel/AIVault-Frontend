@@ -301,7 +301,7 @@ export default function Vault3DHero({
       {/* Hero content */}
       <div
         className="
-        relative z-[5]
+        relative z-10
         flex min-h-[620px]
         flex-col items-center
         px-5 pt-12
