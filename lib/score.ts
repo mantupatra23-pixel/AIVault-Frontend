@@ -1,5 +1,10 @@
 // lib/score.ts
 
+export type NormalizedScore = number | null;
+
+/**
+ * Validates and converts any arbitrary value to a clean finite number.
+ */
 export function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
     return null;
@@ -11,36 +16,34 @@ export function toNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-export function normalizeScore(value: unknown): number | null {
+/**
+ * Strict 0-100 normalization.
+ * NEVER assumes or injects default/fallback scores (e.g., 85).
+ */
+export function normalizeAiVaultScore(value: unknown): NormalizedScore {
   const n = toNumber(value);
-  if (n === null) return null;
-  if (n > 0 && n <= 10) return Math.round(n * 10);
-  if (n >= 0 && n <= 100) return Math.round(n);
-  return null;
+  if (n === null || n <= 0) return null;
+  if (n > 100) return 100;
+  return Math.round(n);
 }
 
 /**
- * Evaluates candidate scores by strict canonical priority:
- * 1. neural_score
- * 2. score
- * 3. rating
- * 4. ai_vault_score
- *
- * Returns a normalized 0-100 number or null (never invents or defaults to 85).
+ * Authoritative Canonical AI Vault Score resolution.
+ * Strict priority: neural_score -> score -> ai_vault_score
+ * User 'rating' (0-5) is completely excluded from AI Vault Score.
  */
-export function getToolScore(tool: any): number | null {
+export function getToolScore(tool: any): NormalizedScore {
   if (!tool || typeof tool !== "object") return null;
 
   const candidates = [
     tool.neural_score,
     tool.score,
-    tool.rating,
     tool.ai_vault_score,
   ];
 
   for (const candidate of candidates) {
-    const normalized = normalizeScore(candidate);
-    if (normalized !== null && normalized > 0) {
+    const normalized = normalizeAiVaultScore(candidate);
+    if (normalized !== null) {
       return normalized;
     }
   }
@@ -48,7 +51,6 @@ export function getToolScore(tool: any): number | null {
   return null;
 }
 
-// Universal alias export
 export const getAiVaultScore = getToolScore;
 
 export function formatToolScore(tool: any): string {
@@ -58,25 +60,25 @@ export function formatToolScore(tool: any): string {
 }
 
 export function formatAIScore(score: unknown): string {
-  const normalized = normalizeScore(score);
+  const normalized = normalizeAiVaultScore(score);
   if (normalized === null) return "Score unavailable";
   return `${normalized}/100`;
 }
 
 export function getScoreBarWidth(value: unknown): string {
-  let normalized: number | null = null;
+  let normalized: NormalizedScore = null;
   if (typeof value === "object" && value !== null) {
     normalized = getToolScore(value);
   } else {
-    normalized = normalizeScore(value);
+    normalized = normalizeAiVaultScore(value);
   }
-  if (normalized === null || normalized <= 0) return "0%";
+  if (normalized === null) return "0%";
   return `${Math.min(Math.max(normalized, 0), 100)}%`;
 }
 
 export function scoreLabel(tool: any): string {
   const score = getToolScore(tool);
-  if (score === null || score <= 0) return "Not rated";
+  if (score === null) return "Not rated";
   if (score >= 90) return "Excellent";
   if (score >= 80) return "Very Good";
   if (score >= 70) return "Good";

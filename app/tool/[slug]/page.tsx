@@ -31,7 +31,7 @@ async function getAllTools() {
   const supabase = await createClient();
   const { data, error } = await supabase.from("ai_tools").select("*");
   if (error) {
-    console.error("AI Vault tools query failed:", error);
+    console.error("AI Vault query failed:", error);
     return [];
   }
   return (data ?? []) as Record<string, unknown>[];
@@ -57,7 +57,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const desc = cleanAiContent(raw);
 
   return {
-    title: `${tool.name} — Review, Pricing & Intelligence | AI Vault`,
+    title: `${tool.name} — AI Intelligence & Evaluation | AI Vault`,
     description: desc || `Explore ${tool.name} AI capabilities, pricing, and features.`,
   };
 }
@@ -73,22 +73,22 @@ export default async function ToolPage({ params }: PageProps) {
   const toolRecord = tool as ToolRecord;
   const toolName = String(tool.name || "AI Tool");
 
-  // 1. Score Calculation (0-100)
+  // Normalized Authoritative Score (Strict 0-100 or null)
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
 
-  // 2. Related Tools
+  // Related Tools Lookup
   const related = findRelatedTools(rows, tool, 6);
 
-  // 3. Official Website
+  // Official Website
   const officialWebsite = getWebsiteUrl(toolRecord);
 
-  // 4. Clean Unique Description
+  // Content Cleaning
   const rawText = String(tool.overview || tool.description || tool.short_description || "");
   const overview = cleanAiContent(rawText);
 
-  // 5. Database Arrays (NO FAKE / DUPLICATE FALLBACKS)
+  // Structured Data Arrays
   const features = getFeatures(toolRecord);
   const useCases = getUseCases(toolRecord);
   const integrations = getIntegrations(toolRecord);
@@ -166,30 +166,38 @@ export default async function ToolPage({ params }: PageProps) {
                   AI Vault Score
                 </p>
                 <p className="mt-0.5 text-xs text-slate-400">
-                  Calculated catalogue quality & reliability index
+                  Canonical 0–100 evaluation
                 </p>
               </div>
 
               <div className="text-right">
-                <p className="text-3xl font-black text-slate-950">
-                  {score ?? 85}
-                  <span className="text-base font-bold text-slate-400">/100</span>
-                </p>
+                {score !== null ? (
+                  <p className="text-3xl font-black text-slate-950">
+                    {score}
+                    <span className="text-base font-bold text-slate-400">/100</span>
+                  </p>
+                ) : (
+                  <p className="text-sm font-bold text-slate-400">
+                    Score unavailable
+                  </p>
+                )}
               </div>
             </div>
 
-            <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 transition-all duration-500"
-                style={{ width: barWidth }}
-              />
-            </div>
+            {score !== null && (
+              <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 transition-all duration-500"
+                  style={{ width: barWidth }}
+                />
+              </div>
+            )}
           </div>
 
-          {/* UNIQUE CLEAN OVERVIEW */}
+          {/* OVERVIEW */}
           <div className="mt-7 text-sm leading-relaxed text-slate-700">
             <p>
-              {overview || `${toolName} provides verified software capabilities for ${category.toLowerCase()} automation and digital workflows.`}
+              {overview || "Overview information is not available in the current database record."}
             </p>
           </div>
 
@@ -201,7 +209,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* KEY CAPABILITIES (Render only when actual features exist in database) */}
+        {/* KEY CAPABILITIES */}
         {features.length > 0 && (
           <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-4">Key Capabilities</h2>
@@ -216,7 +224,7 @@ export default async function ToolPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* USE CASES (Render only when real use cases exist) */}
+        {/* USE CASES */}
         {useCases.length > 0 && (
           <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-3">Best Use Cases</h2>
@@ -230,7 +238,7 @@ export default async function ToolPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* INTEGRATIONS (Render only when real integrations exist) */}
+        {/* INTEGRATIONS */}
         {integrations.length > 0 && (
           <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-3">Platform & Integrations</h2>
@@ -244,7 +252,7 @@ export default async function ToolPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* LIMITATIONS (Render only when actual limitations exist) */}
+        {/* LIMITATIONS */}
         {limitations.length > 0 && (
           <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-3">Considerations & Limitations</h2>

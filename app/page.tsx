@@ -189,12 +189,14 @@ function ToolCard({ tool, index }: { tool: ToolRecord; index: number }) {
             {formattedScore}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
-            style={{ width: barWidth }}
-          />
-        </div>
+        {score !== null && (
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-blue-500 via-indigo-500 to-violet-500"
+              style={{ width: barWidth }}
+            />
+          </div>
+        )}
       </div>
 
       <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
