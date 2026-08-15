@@ -251,7 +251,7 @@ export default function Vault3DHero({
     <section className="relative min-h-[620px] overflow-hidden bg-[#050714]">
 
       {/* Background */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 z-0">
         <div
           className="absolute left-1/2 top-1/2
           h-[500px] w-[500px]
