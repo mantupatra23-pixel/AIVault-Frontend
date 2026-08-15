@@ -1,124 +1,56 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-
 import "./globals.css";
 
-import { SITE_URL } from "@/lib/site-url";
-import TrafficTrackerProvider from "@/components/traffic-tracker-provider";
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || "https://www.aivault.pp.ua";
 
 const SITE_NAME = "AI Vault";
-
-const DEFAULT_TITLE =
-  "AI Vault — Discover the World's Best AI Software";
-
-const DEFAULT_DESCRIPTION =
-  "Discover, compare, and explore 740+ verified AI tools, developer utilities, and SaaS platforms.";
-
-const OG_IMAGE = `${SITE_URL}/og-image.png`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: DEFAULT_TITLE,
+    default: "AI Vault — Discover the World's Best AI Software",
     template: "%s | AI Vault",
   },
 
-  description: DEFAULT_DESCRIPTION,
+  description:
+    "Discover, compare, and explore 740+ verified AI tools, developer utilities, and SaaS platforms.",
 
   applicationName: SITE_NAME,
-
-  keywords: [
-    "AI tools",
-    "best AI tools",
-    "AI software",
-    "AI SaaS",
-    "artificial intelligence tools",
-    "AI tool directory",
-    "AI tools directory",
-    "AI software directory",
-    "AI directory",
-    "ChatGPT alternatives",
-    "AI productivity tools",
-    "AI coding tools",
-    "AI image generators",
-    "AI video generators",
-    "AI marketing tools",
-    "AI writing tools",
-    "AI automation tools",
-    "AI agents",
-    "developer AI tools",
-    "business AI tools",
-  ],
-
-  authors: [
-    {
-      name: SITE_NAME,
-      url: SITE_URL,
-    },
-  ],
-
-  creator: SITE_NAME,
-  publisher: SITE_NAME,
-
-  category: "technology",
-
-  alternates: {
-    canonical: SITE_URL,
-  },
 
   robots: {
     index: true,
     follow: true,
-
     googleBot: {
       index: true,
       follow: true,
-      "max-video-preview": -1,
       "max-image-preview": "large",
       "max-snippet": -1,
+      "max-video-preview": -1,
     },
+  },
+
+  alternates: {
+    canonical: SITE_URL,
   },
 
   openGraph: {
     type: "website",
     locale: "en_US",
     siteName: SITE_NAME,
+    title: "AI Vault — Discover the World's Best AI Software",
+    description:
+      "Discover, compare, and explore 740+ verified AI tools.",
     url: SITE_URL,
-
-    title: DEFAULT_TITLE,
-
-    description: DEFAULT_DESCRIPTION,
-
-    images: [
-      {
-        url: OG_IMAGE,
-        width: 1200,
-        height: 630,
-        alt: DEFAULT_TITLE,
-      },
-    ],
   },
 
   twitter: {
     card: "summary_large_image",
-
-    title: DEFAULT_TITLE,
-
-    description: DEFAULT_DESCRIPTION,
-
-    images: [OG_IMAGE],
-  },
-
-  verification: {
-    google:
-      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION ||
-      undefined,
-
-    other: {
-      "google-site-verification":
-        process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
-    },
+    title: "AI Vault — Discover the World's Best AI Software",
+    description:
+      "Discover, compare, and explore 740+ verified AI tools.",
   },
 
   icons: {
@@ -140,54 +72,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        {/* Search engine directives */}
-        <meta
-          name="robots"
-          content="index, follow"
-        />
-
-        <meta
-          name="googlebot"
-          content="index, follow, max-image-preview:large, max-video-preview:-1, max-snippet:-1"
-        />
-
-        {/* Theme */}
-        <meta
-          name="theme-color"
-          content="#ffffff"
-        />
-
-        {/* Favicon */}
-        <link
-          rel="icon"
-          href="/favicon.ico"
-        />
-
-        {/* Canonical */}
-        <link
-          rel="canonical"
-          href={SITE_URL}
-        />
-      </head>
-
-      <body>
-        {/* =====================================================
-            GLOBAL TRAFFIC TRACKING
-
-            The provider is responsible for sending analytics
-            to the existing backend traffic endpoint.
-
-            Do NOT add another tracker here.
-            This prevents duplicate requests.
-        ===================================================== */}
-        <TrafficTrackerProvider />
-
-        {/* =====================================================
-            APPLICATION
-        ===================================================== */}
-        {children}
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
