@@ -18,11 +18,9 @@ type ToolRecord = {
   overview?: string | null;
   category?: string | null;
   pricing?: string | null;
-  pricing_model?: string | null;
   score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
-  is_verified?: boolean;
   [key: string]: unknown;
 };
 
@@ -54,7 +52,7 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   const name = String(tool.name || "AI Tool");
   const slug = String(tool.slug || "").trim();
   const category = String(tool.category || "AI Tool");
-  const pricing = String(tool.pricing_model || tool.pricing || "Freemium");
+  const pricing = String(tool.pricing || "Freemium");
   
   const rawDesc = String(tool.description || tool.overview || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
@@ -130,40 +128,20 @@ function HomeContent() {
 
   useEffect(() => {
     const cat = searchParams.get("cat");
-    if (cat) setSelectedCat(cat);
+    if (cat) {
+      const match = CATEGORIES.find(c => c.name.toLowerCase() === cat.toLowerCase());
+      if (match) setSelectedCat(match.name);
+    }
   }, [searchParams]);
 
   useEffect(() => {
     async function loadCatalog() {
-      // 1. Instant Cache Check for 0ms render
-      if (typeof window !== "undefined") {
-        const cached = sessionStorage.getItem("aivault_catalog_cache");
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setTools(parsed);
-              setLoading(false);
-            }
-          } catch (e) {
-            console.error(e);
-          }
-        }
-      }
-
       try {
-        const { data, error } = await supabase
-          .from("ai_tools")
-          .select("id, slug, name, category, pricing, pricing_model, score, neural_score, ai_vault_score, overview, description, logo_url, logo");
-
+        setLoading(true);
+        // Using select("*") prevents breaking on missing columns
+        const { data, error } = await supabase.from("ai_tools").select("*");
         if (error) throw error;
-        
-        if (data && data.length > 0) {
-          setTools(data as ToolRecord[]);
-          if (typeof window !== "undefined") {
-            sessionStorage.setItem("aivault_catalog_cache", JSON.stringify(data));
-          }
-        }
+        setTools((data as ToolRecord[]) || []);
       } catch (err) {
         console.error("Error loading tools:", err);
       } finally {
@@ -176,15 +154,23 @@ function HomeContent() {
   const filteredTools = useMemo(() => {
     return tools
       .filter((t) => {
-        if (selectedCat !== "All" && (t.category || "").toLowerCase() !== selectedCat.toLowerCase()) {
-          return false;
+        // Flexible category matching
+        if (selectedCat !== "All") {
+          const toolCat = (t.category || "").toLowerCase();
+          const targetCat = selectedCat.toLowerCase();
+          if (!toolCat.includes(targetCat) && toolCat !== targetCat) {
+            return false;
+          }
         }
+        
+        // Flexible pricing matching
         if (selectedPricing !== "All") {
-          const p = (t.pricing_model || t.pricing || "").toLowerCase();
+          const p = (t.pricing || "").toLowerCase();
           if (selectedPricing === "Free" && (!p.includes("free") || p.includes("freemium"))) return false;
           if (selectedPricing === "Freemium" && !p.includes("freemium")) return false;
           if (selectedPricing === "Paid" && !p.includes("paid")) return false;
         }
+
         if (search.trim()) {
           const query = search.toLowerCase();
           const name = (t.name || "").toLowerCase();
@@ -216,8 +202,6 @@ function HomeContent() {
     setCurrentPage(p);
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
-
-  const displayCount = tools.length > 0 ? tools.length : 750;
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
@@ -274,7 +258,7 @@ function HomeContent() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${displayCount} verified AI software...`}
+              placeholder={`Search ${tools.length > 0 ? tools.length : 750} verified AI software...`}
               className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
             {search && (
@@ -352,12 +336,12 @@ function HomeContent() {
             <h2 className="text-lg font-bold text-slate-950">
               {selectedCat === "All" ? "All AI Tools" : `${selectedCat} Tools`}
               <span className="ml-2 text-xs font-bold text-slate-400">
-                (Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTools.length)} of {filteredTools.length})
+                (Showing {filteredTools.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTools.length)} of {filteredTools.length})
               </span>
             </h2>
           </div>
 
-          {loading && tools.length === 0 ? (
+          {loading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />
