@@ -6,7 +6,7 @@ import Link from "next/link";
 import ToolLogo from "@/components/ToolLogo";
 import { findTool, findRelatedTools } from "@/lib/tool-lookup";
 import { getToolHref } from "@/lib/tool-href";
-import { getAiVaultScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
+import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
 import { 
   cleanCanonicalText, 
   getDescription, 
@@ -25,18 +25,6 @@ type PageProps = {
     slug: string;
   }>;
 };
-
-/**
- * ============================================================
- * AI VAULT 3.0 — PRODUCTION TOOL DETAIL PAGE
- * ============================================================
- * Rules:
- * - Exact same production UI & layout preserved
- * - AI Vault Score normalized strictly to 0-100 format
- * - Generic AI intros ("As a Senior SEO...", "In this review...") stripped cleanly
- * - Database lookups and related tools preserved
- * ============================================================
- */
 
 async function getAllTools() {
   const supabase = await createClient();
@@ -97,9 +85,10 @@ export default async function ToolPage({
   }
 
   const toolRecord = tool as ToolRecord;
+  const toolName = String(tool.name || "AI Tool");
 
   // 1. Normalized Score (Strictly 0-100)
-  const score = getAiVaultScore(toolRecord);
+  const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
 
@@ -158,14 +147,14 @@ export default async function ToolPage({
           <span className="mx-2">/</span>
           <span>{category}</span>
           <span className="mx-2">/</span>
-          <span className="text-slate-500">{String(tool.name)}</span>
+          <span className="text-slate-500">{toolName}</span>
         </div>
 
         {/* HERO SECTION */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
             <ToolLogo
-              name={String(tool.name)}
+              name={toolName}
               src={logoSrc}
               size="lg"
             />
@@ -181,7 +170,7 @@ export default async function ToolPage({
               </div>
 
               <h1 className="text-4xl font-black tracking-tight text-slate-950 sm:text-5xl">
-                {String(tool.name)}
+                {toolName}
               </h1>
 
               <div className="mt-3">
@@ -392,13 +381,13 @@ export default async function ToolPage({
                   >
                     <div className="flex items-center gap-3">
                       <ToolLogo
-                        name={String(item.name)}
+                        name={String(item.name || "AI Tool")}
                         src={itemLogo}
                         size="sm"
                       />
                       <div className="min-w-0">
                         <h3 className="truncate text-sm font-bold text-slate-950">
-                          {String(item.name)}
+                          {String(item.name || "AI Tool")}
                         </h3>
                         <p className="text-[10px] text-slate-400">
                           {itemCategory}
@@ -450,7 +439,7 @@ export default async function ToolPage({
               AI Vault
             </p>
             <h2 className="mt-3 text-3xl font-black">
-              Ready to explore {String(tool.name)}?
+              Ready to explore {toolName}?
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm text-slate-400">
               Visit the official platform to verify the latest product information.

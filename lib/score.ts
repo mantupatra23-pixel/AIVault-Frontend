@@ -1,5 +1,4 @@
 // lib/score.ts
-import type { Tool } from "./tool-types";
 
 export function toNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === "") {
@@ -20,14 +19,14 @@ export function normalizeScore(value: unknown): number | null {
   return null;
 }
 
-export function getToolScore(tool: Tool | null | undefined): number | null {
-  if (!tool) return null;
+export function getToolScore(tool: any): number | null {
+  if (!tool || typeof tool !== "object") return null;
 
   const candidates = [
-    (tool as any).score,
-    (tool as any).ai_vault_score,
-    (tool as any).neural_score,
-    (tool as any).rating,
+    tool.score,
+    tool.ai_vault_score,
+    tool.neural_score,
+    tool.rating,
   ];
 
   for (const candidate of candidates) {
@@ -40,10 +39,10 @@ export function getToolScore(tool: Tool | null | undefined): number | null {
   return null;
 }
 
-// Alias taaki koi bhi file getAiVaultScore call kare toh crash na ho
+// Alias for universal compatibility
 export const getAiVaultScore = getToolScore;
 
-export function formatToolScore(tool: Tool | null | undefined): string {
+export function formatToolScore(tool: any): string {
   const score = getToolScore(tool);
   if (score === null || score <= 0) return "Not rated";
   return `${score}/100`;
@@ -58,7 +57,7 @@ export function formatAIScore(score: unknown): string {
 export function getScoreBarWidth(value: unknown): string {
   let normalized: number | null = null;
   if (typeof value === "object" && value !== null) {
-    normalized = getToolScore(value as Tool);
+    normalized = getToolScore(value);
   } else {
     normalized = normalizeScore(value);
   }
@@ -66,7 +65,7 @@ export function getScoreBarWidth(value: unknown): string {
   return `${Math.min(Math.max(normalized, 0), 100)}%`;
 }
 
-export function scoreLabel(tool: Tool | null | undefined): string {
+export function scoreLabel(tool: any): string {
   const score = getToolScore(tool);
   if (score === null || score <= 0) return "Not rated";
   if (score >= 90) return "Excellent";
