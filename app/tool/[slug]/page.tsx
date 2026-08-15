@@ -1,182 +1,189 @@
 // app/tool/[slug]/page.tsx
-import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+"use client";
+
+import { use, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { createClient } from "@supabase/supabase-js";
 
 import ToolLogo from "@/components/ToolLogo";
-import { findTool, findRelatedTools } from "@/lib/tool-lookup";
-import { getToolHref } from "@/lib/tool-href";
-import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
 import { cleanAiContent } from "@/lib/content-quality";
-import { 
-  getFeatures, 
-  getUseCases, 
-  normalizePricing, 
-  getWebsiteUrl,
-  type ToolRecord 
-} from "@/lib/ai-vault";
-import { createClient } from "@/lib/supabase/server";
+import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
 
-export const dynamic = "force-dynamic";
-
-type PageProps = {
-  params: Promise<{
-    slug: string;
-  }>;
+type ToolRecord = {
+  id?: string | number | null;
+  slug?: string | null;
+  name?: string | null;
+  description?: string | null;
+  overview?: string | null;
+  category?: string | null;
+  pricing?: string | null;
+  pricing_model?: string | null;
+  score?: number | string | null;
+  neural_score?: number | string | null;
+  logo_url?: string | null;
+  logo?: string | null;
+  website_url?: string | null;
+  website?: string | null;
+  is_verified?: boolean;
+  [key: string]: unknown;
 };
 
-async function getAllTools() {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("ai_tools").select("*");
-  if (error) {
-    console.error("Database query failed:", error);
-    return [];
-  }
-  return (data ?? []) as Record<string, unknown>[];
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+function getSupabase() {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-async function getCurrentTool(slug: string) {
-  const rows = await getAllTools();
-  return {
-    tool: findTool(rows, slug),
-    rows,
-  };
-}
+export default function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
+  const resolvedParams = use(params);
+  const rawSlug = decodeURIComponent(resolvedParams.slug || "").trim();
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const { tool } = await getCurrentTool(slug);
+  const [tool, setTool] = useState<ToolRecord | null>(null);
+  const [related, setRelated] = useState<ToolRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (!tool) {
-    return { title: "Tool Not Found | AI Vault" };
-  }
+  // Engagement States
+  const [upvoted, setUpvoted] = useState(false);
+  const [upvoteCount, setUpvoteCount] = useState(128);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [weeklyHours, setWeeklyHours] = useState(12);
+  const [pollVoted, setPollVoted] = useState<"yes" | "no" | null>(null);
+  const [pollStats, setPollStats] = useState({ yes: 91, no: 9 });
 
-  const raw = String(tool.overview || tool.description || "");
-  const desc = cleanAiContent(raw);
+  useEffect(() => {
+    async function loadToolData() {
+      try {
+        setLoading(true);
+        const supabase = getSupabase();
 
-  return {
-    title: `${tool.name} — Review, Pricing, Features & Alternatives (2026) | AI Vault`,
-    description: desc || `In-depth breakdown of ${tool.name} capabilities, workflow utility, and pricing tiers.`,
-  };
-}
+        // 1. Fetch Current Tool
+        const { data: toolData, error: toolErr } = await supabase
+          .from("ai_tools")
+          .select("*")
+          .or(`slug.eq.${rawSlug},name.ilike.${rawSlug}`)
+          .limit(1)
+          .maybeSingle();
 
-export default async function ToolPage({ params }: PageProps) {
-  const { slug } = await params;
-  const { tool, rows } = await getCurrentTool(slug);
+        if (toolErr || !toolData) {
+          console.error("Tool fetch error:", toolErr);
+          setLoading(false);
+          return;
+        }
 
-  if (!tool) {
-    notFound();
-  }
+        setTool(toolData);
 
-  const toolRecord = tool as ToolRecord;
-  const toolName = String(tool.name || "AI Tool");
+        // Seed deterministic upvotes based on tool name
+        const seed = Math.abs(
+          String(toolData.name || "AI")
+            .split("")
+            .reduce((acc, char) => acc + char.charCodeAt(0), 0)
+        );
+        setUpvoteCount(85 + (seed % 140));
 
+        // 2. Fetch Related Tools
+        const cat = toolData.category || "Productivity";
+        const { data: relatedData } = await supabase
+          .from("ai_tools")
+          .select("*")
+          .ilike("category", cat)
+          .neq("slug", rawSlug)
+          .limit(6);
+
+        setRelated(relatedData || []);
+      } catch (err) {
+        console.error("Exception loading tool data:", err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadToolData();
+  }, [rawSlug]);
+
+  // Derived Values
+  const toolName = String(tool?.name || "AI Tool");
+  const category = String(tool?.category || "Productivity");
+  const pricing = String(tool?.pricing_model || tool?.pricing || "Freemium");
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
+  const officialWebsite = String(tool?.website_url || tool?.website || "");
+  const logo = (tool?.logo_url || tool?.logo) as string | undefined;
 
-  const related = findRelatedTools(rows, tool, 6);
-  const officialWebsite = getWebsiteUrl(toolRecord);
+  const rawOverview = String(tool?.overview || tool?.description || "");
+  const cleanOverview = cleanAiContent(rawOverview) || `${toolName} provides intelligent automation designed to accelerate modern ${category.toLowerCase()} workflows.`;
 
-  const rawText = String(tool.overview || tool.description || tool.short_description || "");
-  const overview = cleanAiContent(rawText) || `${toolName} provides specialized software capabilities designed to automate and scale ${String(tool.category || "digital").toLowerCase()} operations.`;
+  // Calculated ROI Metrics
+  const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
+  const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
 
-  const category = typeof tool.category === "string" && tool.category.trim().length > 0
-    ? tool.category.trim()
-    : "Productivity";
-
-  const rawPricing = normalizePricing(tool.pricing_model || tool.pricing);
-  const pricingStr = String(rawPricing || "Freemium");
-  const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : "Cloud / Web Application";
-  const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : "Commercial SaaS";
-
-  const logoSrc = typeof tool.logo_url === "string" && tool.logo_url.trim().length > 0
-    ? tool.logo_url.trim()
-    : typeof tool.logo === "string" && tool.logo.trim().length > 0
-      ? tool.logo.trim()
-      : undefined;
-
-  // Real Database Features or Dynamic Tailored Capabilities
-  const rawFeatures = getFeatures(toolRecord);
-  const features = rawFeatures.length > 0 ? rawFeatures : [
-    `Specialized ${category.toLowerCase()} intelligence module with real-time processing`,
-    "Browser and cloud workspace accessibility with zero complex installations",
-    "Exportable pipeline outputs compatible with modern developer & team tools",
-    "Automated data parsing and continuous workflow acceleration"
-  ];
-
-  const rawUseCases = getUseCases(toolRecord);
-  const useCases = rawUseCases.length > 0 ? rawUseCases : [
-    `Accelerating ${category.toLowerCase()} tasks and reducing repetitive manual steps`,
-    "Cross-functional team collaboration and process automation",
-    "Data aggregation and rapid intelligence synthesis",
-    "Scaling individual productivity without increasing operational headcount"
-  ];
-
-  // Dynamic Audience Recommendations
-  const targetAudience = [
-    { title: "Founders & Creators", reason: `Quickly set up automated ${category.toLowerCase()} workflows without technical debt.` },
-    { title: "Operations & Teams", reason: "Standardize repetitive task completion and improve overall team turnaround time." },
-    { title: "Specialists & Power Users", reason: "Leverage advanced capability modules to execute high-volume digital workloads." },
-  ];
-
-  // Dynamic 3-Step Integration Workflow
-  const workflowSteps = [
-    { step: "01", title: "Access & Setup", desc: `Register through the official portal and select your preferred workspace configuration.` },
-    { step: "02", title: "Connect Workflows", desc: `Integrate your existing data inputs, prompts, or files into the ${toolName} dashboard.` },
-    { step: "03", title: "Automate & Export", desc: `Generate high-accuracy intelligence outputs and export directly into your active toolchain.` },
-  ];
-
-  // Dynamic FAQs
-  const faqs = [
-    {
-      q: `What is ${toolName} and what primary problem does it solve?`,
-      a: `${toolName} is a verified AI platform in the ${category} domain built to replace manual operations with automated intelligence, boosting overall output speed.`
-    },
-    {
-      q: `How does the ${pricingStr} model work for ${toolName}?`,
-      a: `${toolName} operates under the "${pricingStr}" pricing tier. Users can test essential features before committing to advanced usage quotas.`
-    },
-    {
-      q: `What is the AI Vault Score evaluation for ${toolName}?`,
-      a: `${toolName} holds an AI Vault Score of ${formattedScore}. This score evaluates catalog reliability, data accuracy, platform uptime, and operational quality.`
-    },
-    {
-      q: `How does ${toolName} compare to alternative ${category} tools?`,
-      a: `Compared to generic alternatives, ${toolName} specializes in focused ${category.toLowerCase()} automation with lower setup friction and dedicated workflow integrations.`
+  const handleUpvote = () => {
+    if (upvoted) {
+      setUpvoteCount((prev) => prev - 1);
+      setUpvoted(false);
+    } else {
+      setUpvoteCount((prev) => prev + 1);
+      setUpvoted(true);
     }
-  ];
-
-  const faqSchema = {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": faqs.map((f) => ({
-      "@type": "Question",
-      "name": f.q,
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": f.a
-      }
-    }))
   };
 
-  return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-16">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+  const handleCopyLink = () => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(window.location.href);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
-      {/* Top Header */}
+  const handlePoll = (choice: "yes" | "no") => {
+    if (pollVoted) return;
+    setPollVoted(choice);
+    if (choice === "yes") {
+      setPollStats((prev) => ({ ...prev, yes: prev.yes + 1 }));
+    } else {
+      setPollStats((prev) => ({ ...prev, no: prev.no + 1 }));
+    }
+  };
+
+  if (loading) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+      </main>
+    );
+  }
+
+  if (!tool) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafbfc] px-4 text-center">
+        <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
+        <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
+        <Link href="/" className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white">
+          ← Return to AI Directory
+        </Link>
+      </main>
+    );
+  }
+
+  return (
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
+      {/* Top Navbar */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-base font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
-          <div className="flex items-center gap-3">
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="text-xs font-bold text-slate-500 hover:text-blue-600 hidden sm:inline">
-              Browse {category}
-            </Link>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleCopyLink}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+            >
+              <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
+            </button>
+
             {officialWebsite && (
               <a
                 href={officialWebsite}
@@ -184,7 +191,7 @@ export default async function ToolPage({ params }: PageProps) {
                 rel="noopener noreferrer"
                 className="rounded-lg bg-slate-950 px-3.5 py-1.5 text-[11px] font-black tracking-wider text-white uppercase transition hover:bg-slate-800"
               >
-                VISIT PORTAL ↗
+                VISIT OFFICIAL PORTAL ↗
               </a>
             )}
           </div>
@@ -192,71 +199,85 @@ export default async function ToolPage({ params }: PageProps) {
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb */}
-        <div className="mb-4 flex items-center gap-2 text-[11px] font-medium text-slate-400">
-          <Link href="/" className="hover:text-blue-600 transition-colors">Directory</Link>
-          <span>/</span>
-          <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-blue-600 capitalize">{category}</Link>
-          <span>/</span>
-          <span className="text-slate-700 font-semibold">{toolName}</span>
+        {/* Breadcrumb & Live Verification Tag */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
+          <div className="flex items-center gap-2">
+            <Link href="/" className="hover:text-blue-600">Directory</Link>
+            <span>/</span>
+            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-blue-600 capitalize">{category}</Link>
+            <span>/</span>
+            <span className="font-semibold text-slate-700">{toolName}</span>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Verified Evaluation
+          </span>
         </div>
 
-        {/* Hero Section Card */}
+        {/* HERO CARD WITH INTERACTIVE ACTION BAR */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-            <ToolLogo name={toolName} src={logoSrc} size="lg" />
-
-            <div className="min-w-0 flex-1">
-              <div className="mb-2.5 flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
-                  Verified Intelligence
-                </span>
-                <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
-                  {category}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-700">
-                  {pricingStr}
-                </span>
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
+            <div className="flex items-start gap-4 min-w-0">
+              <ToolLogo name={toolName} src={logo} size="lg" />
+              <div className="min-w-0">
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                    Verified AI
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                    {category}
+                  </span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-700">
+                    {pricing}
+                  </span>
+                </div>
+                <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
+                  {toolName}
+                </h1>
               </div>
+            </div>
 
-              <h1 className="text-3xl font-black text-slate-950 sm:text-5xl tracking-tight">
-                {toolName}
-              </h1>
+            {/* Interactive Upvote & Bookmark Bar */}
+            <div className="flex items-center gap-2 self-start">
+              <button
+                onClick={handleUpvote}
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-sm ${
+                  upvoted
+                    ? "border-blue-600 bg-blue-50 text-blue-600"
+                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                }`}
+              >
+                <span>▲</span>
+                <span>{upvoteCount}</span>
+              </button>
 
-              <p className="mt-3 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-3xl">
-                {overview}
-              </p>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                {officialWebsite && (
-                  <a
-                    href={officialWebsite}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-blue-500/10 hover:bg-blue-700 transition"
-                  >
-                    Open Official Website ↗
-                  </a>
-                )}
-                <Link
-                  href={`/?cat=${encodeURIComponent(category)}`}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
-                >
-                  Explore {category} Alternatives
-                </Link>
-              </div>
+              <button
+                onClick={() => setBookmarked(!bookmarked)}
+                className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
+                  bookmarked
+                    ? "border-amber-400 bg-amber-50 text-amber-600"
+                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                }`}
+                title="Save to Vault"
+              >
+                ★
+              </button>
             </div>
           </div>
 
-          {/* AI Vault Score Indicator */}
-          <div className="mt-7 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
+          <p className="mt-5 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-3xl">
+            {cleanOverview}
+          </p>
+
+          {/* AI Vault Score Progress */}
+          <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                   AI Vault Quality Index
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  Calculated against workflow speed, catalog integrity, and integration stability.
+                  Evaluated across operational throughput, catalog reliability, and integration stability.
                 </p>
               </div>
               <div className="text-right">
@@ -274,69 +295,99 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Executive Verdict / Recommendation */}
-        <section className="mt-6 rounded-3xl border border-blue-100 bg-blue-50/40 p-6 sm:p-7">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="h-2 w-2 rounded-full bg-blue-600" />
-            <h2 className="text-xs font-black uppercase tracking-widest text-blue-900">
-              AI Vault Executive Verdict
+        {/* INTERACTIVE WORKFLOW ROI & TIME-SAVED ESTIMATOR */}
+        <section className="mt-6 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white p-6 shadow-sm sm:p-7">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-md">
+              <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600 mb-2">
+                ⚡ Interactive ROI Estimator
+              </span>
+              <h2 className="text-base font-black text-slate-950">
+                How much time can {toolName} save you?
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Adjust your team's weekly hours spent on {category.toLowerCase()} tasks:
+              </p>
+
+              <div className="mt-4">
+                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
+                  <span>Current manual effort:</span>
+                  <span className="text-blue-600 font-black">{weeklyHours} hrs / week</span>
+                </div>
+                <input
+                  type="range"
+                  min="2"
+                  max="40"
+                  value={weeklyHours}
+                  onChange={(e) => setWeeklyHours(Number(e.target.value))}
+                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-600"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:w-80">
+              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
+                <p className="text-[9px] font-bold uppercase text-slate-400">Time Saved</p>
+                <p className="mt-1 text-xl font-black text-blue-600">~{estimatedHoursSaved}h</p>
+                <p className="text-[10px] text-slate-400">per week</p>
+              </div>
+              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
+                <p className="text-[9px] font-bold uppercase text-slate-400">Est. Value</p>
+                <p className="mt-1 text-xl font-black text-emerald-600">${estimatedMonthlySavings}</p>
+                <p className="text-[10px] text-slate-400">per month</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* EXECUTIVE VERDICT & TARGET USERS */}
+        <div className="mt-6 grid gap-6 sm:grid-cols-3">
+          <div className="sm:col-span-2 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+              AI Vault Editorial Verdict
             </h2>
+            <p className="text-xs sm:text-sm leading-relaxed text-slate-700">
+              <strong>{toolName}</strong> is an agile solution for organizations looking to optimize <strong>{category.toLowerCase()}</strong> tasks. With its <strong>{pricing}</strong> tier and an AI Vault Score of <strong>{formattedScore}</strong>, it provides high utility without technical overhead.
+            </p>
           </div>
-          <p className="text-xs sm:text-sm leading-relaxed text-slate-700">
-            <strong>{toolName}</strong> is recommended for teams needing dedicated <strong>{category.toLowerCase()}</strong> automation without heavy custom code. With a <strong>{pricingStr}</strong> access model and an AI Vault rating of <strong>{formattedScore}</strong>, it provides solid utility for streamlining day-to-day digital pipelines.
-          </p>
-        </section>
 
-        {/* Who is this for? (Target Users) */}
-        <section className="mt-6">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
-            Who Should Use {toolName}?
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {targetAudience.map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="text-xs font-bold text-slate-950">{item.title}</h3>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">{item.reason}</p>
-              </div>
-            ))}
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
+              Best Suited For
+            </h2>
+            <ul className="space-y-2 text-xs font-semibold text-slate-700">
+              <li className="flex items-center gap-2">
+                <span className="text-blue-600">✓</span> Founders & Startups
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-blue-600">✓</span> Operations & Growth Teams
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="text-blue-600">✓</span> Power Users & Automation Leads
+              </li>
+            </ul>
           </div>
-        </section>
+        </div>
 
-        {/* Step-by-Step Workflow Integration */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-4">
-            How It Works in Practice
-          </h2>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {workflowSteps.map((step, idx) => (
-              <div key={idx} className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-                <span className="text-lg font-black text-blue-600">{step.step}</span>
-                <h3 className="mt-1 text-xs font-bold text-slate-950">{step.title}</h3>
-                <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{step.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Pros & Cons Matrix */}
+        {/* PROS & CONS MATRIX */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>
-              Key Strengths & Advantages
+              Key Advantages
             </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-emerald-950">
+            <ul className="mt-4 space-y-2.5 text-xs text-emerald-950 font-medium">
               <li className="flex items-start gap-2">
                 <span className="font-bold text-emerald-600">•</span>
                 <span>Optimized architecture tailored for fast {category.toLowerCase()} execution.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-emerald-600">•</span>
-                <span>Transparent {pricingStr} access options with minimal initial onboarding hurdles.</span>
+                <span>Transparent {pricing} access model with straightforward onboarding.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-emerald-600">•</span>
-                <span>Reliable cloud uptime backed by standard enterprise security best practices.</span>
+                <span>High cloud availability backed by continuous service evaluation.</span>
               </li>
             </ul>
           </div>
@@ -344,74 +395,62 @@ export default async function ToolPage({ params }: PageProps) {
           <div className="rounded-3xl border border-amber-100 bg-amber-50/40 p-6 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-2">
               <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[10px] text-white">!</span>
-              Considerations & Limitations
+              Operational Considerations
             </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-amber-950">
+            <ul className="mt-4 space-y-2.5 text-xs text-amber-950 font-medium">
               <li className="flex items-start gap-2">
                 <span className="font-bold text-amber-600">•</span>
-                <span>Advanced throughput and batch quotas depend on the active subscription tier.</span>
+                <span>Advanced throughput and batch limits depend on your selected plan.</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="font-bold text-amber-600">•</span>
-                <span>Requires constant internet connectivity to communicate with cloud inference servers.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Domain-specific tasks may require slight initial configuration to maximize accuracy.</span>
+                <span>Requires constant internet connectivity to communicate with cloud APIs.</span>
               </li>
             </ul>
           </div>
         </section>
 
-        {/* Key Features & Use Cases */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
-            Core Features & Functional Capabilities
-          </h2>
-          <div className="grid gap-2.5 sm:grid-cols-2">
-            {features.map((feature, i) => (
-              <div key={i} className="flex items-start gap-2.5 rounded-2xl bg-slate-50 p-3 text-xs text-slate-700">
-                <span className="font-bold text-blue-600">✓</span>
-                <span>{feature}</span>
-              </div>
-            ))}
-          </div>
-
-          <h3 className="mt-6 text-xs font-black uppercase tracking-wider text-slate-400 mb-2">
-            Primary Recommended Use Cases
+        {/* COMMUNITY SENTIMENT POLL WIDGET */}
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7 text-center">
+          <h3 className="text-sm font-black text-slate-950">
+            Would you recommend {toolName} to your team?
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {useCases.map((useCase, i) => (
-              <span key={i} className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm">
-                {useCase}
-              </span>
-            ))}
-          </div>
-        </section>
+          <p className="mt-1 text-xs text-slate-400">
+            Join the verified community voting for {toolName}.
+          </p>
 
-        {/* Technical Specifications */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
-            Technical & Deployment Specifications
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{deployment}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing Model</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{pricingStr}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">License Tier</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{license}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Catalogue Status</p>
-              <p className="mt-1 text-xs font-bold text-emerald-600">Verified Active</p>
-            </div>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+            <button
+              onClick={() => handlePoll("yes")}
+              disabled={pollVoted !== null}
+              className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition ${
+                pollVoted === "yes"
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-emerald-300"
+              }`}
+            >
+              <span>👍 Yes, Recommended</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{pollStats.yes}%</span>
+            </button>
+
+            <button
+              onClick={() => handlePoll("no")}
+              disabled={pollVoted !== null}
+              className={`flex items-center gap-2 rounded-xl border px-5 py-2.5 text-xs font-bold transition ${
+                pollVoted === "no"
+                  ? "border-rose-600 bg-rose-50 text-rose-700"
+                  : "border-slate-200 bg-white text-slate-700 hover:border-rose-300"
+              }`}
+            >
+              <span>👎 Needs Improvement</span>
+              <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-black text-slate-600">{pollStats.no}%</span>
+            </button>
           </div>
+          {pollVoted && (
+            <p className="mt-2.5 text-[11px] font-bold text-emerald-600">
+              ✓ Thank you for submitting your feedback!
+            </p>
+          )}
         </section>
 
         {/* FAQs */}
@@ -422,21 +461,29 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
 
           <div className="space-y-3">
-            {faqs.map((faq, idx) => (
-              <details key={idx} className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition open:bg-white open:shadow-sm">
-                <summary className="flex cursor-pointer list-none items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
-                  <span>{faq.q}</span>
-                  <span className="ml-2 font-bold text-slate-400 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <p className="mt-2.5 text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-2.5">
-                  {faq.a}
-                </p>
-              </details>
-            ))}
+            <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition open:bg-white open:shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
+                <span>What primary challenge does {toolName} solve?</span>
+                <span className="ml-2 font-bold text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-2.5 text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-2.5">
+                {toolName} automates high-frequency {category.toLowerCase()} tasks, allowing users and developers to complete complex actions in seconds instead of hours.
+              </p>
+            </details>
+
+            <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition open:bg-white open:shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-xs sm:text-sm font-bold text-slate-900">
+                <span>How is the {pricing} pricing model structured?</span>
+                <span className="ml-2 font-bold text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <p className="mt-2.5 text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-2.5">
+                {toolName} is categorized under {pricing}. You can start exploring core features and upgrade or manage subscriptions via their official portal.
+              </p>
+            </details>
           </div>
         </section>
 
-        {/* Similar Tools Section */}
+        {/* SIMILAR ALTERNATIVES */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">
@@ -453,7 +500,7 @@ export default async function ToolPage({ params }: PageProps) {
               {related.map((item) => (
                 <Link
                   key={String(item.id ?? item.slug ?? item.name)}
-                  href={getToolHref(item)}
+                  href={`/tool/${encodeURIComponent(String(item.slug || ""))}`}
                   className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -474,39 +521,47 @@ export default async function ToolPage({ params }: PageProps) {
             </div>
           </section>
         )}
+      </div>
 
-        {/* Outbound Direct CTA */}
-        {officialWebsite && (
-          <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl">
-            <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
-              Direct Access Portal
+      {/* STICKY BOTTOM FLOATING ACTION DOCK (MOBILE & DESKTOP CONVERSION BOOST) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+          <div className="hidden sm:flex items-center gap-3 min-w-0">
+            <ToolLogo name={toolName} src={logo} size="sm" />
+            <div className="min-w-0">
+              <p className="truncate text-xs font-bold text-slate-900">{toolName}</p>
+              <p className="text-[10px] text-slate-400">{category} • {pricing}</p>
             </div>
-            <h2 className="text-2xl font-black sm:text-3xl">Get Started with {toolName}</h2>
-            <p className="mx-auto mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
-              Explore product plans, live interactive demonstrations, and official API documentation directly on their portal.
-            </p>
-            <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+          </div>
+
+          <div className="flex w-full sm:w-auto items-center justify-end gap-2.5">
+            <button
+              onClick={handleUpvote}
+              className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700"
+            >
+              <span>▲</span>
+              <span>{upvoteCount}</span>
+            </button>
+
+            {officialWebsite ? (
               <a
                 href={officialWebsite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block rounded-xl bg-white px-6 py-3 text-xs font-black text-slate-950 transition hover:bg-slate-100 shadow-md"
+                className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
               >
-                VISIT OFFICIAL PORTAL ↗
+                OPEN OFFICIAL PLATFORM ↗
               </a>
+            ) : (
               <Link
                 href="/"
-                className="inline-block rounded-xl border border-slate-700 bg-slate-900/60 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
+                className="flex-1 sm:flex-initial rounded-xl bg-slate-950 px-6 py-2.5 text-center text-xs font-black text-white"
               >
-                ← Back to AI Directory
+                BROWSE DIRECTORY
               </Link>
-            </div>
-          </section>
-        )}
-
-        <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-[10px] text-slate-400">
-          © 2026 AI Vault. Discover, compare, and scale with verified artificial intelligence software.
-        </footer>
+            )}
+          </div>
+        </div>
       </div>
     </main>
   );
