@@ -47,13 +47,15 @@ function CompareContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpenForSlot, setSearchOpenForSlot] = useState<number | null>(null);
 
-  // Load Catalog
   useEffect(() => {
     async function loadCatalog() {
       try {
         setLoading(true);
         const supabase = getSupabase();
-        const { data, error } = await supabase.from("ai_tools").select("*").order("name", { ascending: true });
+        const { data, error } = await supabase
+          .from("ai_tools")
+          .select("*")
+          .order("name", { ascending: true });
         if (error) throw error;
         setAllTools((data as ToolRecord[]) || []);
       } catch (err) {
@@ -65,16 +67,24 @@ function CompareContent() {
     loadCatalog();
   }, []);
 
-  // Sync with URL params
   useEffect(() => {
     if (allTools.length === 0) return;
 
     const rawParam = searchParams.get("tools") || "";
-    const slugs = rawParam.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const slugs = rawParam
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean);
 
     if (slugs.length > 0) {
       const matched = slugs
-        .map((s) => allTools.find((t) => (t.slug || "").toLowerCase() === s || (t.name || "").toLowerCase() === s))
+        .map((s) =>
+          allTools.find(
+            (t) =>
+              (t.slug || "").toLowerCase() === s ||
+              (t.name || "").toLowerCase() === s
+          )
+        )
         .filter((t): t is ToolRecord => Boolean(t));
 
       if (matched.length > 0) {
@@ -83,15 +93,16 @@ function CompareContent() {
       }
     }
 
-    // Default: Pick top 2 tools if no URL params
     if (allTools.length >= 2) {
       setSelectedTools([allTools[0], allTools[1]]);
     }
   }, [allTools, searchParams]);
 
-  // Update URL on Tool Selection
   const updateComparisonUrl = (tools: ToolRecord[]) => {
-    const slugs = tools.map((t) => t.slug || t.name || "").filter(Boolean).join(",");
+    const slugs = tools
+      .map((t) => t.slug || t.name || "")
+      .filter(Boolean)
+      .join(",");
     if (slugs) {
       router.push(`/compare?tools=${encodeURIComponent(slugs)}`);
     } else {
@@ -120,18 +131,20 @@ function CompareContent() {
     updateComparisonUrl(next);
   };
 
-  // Filter for Search Modal
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return allTools.slice(0, 8);
     const q = searchQuery.toLowerCase();
     return allTools
-      .filter((t) => (t.name || "").toLowerCase().includes(q) || (t.category || "").toLowerCase().includes(q))
+      .filter(
+        (t) =>
+          (t.name || "").toLowerCase().includes(q) ||
+          (t.category || "").toLowerCase().includes(q)
+      )
       .slice(0, 8);
   }, [allTools, searchQuery]);
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
-      {/* Top Bar */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -146,7 +159,6 @@ function CompareContent() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Header Title */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <span className="inline-block rounded-full bg-blue-600/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">
             Side-by-Side Intelligence
@@ -159,7 +171,6 @@ function CompareContent() {
           </p>
         </div>
 
-        {/* TOOL SELECTOR BAR (SLOTS) */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -215,7 +226,6 @@ function CompareContent() {
           })}
         </div>
 
-        {/* COMPARISON MATRIX TABLE */}
         {selectedTools.length > 0 ? (
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
@@ -228,7 +238,7 @@ function CompareContent() {
                     {selectedTools.map((t, i) => (
                       <th key={i} className="p-4 text-xs font-black text-slate-950 w-1/4">
                         <div className="flex items-center gap-2">
-                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="xs" />
+                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
                           <span className="truncate">{String(t.name)}</span>
                         </div>
                       </th>
@@ -237,7 +247,6 @@ function CompareContent() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 text-xs">
-                  {/* AI Vault Score */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                     {selectedTools.map((t, i) => {
@@ -255,7 +264,6 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Pricing Tier */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
                     {selectedTools.map((t, i) => (
@@ -267,7 +275,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Primary Category */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Category</td>
                     {selectedTools.map((t, i) => (
@@ -277,7 +284,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Overview Breakdown */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
@@ -287,7 +293,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Deployment Model */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
@@ -297,7 +302,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Direct Action Link */}
                   <tr className="bg-slate-50/40">
                     <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
@@ -335,7 +339,6 @@ function CompareContent() {
         ) : null}
       </div>
 
-      {/* TOOL SEARCH MODAL */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -366,7 +369,7 @@ function CompareContent() {
                   className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="xs" />
+                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-900 truncate">{String(t.name)}</p>
                       <p className="text-[10px] text-slate-400 capitalize">{String(t.category || "AI")}</p>
