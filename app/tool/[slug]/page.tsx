@@ -24,6 +24,7 @@ type ToolRecord = {
   logo?: string | null;
   website_url?: string | null;
   website?: string | null;
+  affiliate_url?: string | null;
   deployment?: string | null;
   license?: string | null;
   [key: string]: unknown;
@@ -49,17 +50,11 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
   const [weeklyHours, setWeeklyHours] = useState(14);
-  const [pollVoted, setPollVoted] = useState<"yes" | "no" | null>(null);
-  const [pollStats, setPollStats] = useState({ yes: 94, no: 6 });
-
   const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
   const [notionExported, setNotionExported] = useState(false);
 
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
-
-  const [alertEmail, setAlertEmail] = useState("");
-  const [alertSubscribed, setAlertSubscribed] = useState(false);
 
   // Initialize Bookmark from LocalStorage
   useEffect(() => {
@@ -131,14 +126,18 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
-  const officialWebsite = String(tool?.website_url || tool?.website || "");
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
+  // SMART AFFILIATE TRACKER LINK
+  const outboundAffiliateLink = `/go/${encodeURIComponent(rawSlug)}`;
+
   const rawOverview = String(tool?.overview || tool?.description || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
-    .replace(/As a Senior SEO[^.]*\.\s*/gi, "");
+    .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
+    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
+    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "");
 
   const cleanOverview =
     cleanAiContent(rawOverview) ||
@@ -234,15 +233,10 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 - **Category**: ${category}
 - **Pricing**: ${pricing}
 - **AI Vault Score**: ${formattedScore}
-- **Official URL**: ${officialWebsite || "N/A"}
+- **Access Link**: https://aivault.pp.ua/go/${encodeURIComponent(rawSlug)}
 
 ## Overview
 ${cleanOverview}
-
-## Key Capabilities
-- Automated ${category.toLowerCase()} pipeline execution
-- Instant cloud workspace integration
-- Verified high-throughput reliability
 
 Generated via AI Vault (https://aivault.pp.ua)`;
 
@@ -250,24 +244,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
       navigator.clipboard.writeText(markdown);
       setNotionExported(true);
       setTimeout(() => setNotionExported(false), 2500);
-    }
-  };
-
-  const handlePoll = (choice: "yes" | "no") => {
-    if (pollVoted) return;
-    setPollVoted(choice);
-    if (choice === "yes") {
-      setPollStats((prev) => ({ ...prev, yes: prev.yes + 1 }));
-    } else {
-      setPollStats((prev) => ({ ...prev, no: prev.no + 1 }));
-    }
-  };
-
-  const handleAlertSubscribe = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (alertEmail && alertEmail.includes("@")) {
-      setAlertSubscribed(true);
-      setAlertEmail("");
     }
   };
 
@@ -297,25 +273,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
     "Centralizing real-time analytics and task management."
   ];
 
-  const faqs = [
-    {
-      q: `What primary problem does ${toolName} solve?`,
-      a: `${toolName} solves operational delays in ${category.toLowerCase()} by applying machine learning automation to deliver structured results in seconds.`
-    },
-    {
-      q: `How is ${toolName}'s ${pricing} model structured?`,
-      a: `Under the ${pricing} tier, users can access essential features immediately. Expanded limits and premium capabilities are managed through the official portal.`
-    },
-    {
-      q: `Who should use ${toolName}?`,
-      a: `It is built for founders, growth teams, and specialists looking to increase productivity in ${category.toLowerCase()} without technical friction.`
-    },
-    {
-      q: `What does the AI Vault Score (${formattedScore}) mean?`,
-      a: `The AI Vault Score benchmarks catalog reliability, verified uptime, feature completeness, and user feedback quality.`
-    }
-  ];
-
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
@@ -329,7 +286,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
       <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafbfc] px-4 text-center">
         <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
         <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
-        <Link href="/" className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white">
+        <Link href="/" className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md">
           ← Return to Directory
         </Link>
       </main>
@@ -367,16 +324,15 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
 
-            {officialWebsite && (
-              <a
-                href={officialWebsite}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
-              >
-                Visit Website ↗
-              </a>
-            )}
+            {/* Smart Affiliate Outbound Button */}
+            <a
+              href={outboundAffiliateLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
+            >
+              Visit Website ↗
+            </a>
           </div>
         </div>
       </header>
@@ -436,7 +392,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 onClick={handleBookmarkToggle}
                 className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
                   bookmarked
-                    ? "border-amber-400 bg-amber-50 text-amber-600"
+                    ? "border-amber-400 bg-amber-50 text-amber-600 font-bold"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
                 title={bookmarked ? "Saved in Vault" : "Save to Vault"}
@@ -519,7 +475,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 </div>
                 <button
                   onClick={() => handleCopyPrompt(item.prompt, idx)}
-                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-950 py-2 text-xs font-bold text-white transition hover:bg-indigo-600"
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white transition hover:bg-blue-700 shadow-md shadow-blue-500/20"
                 >
                   <span>{copiedPromptIndex === idx ? "✓ Copied to Clipboard!" : "📋 Copy Prompt Template"}</span>
                 </button>
@@ -541,7 +497,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 <button
                   onClick={() => setQuizBudget("free")}
                   className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "free" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                    quizBudget === "free" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
                   }`}
                 >
                   Free / Low Cost
@@ -549,7 +505,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 <button
                   onClick={() => setQuizBudget("paid")}
                   className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "paid" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                    quizBudget === "paid" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
                   }`}
                 >
                   Paid SaaS Budget
@@ -563,7 +519,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 <button
                   onClick={() => setQuizTeam("solo")}
                   className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "solo" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                    quizTeam === "solo" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
                   }`}
                 >
                   Solo / Founder
@@ -571,7 +527,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 <button
                   onClick={() => setQuizTeam("team")}
                   className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "team" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                    quizTeam === "team" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
                   }`}
                 >
                   Growing Team
@@ -591,10 +547,10 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 </p>
               </div>
               <a
-                href={officialWebsite || "#"}
+                href={outboundAffiliateLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800"
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm"
               >
                 Proceed ↗
               </a>
@@ -839,7 +795,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </section>
         )}
 
-        {/* BOTTOM CTA BANNER */}
+        {/* BOTTOM CTA BANNER (WITH SMART AFFILIATE OUTBOUND) */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
@@ -849,23 +805,14 @@ Generated via AI Vault (https://aivault.pp.ua)`;
             Explore pricing tiers, interactive demonstrations, and official documentation directly on their portal.
           </p>
           <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            {officialWebsite ? (
-              <a
-                href={officialWebsite}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
-              >
-                VISIT OFFICIAL PORTAL ↗
-              </a>
-            ) : (
-              <Link
-                href="/"
-                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white"
-              >
-                EXPLORE ALL TOOLS ↗
-              </Link>
-            )}
+            <a
+              href={outboundAffiliateLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
+            >
+              VISIT OFFICIAL PORTAL ↗
+            </a>
             <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
               className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
@@ -880,7 +827,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
         </footer>
       </div>
 
-      {/* STICKY BOTTOM ACTION DOCK */}
+      {/* STICKY BOTTOM ACTION DOCK (WITH SMART AFFILIATE OUTBOUND) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
@@ -899,23 +846,14 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               ⚖️ Compare
             </Link>
 
-            {officialWebsite ? (
-              <a
-                href={officialWebsite}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
-              >
-                OPEN OFFICIAL PLATFORM ↗
-              </a>
-            ) : (
-              <Link
-                href="/"
-                className="flex-1 sm:flex-initial rounded-xl bg-slate-950 px-6 py-2.5 text-center text-xs font-black text-white"
-              >
-                BROWSE DIRECTORY
-              </Link>
-            )}
+            <a
+              href={outboundAffiliateLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
+            >
+              OPEN OFFICIAL PLATFORM ↗
+            </a>
           </div>
         </div>
       </div>

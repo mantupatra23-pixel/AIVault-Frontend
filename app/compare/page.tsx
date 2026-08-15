@@ -25,6 +25,7 @@ type ToolRecord = {
   logo?: string | null;
   website_url?: string | null;
   website?: string | null;
+  affiliate_url?: string | null;
   deployment?: string | null;
   license?: string | null;
   [key: string]: unknown;
@@ -302,25 +303,23 @@ function CompareContent() {
                     ))}
                   </tr>
 
+                  {/* SMART AFFILIATE OUTBOUND ACTION */}
                   <tr className="bg-slate-50/40">
                     <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
-                      const url = String(t.website_url || t.website || "");
                       const slug = String(t.slug || "");
 
                       return (
                         <td key={i} className="p-4">
                           <div className="flex flex-col gap-2">
-                            {url ? (
-                              <a
-                                href={url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
-                              >
-                                Visit Portal ↗
-                              </a>
-                            ) : null}
+                            <a
+                              href={`/go/${encodeURIComponent(slug)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
+                            >
+                              Visit Portal ↗
+                            </a>
                             <Link
                               href={`/tool/${encodeURIComponent(slug)}`}
                               className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
