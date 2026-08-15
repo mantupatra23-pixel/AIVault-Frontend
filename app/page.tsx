@@ -27,33 +27,24 @@ import { SITE_URL } from "@/lib/site-url";
 
 type ToolRecord = {
   id?: string | number | null;
-
   slug?: string | null;
-
   name?: string | null;
 
   description?: string | null;
-
   short_description?: string | null;
-
   overview?: string | null;
 
   category?: string | null;
 
   pricing?: string | null;
-
   pricing_model?: string | null;
 
   score?: number | string | null;
-
   ai_vault_score?: number | string | null;
 
   logo_url?: string | null;
-
   logo?: string | null;
-
   image_url?: string | null;
-
   icon_url?: string | null;
 
   verified?: boolean | null;
@@ -179,7 +170,8 @@ function cleanGeneratedContent(
     return "";
   }
 
-  let text = value.trim();
+  let text =
+    value.trim();
 
   if (!text) {
     return "";
@@ -200,28 +192,21 @@ function cleanGeneratedContent(
 
     /I have conducted an in-depth analysis of\s*/gi,
 
-    /I have conducted an in-depth analysis of this\s*/gi,
-
     /I have analyzed\s*/gi,
 
     /We will delve into\s*/gi,
 
     /we will delve into\s*/gi,
-
-    /With the ever-evolving landscape of\s*/gi,
-
-    /our Professional Review of\s*/gi,
-
-    /Best .*? Alternatives available in the market/gi,
   ];
 
   for (
     const pattern of patterns
   ) {
-    text = text.replace(
-      pattern,
-      ""
-    );
+    text =
+      text.replace(
+        pattern,
+        ""
+      );
   }
 
   return text
@@ -490,12 +475,12 @@ function Vault3DHero({
           opacity: 0.16;
           background-image:
             linear-gradient(
-              rgba(255, 255, 255, 0.035) 1px,
+              rgba(255,255,255,0.035) 1px,
               transparent 1px
             ),
             linear-gradient(
               90deg,
-              rgba(255, 255, 255, 0.035) 1px,
+              rgba(255,255,255,0.035) 1px,
               transparent 1px
             );
           background-size: 48px 48px;
@@ -519,8 +504,8 @@ function Vault3DHero({
           background:
             radial-gradient(
               circle,
-              rgba(99, 102, 241, 0.25),
-              rgba(79, 70, 229, 0.12) 35%,
+              rgba(99,102,241,0.25),
+              rgba(79,70,229,0.12) 35%,
               transparent 70%
             );
           filter: blur(20px);
@@ -564,18 +549,18 @@ function Vault3DHero({
             );
           border:
             1px solid
-            rgba(147, 197, 253, 0.7);
+            rgba(147,197,253,0.7);
           box-shadow:
             0 0 20px
-              rgba(96, 165, 250, 0.9),
+              rgba(96,165,250,0.9),
             0 0 70px
-              rgba(99, 102, 241, 0.65),
+              rgba(99,102,241,0.65),
             0 0 150px
-              rgba(79, 70, 229, 0.38),
+              rgba(79,70,229,0.38),
             inset -20px -25px 45px
-              rgba(0, 0, 0, 0.55),
+              rgba(0,0,0,0.55),
             inset 15px 15px 30px
-              rgba(255, 255, 255, 0.25);
+              rgba(255,255,255,0.25);
           animation:
             coreFloat 3.8s
             ease-in-out infinite;
@@ -588,12 +573,12 @@ function Vault3DHero({
           border-radius: 50%;
           border:
             1px solid
-            rgba(191, 219, 254, 0.7);
+            rgba(191,219,254,0.7);
           box-shadow:
             0 0 30px
-              rgba(129, 140, 248, 0.8),
+              rgba(129,140,248,0.8),
             inset 0 0 22px
-              rgba(255, 255, 255, 0.15);
+              rgba(255,255,255,0.15);
         }
 
         .vaultCore::after {
@@ -605,7 +590,7 @@ function Vault3DHero({
           height: 20px;
           border-radius: 50%;
           background:
-            rgba(255, 255, 255, 0.45);
+            rgba(255,255,255,0.45);
           filter: blur(8px);
           transform: rotate(-25deg);
         }
@@ -617,13 +602,13 @@ function Vault3DHero({
           border-radius: 50%;
           border:
             1px solid
-            rgba(129, 140, 248, 0.58);
+            rgba(129,140,248,0.58);
           transform-style: preserve-3d;
           box-shadow:
             0 0 22px
-              rgba(99, 102, 241, 0.22),
+              rgba(99,102,241,0.22),
             inset 0 0 16px
-              rgba(99, 102, 241, 0.08);
+              rgba(99,102,241,0.08);
         }
 
         .ringOne {
@@ -646,7 +631,7 @@ function Vault3DHero({
           margin-left: -135px;
           margin-top: -135px;
           border-color:
-            rgba(96, 165, 250, 0.42);
+            rgba(96,165,250,0.42);
           transform:
             rotateX(68deg)
             rotateY(18deg)
@@ -662,7 +647,7 @@ function Vault3DHero({
           margin-left: -177.5px;
           margin-top: -177.5px;
           border-color:
-            rgba(167, 139, 250, 0.28);
+            rgba(167,139,250,0.28);
           transform:
             rotateX(74deg)
             rotateY(-22deg);
@@ -677,7 +662,7 @@ function Vault3DHero({
           margin-left: -205px;
           margin-top: -205px;
           border-color:
-            rgba(59, 130, 246, 0.18);
+            rgba(59,130,246,0.18);
           transform:
             rotateX(75deg)
             rotateY(30deg);
@@ -697,18 +682,18 @@ function Vault3DHero({
           border-radius: 50%;
           border-top:
             3px solid
-            rgba(125, 211, 252, 0.9);
+            rgba(125,211,252,0.9);
           border-right:
             3px solid transparent;
           border-bottom:
             3px solid
-            rgba(139, 92, 246, 0.75);
+            rgba(139,92,246,0.75);
           border-left:
             3px solid transparent;
           filter:
             drop-shadow(
               0 0 12px
-              rgba(96, 165, 250, 0.8)
+              rgba(96,165,250,0.8)
             );
           transform:
             rotateX(70deg)
@@ -725,10 +710,10 @@ function Vault3DHero({
           margin-top: -122.5px;
           border-top-color: transparent;
           border-right-color:
-            rgba(167, 139, 250, 0.9);
+            rgba(167,139,250,0.9);
           border-bottom-color: transparent;
           border-left-color:
-            rgba(96, 165, 250, 0.7);
+            rgba(96,165,250,0.7);
           animation-duration: 3.8s;
           animation-direction: reverse;
         }
@@ -739,9 +724,9 @@ function Vault3DHero({
           background: #93c5fd;
           box-shadow:
             0 0 8px
-              rgba(96, 165, 250, 0.95),
+              rgba(96,165,250,0.95),
             0 0 20px
-              rgba(99, 102, 241, 0.7);
+              rgba(99,102,241,0.7);
           animation:
             particleFloat
             var(--duration)
@@ -772,10 +757,10 @@ function Vault3DHero({
           gap: 8px;
           border:
             1px solid
-            rgba(147, 197, 253, 0.18);
+            rgba(147,197,253,0.18);
           border-radius: 9999px;
           background:
-            rgba(15, 23, 42, 0.55);
+            rgba(15,23,42,0.55);
           padding: 8px 13px;
           color: #bfdbfe;
           font-size: 10px;
@@ -783,9 +768,6 @@ function Vault3DHero({
           letter-spacing: 0.18em;
           text-transform: uppercase;
           backdrop-filter: blur(14px);
-          box-shadow:
-            0 10px 40px
-            rgba(0, 0, 0, 0.22);
         }
 
         .heroTitle {
@@ -821,7 +803,7 @@ function Vault3DHero({
           max-width: 650px;
           margin-top: 22px;
           color:
-            rgba(203, 213, 225, 0.76);
+            rgba(203,213,225,0.76);
           font-size: 14px;
           line-height: 1.8;
         }
@@ -838,14 +820,14 @@ function Vault3DHero({
         .heroStat {
           border:
             1px solid
-            rgba(148, 163, 184, 0.16);
+            rgba(148,163,184,0.16);
           background:
-            rgba(15, 23, 42, 0.58);
+            rgba(15,23,42,0.58);
           backdrop-filter: blur(16px);
           border-radius: 14px;
           padding: 9px 13px;
           color:
-            rgba(226, 232, 240, 0.8);
+            rgba(226,232,240,0.8);
           font-size: 10px;
           font-weight: 800;
         }
@@ -855,8 +837,7 @@ function Vault3DHero({
         }
 
         @keyframes vaultPulse {
-          0%,
-          100% {
+          0%, 100% {
             transform:
               translate(-50%, -50%)
               scale(0.94);
@@ -872,8 +853,7 @@ function Vault3DHero({
         }
 
         @keyframes coreFloat {
-          0%,
-          100% {
+          0%, 100% {
             transform:
               translate(-50%, -50%)
               translateZ(42px)
@@ -969,8 +949,7 @@ function Vault3DHero({
         }
 
         @keyframes particleFloat {
-          0%,
-          100% {
+          0%, 100% {
             opacity: 0.18;
             transform:
               translate3d(0, 8px, 0)
@@ -1108,19 +1087,14 @@ function Vault3DHero({
                 {
                   left:
                     `${particle.left}%`,
-
                   top:
                     `${particle.top}%`,
-
                   width:
                     `${particle.size}px`,
-
                   height:
                     `${particle.size}px`,
-
                   "--delay":
                     `${particle.delay}s`,
-
                   "--duration":
                     `${particle.duration}s`,
                 } as CSSProperties
@@ -1131,11 +1105,8 @@ function Vault3DHero({
 
         <div className="vaultStage">
           <div className="ring ringFour" />
-
           <div className="ring ringThree" />
-
           <div className="ring ringTwo" />
-
           <div className="ring ringOne" />
 
           <div className="energyArc" />
@@ -1149,7 +1120,14 @@ function Vault3DHero({
 
         <div className="heroContent">
           <div className="heroBadge">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+            <span
+              className="
+                h-1.5 w-1.5
+                rounded-full
+                bg-emerald-400
+                shadow-[0_0_10px_#34d399]
+              "
+            />
 
             AI INTELLIGENCE VAULT
           </div>
@@ -1225,7 +1203,7 @@ function ToolCard({
   const pricing =
     getToolPricing(tool);
 
-  const logo =
+  const logoUrl =
     getToolLogo(tool);
 
   const score =
@@ -1236,6 +1214,10 @@ function ToolCard({
       ? String(tool.id)
       : getCanonicalSlug(tool) ||
         `tool-${index}`;
+
+  /* =======================================================
+     INVALID SLUG
+  ======================================================= */
 
   if (!href) {
     return (
@@ -1250,51 +1232,91 @@ function ToolCard({
           shadow-[0_12px_40px_rgba(15,23,42,0.05)]
         "
       >
-        <div className="flex items-center gap-4">
+        <div
+          className="
+            flex items-center
+            gap-4
+          "
+        >
           <div
             className="
-              h-12 w-12 shrink-0
+              h-12 w-12
+              shrink-0
               overflow-hidden
               rounded-2xl
               border border-slate-200
               bg-slate-50
             "
           >
+            {/* IMPORTANT:
+                Existing ToolLogo props */}
             <ToolLogo
+              src={logoUrl}
+              fallbackSrc={logoUrl}
               name={name}
-              logoUrl={logo}
+              size="md"
             />
           </div>
 
           <div className="min-w-0">
-            <h3 className="truncate text-base font-black text-slate-950">
+            <h3
+              className="
+                truncate
+                text-base
+                font-black
+                text-slate-950
+              "
+            >
               {name}
             </h3>
 
-            <p className="mt-1 text-xs font-semibold text-slate-400">
+            <p
+              className="
+                mt-1
+                text-xs
+                font-semibold
+                text-slate-400
+              "
+            >
               {category}
             </p>
           </div>
         </div>
 
-        <p className="mt-5 text-sm leading-6 text-slate-500">
+        <p
+          className="
+            mt-5
+            text-sm
+            leading-6
+            text-slate-500
+          "
+        >
           {description}
         </p>
       </article>
     );
   }
 
+  /* =======================================================
+     NORMAL CARD
+  ======================================================= */
+
   return (
     <article
       key={cardKey}
       className="
-        group relative flex h-full
-        flex-col overflow-hidden
+        group
+        relative
+        flex h-full
+        flex-col
+        overflow-hidden
         rounded-[25px]
-        border border-slate-200/90
+        border
+        border-slate-200/90
         bg-white
         shadow-[0_10px_40px_rgba(15,23,42,0.045)]
-        transition-all duration-300
+        transition-all
+        duration-300
         hover:-translate-y-1
         hover:border-blue-200
         hover:shadow-[0_25px_65px_rgba(37,99,235,0.11)]
@@ -1337,35 +1359,47 @@ function ToolCard({
 
         <div
           className="
-            flex items-start
+            flex
+            items-start
             justify-between
             gap-3
           "
         >
           <div
             className="
-              flex min-w-0
+              flex
+              min-w-0
               items-center
               gap-3
             "
           >
             <div
               className="
+                relative
                 h-12 w-12
                 shrink-0
                 overflow-hidden
                 rounded-2xl
-                border border-slate-200
+                border
+                border-slate-200
                 bg-slate-50
               "
             >
+              {/* IMPORTANT:
+                  DO NOT CHANGE TO logoUrl PROP */}
               <ToolLogo
+                src={logoUrl}
+                fallbackSrc={logoUrl}
                 name={name}
-                logoUrl={logo}
+                size="md"
               />
             </div>
 
-            <div className="min-w-0">
+            <div
+              className="
+                min-w-0
+              "
+            >
               <h3
                 className="
                   truncate
@@ -1396,7 +1430,8 @@ function ToolCard({
             className="
               shrink-0
               rounded-full
-              border border-slate-200
+              border
+              border-slate-200
               bg-slate-50
               px-2.5 py-1
               text-[9px]
@@ -1429,7 +1464,8 @@ function ToolCard({
           <div
             className="
               mb-2
-              flex items-center
+              flex
+              items-center
               justify-between
             "
           >
@@ -1488,7 +1524,8 @@ function ToolCard({
         <div
           className="
             mt-5
-            flex items-center
+            flex
+            items-center
             justify-between
             border-t
             border-slate-100
@@ -1527,7 +1564,9 @@ function ToolCard({
       <div
         className="
           absolute
-          bottom-0 left-0 right-0
+          bottom-0
+          left-0
+          right-0
           h-[3px]
           bg-slate-100
         "
@@ -1570,13 +1609,8 @@ function HomeContent() {
   const [errorMessage, setErrorMessage] =
     useState("");
 
-  const initialQuery =
-    searchParams
-      .get("q")
-      ?.trim() ?? "";
-
   const [localSearch, setLocalSearch] =
-    useState(initialQuery);
+    useState("");
 
   const impressionSent =
     useRef<Set<string>>(
@@ -1584,7 +1618,7 @@ function HomeContent() {
     );
 
   /* =======================================================
-     ACTIVE CATEGORY
+     CATEGORY
   ======================================================= */
 
   const activeCat =
@@ -1597,7 +1631,7 @@ function HomeContent() {
     "all";
 
   /* =======================================================
-     SYNC URL SEARCH
+     INITIAL SEARCH
   ======================================================= */
 
   useEffect(() => {
@@ -1612,7 +1646,7 @@ function HomeContent() {
   }, [searchParams]);
 
   /* =======================================================
-     FETCH
+     FETCH TOOLS
   ======================================================= */
 
   useEffect(() => {
@@ -1628,11 +1662,9 @@ function HomeContent() {
         const supabase =
           getSupabase();
 
-        /* -----------------------------------------------
-           COUNT
-        ------------------------------------------------ */
+        /* COUNT */
 
-        let countBuilder =
+        let countQuery =
           supabase
             .from("ai_tools")
             .select("id", {
@@ -1643,21 +1675,19 @@ function HomeContent() {
         if (
           !isAllCategory
         ) {
-          countBuilder =
-            countBuilder.ilike(
+          countQuery =
+            countQuery.ilike(
               "category",
               activeCat
             );
         }
 
         const countResult =
-          await countBuilder;
+          await countQuery;
 
-        /* -----------------------------------------------
-           DATA
-        ------------------------------------------------ */
+        /* DATA */
 
-        let dataBuilder =
+        let query =
           supabase
             .from("ai_tools")
             .select("*")
@@ -1669,8 +1699,8 @@ function HomeContent() {
         if (
           !isAllCategory
         ) {
-          dataBuilder =
-            dataBuilder.ilike(
+          query =
+            query.ilike(
               "category",
               activeCat
             );
@@ -1680,7 +1710,7 @@ function HomeContent() {
           data,
           error,
         } =
-          await dataBuilder;
+          await query;
 
         if (error) {
           throw error;
@@ -1691,9 +1721,7 @@ function HomeContent() {
             ? (data as ToolRecord[])
             : [];
 
-        /* -----------------------------------------------
-           REMOVE DUPLICATES
-        ------------------------------------------------ */
+        /* REMOVE DUPLICATES */
 
         const uniqueMap =
           new Map<
@@ -1711,7 +1739,8 @@ function HomeContent() {
                 tool
               );
 
-            let key: string;
+            let key =
+              "";
 
             if (slug) {
               key =
@@ -1812,7 +1841,7 @@ function HomeContent() {
   ]);
 
   /* =======================================================
-     FILTER
+     SEARCH FILTER
   ======================================================= */
 
   const filteredTools =
@@ -1929,7 +1958,7 @@ function HomeContent() {
   ]);
 
   /* =======================================================
-     SCHEMA
+     WEBSITE SCHEMA
   ======================================================= */
 
   const websiteSchema =
@@ -1996,7 +2025,7 @@ function HomeContent() {
     };
 
   /* =======================================================
-     CATEGORY URL
+     CATEGORY HREF
   ======================================================= */
 
   const categoryHref =
@@ -2016,15 +2045,6 @@ function HomeContent() {
         "cat",
         category
       );
-
-      if (
-        localSearch.trim()
-      ) {
-        params.set(
-          "q",
-          localSearch.trim()
-        );
-      }
 
       return `/?${params.toString()}`;
     };
@@ -2052,14 +2072,15 @@ function HomeContent() {
           text-slate-950
         "
       >
-
         {/* =================================================
-            NAVBAR
+            NAVIGATION
         ================================================= */}
 
         <nav
           className="
-            sticky top-0 z-50
+            sticky
+            top-0
+            z-50
             border-b
             border-slate-200/80
             bg-white/90
@@ -2070,7 +2091,7 @@ function HomeContent() {
             className="
               mx-auto
               flex
-              h-[68px]
+              h-[72px]
               max-w-7xl
               items-center
               justify-between
@@ -2083,12 +2104,14 @@ function HomeContent() {
               className="
                 text-xl
                 font-black
-                tracking-[-0.05em]
+                tracking-[-0.04em]
                 text-slate-950
               "
             >
               AI Vault
-              <span className="text-blue-600">
+              <span
+                className="text-blue-600"
+              >
                 .
               </span>
             </Link>
@@ -2120,8 +2143,8 @@ function HomeContent() {
                           category.name
                         )}
                         className={`
-                          text-xs
-                          font-bold
+                          text-sm
+                          font-semibold
                           transition
                           ${
                             active
@@ -2146,7 +2169,7 @@ function HomeContent() {
                 from-blue-600
                 to-indigo-600
                 px-4 py-2
-                text-[10px]
+                text-xs
                 font-black
                 text-white
                 shadow-lg
@@ -2174,7 +2197,8 @@ function HomeContent() {
 
         <section
           className="
-            relative z-20
+            relative
+            z-20
             -mt-8
             px-4
           "
@@ -2202,21 +2226,11 @@ function HomeContent() {
                 }
                 onChange={(
                   event
-                ) => {
+                ) =>
                   setLocalSearch(
                     event.target.value
-                  );
-                }}
-                onKeyDown={(
-                  event
-                ) => {
-                  if (
-                    event.key ===
-                    "Escape"
-                  ) {
-                    clearSearch();
-                  }
-                }}
+                  )
+                }
                 placeholder={
                   totalCount
                     ? `Search ${totalCount.toLocaleString()}+ AI tools...`
@@ -2245,7 +2259,7 @@ function HomeContent() {
                 "
               />
 
-              {localSearch && (
+              {localSearch ? (
                 <button
                   type="button"
                   onClick={
@@ -2270,9 +2284,7 @@ function HomeContent() {
                 >
                   ×
                 </button>
-              )}
-
-              {!localSearch && (
+              ) : (
                 <div
                   className="
                     pointer-events-none
@@ -2307,8 +2319,6 @@ function HomeContent() {
               )}
             </div>
 
-            {/* CATEGORY PILLS */}
-
             <div
               className="
                 mt-3
@@ -2316,7 +2326,6 @@ function HomeContent() {
                 gap-2
                 overflow-x-auto
                 pb-1
-                scrollbar-none
               "
             >
               {categories.map(
@@ -2342,7 +2351,8 @@ function HomeContent() {
                         gap-2
                         rounded-full
                         border
-                        px-4 py-2
+                        px-4
+                        py-2
                         text-xs
                         font-bold
                         transition
@@ -2412,7 +2422,6 @@ function HomeContent() {
                   text-2xl
                   font-black
                   tracking-tight
-                  text-slate-950
                   sm:text-3xl
                 "
               >
@@ -2433,20 +2442,6 @@ function HomeContent() {
                   )
                 </span>
               </h2>
-
-              {localSearch && (
-                <p
-                  className="
-                    mt-2
-                    text-xs
-                    font-semibold
-                    text-slate-400
-                  "
-                >
-                  Showing results for "
-                  {localSearch}"
-                </p>
-              )}
             </div>
 
             {localSearch && (
@@ -2465,7 +2460,6 @@ function HomeContent() {
                   font-bold
                   text-slate-600
                   shadow-sm
-                  transition
                   hover:border-blue-300
                   hover:text-blue-600
                 "
@@ -2512,7 +2506,6 @@ function HomeContent() {
                   mt-5
                   text-xl
                   font-black
-                  text-slate-950
                 "
               >
                 Directory unavailable
@@ -2524,7 +2517,6 @@ function HomeContent() {
                   mt-2
                   max-w-md
                   text-sm
-                  leading-6
                   text-slate-500
                 "
               >
@@ -2544,8 +2536,6 @@ function HomeContent() {
                   text-sm
                   font-bold
                   text-white
-                  transition
-                  hover:bg-blue-600
                 "
               >
                 Try Again
@@ -2615,7 +2605,6 @@ function HomeContent() {
                   mt-5
                   text-xl
                   font-black
-                  text-slate-950
                 "
               >
                 No AI tools found
@@ -2627,7 +2616,6 @@ function HomeContent() {
                   mt-2
                   max-w-md
                   text-sm
-                  leading-6
                   text-slate-500
                 "
               >
@@ -2648,8 +2636,6 @@ function HomeContent() {
                   text-sm
                   font-bold
                   text-white
-                  transition
-                  hover:bg-blue-600
                 "
               >
                 View All Tools
@@ -2695,7 +2681,7 @@ function HomeContent() {
         </section>
 
         {/* =================================================
-            FINAL CTA — MUST REMAIN LAST
+            FINAL CTA
         ================================================= */}
 
         <section
@@ -2721,14 +2707,13 @@ function HomeContent() {
               sm:px-10
             "
           >
-            {/* Glow */}
-
             <div
               className="
                 absolute
                 left-1/2
                 top-0
-                h-64 w-64
+                h-64
+                w-64
                 -translate-x-1/2
                 -translate-y-1/2
                 rounded-full
@@ -2742,14 +2727,13 @@ function HomeContent() {
                 absolute
                 bottom-0
                 left-1/4
-                h-40 w-40
+                h-40
+                w-40
                 rounded-full
                 bg-violet-600/10
                 blur-[80px]
               "
             />
-
-            {/* Grid */}
 
             <div
               className="
@@ -2783,11 +2767,11 @@ function HomeContent() {
 
               <h2
                 className="
-                  text-4xl
+                  text-3xl
                   font-black
-                  tracking-[-0.045em]
+                  tracking-tight
                   text-white
-                  sm:text-6xl
+                  sm:text-5xl
                 "
               >
                 Find the right AI.
@@ -2810,9 +2794,9 @@ function HomeContent() {
                 directory.
               </p>
 
-              {/* IMPORTANT:
-                  Explicit white background + black text
-                  so button can NEVER appear blank. */}
+              {/* =================================================
+                  BUTTON — FIXED
+              ================================================= */}
 
               <Link
                 href="/ai-finder"
@@ -2831,18 +2815,18 @@ function HomeContent() {
                   font-black
                   text-slate-950
                   shadow-xl
-                  shadow-black/20
                   transition
                   hover:-translate-y-1
                   hover:bg-slate-100
                 "
               >
-                <span className="text-slate-950">
+                <span
+                  className="text-slate-950"
+                >
                   Find My AI Tool
                 </span>
 
                 <span
-                  aria-hidden="true"
                   className="text-slate-950"
                 >
                   →
@@ -2895,40 +2879,28 @@ function HomeContent() {
             >
               <Link
                 href="/"
-                className="
-                  transition
-                  hover:text-blue-600
-                "
+                className="hover:text-blue-600"
               >
                 AI Tools
               </Link>
 
               <Link
                 href="/ai-finder"
-                className="
-                  transition
-                  hover:text-blue-600
-                "
+                className="hover:text-blue-600"
               >
                 AI Finder
               </Link>
 
               <Link
                 href="/compare"
-                className="
-                  transition
-                  hover:text-blue-600
-                "
+                className="hover:text-blue-600"
               >
                 Compare
               </Link>
 
               <Link
                 href="/saved"
-                className="
-                  transition
-                  hover:text-blue-600
-                "
+                className="hover:text-blue-600"
               >
                 Saved
               </Link>
