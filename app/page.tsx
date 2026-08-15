@@ -33,23 +33,14 @@ import { SITE_URL } from "@/lib/site-url";
    3D HERO
 ========================================================= */
 
-const Vault3DHero =
-  dynamic(
-    () =>
-      import(
-        "@/components/Vault3DHero"
-      ),
-    {
-      ssr: false,
-      loading: () => (
-        <section className="min-h-[620px] bg-[#050714]">
-          <div className="flex min-h-[620px] items-center justify-center">
-            <div className="h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-blue-500" />
-          </div>
-        </section>
-      ),
-    }
-  );
+const Vault3DHero = () => (
+  <section className="min-h-[620px] bg-[#050714] relative overflow-hidden">
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.22),transparent_45%)]" />
+    <div className="relative z-10 flex min-h-[620px] items-center justify-center">
+      <div className="h-32 w-32 rounded-full border border-blue-400/30 bg-gradient-to-br from-blue-500/30 via-violet-500/30 to-transparent shadow-[0_0_80px_rgba(99,102,241,0.35)]" />
+    </div>
+  </section>
+);
 
 /* =========================================================
    TYPES
