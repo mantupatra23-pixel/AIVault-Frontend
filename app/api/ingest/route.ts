@@ -17,7 +17,6 @@ interface RawToolCandidate {
   pricing: string;
   overview: string;
   website_url: string;
-  deployment?: string;
 }
 
 const DAILY_BATCH: RawToolCandidate[] = [
@@ -28,7 +27,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "DocuSynth AI automates document comprehension, structured summarization, and table extraction for enterprise workflows.",
     website_url: "https://docusynth.ai",
-    deployment: "Cloud / Web App",
   },
   {
     name: "PromptEngine Pro",
@@ -37,7 +35,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "PromptEngine Pro provides testing, latency benchmarking, and version control for production LLM prompt pipelines.",
     website_url: "https://promptengine.pro",
-    deployment: "API & Web App",
   },
   {
     name: "AudiencePulse",
@@ -46,7 +43,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "AudiencePulse monitors customer sentiment across social channels and generates automated response recommendations.",
     website_url: "https://audiencepulse.io",
-    deployment: "Cloud",
   },
   {
     name: "VisionGrid 3D",
@@ -55,7 +51,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "VisionGrid 3D converts 2D raster assets and concept sketches into textured 3D mesh models in real time.",
     website_url: "https://visiongrid3d.com",
-    deployment: "Cloud",
   },
   {
     name: "VoiceCraft Studio",
@@ -64,7 +59,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "VoiceCraft Studio delivers expressive voice cloning and multi-lingual voiceover generation with instant timeline export.",
     website_url: "https://voicecraft.studio",
-    deployment: "Cloud / Web App",
   },
   {
     name: "ScriptFlow AI",
@@ -73,7 +67,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "ScriptFlow AI analyzes narrative rhythm and story structure to suggest real-time line polish for screenwriters and authors.",
     website_url: "https://scriptflow.ai",
-    deployment: "Web App",
   },
   {
     name: "CodePulse Radar",
@@ -82,7 +75,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "CodePulse Radar scans GitHub repositories for vulnerability exposure, outdated dependencies, and licensing conflicts.",
     website_url: "https://codepulse.dev",
-    deployment: "Cloud / CLI",
   },
   {
     name: "CastFrame AI",
@@ -91,7 +83,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "CastFrame AI streamlines video background replacement, auto-reframe for mobile aspect ratios, and smart cut generation.",
     website_url: "https://castframe.ai",
-    deployment: "Cloud",
   },
   {
     name: "BotScribe Live",
@@ -100,7 +91,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "BotScribe Live deploys multi-lingual customer care chatbots with continuous knowledge base retrieval augmented generation.",
     website_url: "https://botscribe.live",
-    deployment: "Web & Widget",
   },
   {
     name: "LeadNova AI",
@@ -109,7 +99,6 @@ const DAILY_BATCH: RawToolCandidate[] = [
     overview:
       "LeadNova AI identifies high-intent B2B prospect accounts and writes contextual personalized opening icebreakers.",
     website_url: "https://leadnova.ai",
-    deployment: "Cloud SaaS",
   },
 ];
 
@@ -155,8 +144,6 @@ export async function GET() {
       ai_vault_score: score,
       neural_score: score,
       website_url: item.website_url,
-      deployment: item.deployment || "Cloud / Web App",
-      license: "Commercial SaaS",
       is_verified: true,
       updated_at: new Date().toISOString(),
     };
