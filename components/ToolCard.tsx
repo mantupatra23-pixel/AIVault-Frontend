@@ -1,11 +1,10 @@
+// components/ToolCard.tsx
 "use client";
 
 import Link from "next/link";
-
 import type { Tool } from "@/lib/tool-types";
 import { getToolHref } from "@/lib/tool-href";
-import { getAiVaultScore } from "@/lib/utils/score";
-
+import { formatAIScore, getScoreBarWidth, getToolScore } from "@/lib/score";
 import ToolLogo from "./ToolLogo";
 
 type Props = {
@@ -15,30 +14,18 @@ type Props = {
 export default function ToolCard({ tool }: Props) {
   /*
    * ============================================================
-   * AI VAULT SCORE
+   * AI VAULT SCORE (Normalized 0-100 Format)
    * ============================================================
-   *
-   * Canonical source:
-   *
-   * score
-   *   -> neural_score
-   *   -> ai_vault_score
-   *
-   * IMPORTANT:
-   * rating is NEVER used here.
-   *
-   * AI Vault Score is always 0-100.
+   * Priority: score -> neural_score -> rating
    */
-  const score = getAiVaultScore(
-    tool as unknown as Record<string, unknown>,
-  );
+  const score = getToolScore(tool);
+  const formattedScore = formatAIScore(score);
+  const barWidth = getScoreBarWidth(score);
 
   /*
    * ============================================================
    * TOOL URL
    * ============================================================
-   *
-   * Existing production slug is preserved by getToolHref().
    */
   const href = getToolHref(tool);
 
@@ -46,15 +33,11 @@ export default function ToolCard({ tool }: Props) {
    * ============================================================
    * PRICING
    * ============================================================
-   *
-   * Missing pricing must not become fake pricing.
    */
   const pricing =
-    typeof tool.pricing === "string" &&
-    tool.pricing.trim().length > 0
+    typeof tool.pricing === "string" && tool.pricing.trim().length > 0
       ? tool.pricing.trim()
-      : typeof tool.pricing_model === "string" &&
-          tool.pricing_model.trim().length > 0
+      : typeof tool.pricing_model === "string" && tool.pricing_model.trim().length > 0
         ? tool.pricing_model.trim()
         : "Not specified";
 
@@ -62,17 +45,15 @@ export default function ToolCard({ tool }: Props) {
    * ============================================================
    * DESCRIPTION
    * ============================================================
-   *
-   * Do NOT generate marketing copy when data is missing.
    */
   const description =
-    typeof tool.description === "string" &&
-    tool.description.trim().length > 0
+    typeof tool.description === "string" && tool.description.trim().length > 0
       ? tool.description.trim()
-      : typeof tool.overview === "string" &&
-          tool.overview.trim().length > 0
-        ? tool.overview.trim()
-        : null;
+      : typeof tool.short_description === "string" && tool.short_description.trim().length > 0
+        ? tool.short_description.trim()
+        : typeof tool.overview === "string" && tool.overview.trim().length > 0
+          ? tool.overview.trim()
+          : null;
 
   /*
    * ============================================================
@@ -80,8 +61,7 @@ export default function ToolCard({ tool }: Props) {
    * ============================================================
    */
   const category =
-    typeof tool.category === "string" &&
-    tool.category.trim().length > 0
+    typeof tool.category === "string" && tool.category.trim().length > 0
       ? tool.category.trim()
       : "Other";
 
@@ -89,15 +69,11 @@ export default function ToolCard({ tool }: Props) {
    * ============================================================
    * LOGO
    * ============================================================
-   *
-   * Existing valid logo remains untouched.
    */
   const logoSrc =
-    typeof tool.logo_url === "string" &&
-    tool.logo_url.trim().length > 0
+    typeof tool.logo_url === "string" && tool.logo_url.trim().length > 0
       ? tool.logo_url.trim()
-      : typeof tool.logo === "string" &&
-          tool.logo.trim().length > 0
+      : typeof tool.logo === "string" && tool.logo.trim().length > 0
         ? tool.logo.trim()
         : undefined;
 
@@ -146,7 +122,7 @@ export default function ToolCard({ tool }: Props) {
       </div>
 
       {/* ======================================================
-          AI VAULT SCORE
+          AI VAULT SCORE (0-100 Normalized Bar)
           ====================================================== */}
       <div className="mt-auto pt-5">
         {score !== null ? (
@@ -157,19 +133,14 @@ export default function ToolCard({ tool }: Props) {
               </span>
 
               <span className="text-[11px] font-bold text-white">
-                {score}/100
+                {formattedScore}
               </span>
             </div>
 
             <div className="h-1 overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 transition-all duration-300"
-                style={{
-                  width: `${Math.max(
-                    0,
-                    Math.min(100, score),
-                  )}%`,
-                }}
+                style={{ width: barWidth }}
               />
             </div>
           </div>
