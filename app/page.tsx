@@ -3,7 +3,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import ToolLogo from "@/components/ToolLogo";
@@ -25,6 +25,8 @@ type ToolRecord = {
   is_verified?: boolean;
   [key: string]: unknown;
 };
+
+const ITEMS_PER_PAGE = 24;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -57,7 +59,7 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   const category = String(tool.category || "AI Tool");
   const pricing = String(tool.pricing_model || tool.pricing || "Freemium");
   const rawDesc = String(tool.description || tool.overview || "");
-  const desc = cleanAiContent(rawDesc) || `${name} helps automate modern workflows.`;
+  const desc = cleanAiContent(rawDesc) || `${name} provides software solutions for ${category.toLowerCase()}.`;
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
@@ -121,6 +123,7 @@ function HomeContent() {
   const [selectedCat, setSelectedCat] = useState("All");
   const [selectedPricing, setSelectedPricing] = useState("All");
   const [sortBy, setSortBy] = useState("score");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const cat = searchParams.get("cat");
@@ -144,29 +147,19 @@ function HomeContent() {
     loadCatalog();
   }, []);
 
-  // Featured High Scoring Tools
-  const featuredTools = useMemo(() => {
-    return [...tools]
-      .filter((t) => (getToolScore(t) ?? 0) >= 88)
-      .slice(0, 3);
-  }, [tools]);
-
   // Filtered List
   const filteredTools = useMemo(() => {
     return tools
       .filter((t) => {
-        // Category
         if (selectedCat !== "All" && (t.category || "").toLowerCase() !== selectedCat.toLowerCase()) {
           return false;
         }
-        // Pricing
         if (selectedPricing !== "All") {
           const p = (t.pricing_model || t.pricing || "").toLowerCase();
           if (selectedPricing === "Free" && (!p.includes("free") || p.includes("freemium"))) return false;
           if (selectedPricing === "Freemium" && !p.includes("freemium")) return false;
           if (selectedPricing === "Paid" && !p.includes("paid")) return false;
         }
-        // Search
         if (search.trim()) {
           const query = search.toLowerCase();
           const name = (t.name || "").toLowerCase();
@@ -183,6 +176,23 @@ function HomeContent() {
         return (a.name || "").localeCompare(b.name || "");
       });
   }, [tools, selectedCat, selectedPricing, search, sortBy]);
+
+  // Reset to page 1 on filter/search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedCat, selectedPricing, sortBy]);
+
+  // Pagination calculation
+  const totalPages = Math.ceil(filteredTools.length / ITEMS_PER_PAGE) || 1;
+  const paginatedTools = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredTools.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredTools, currentPage]);
+
+  const handlePageChange = (p: number) => {
+    setCurrentPage(p);
+    window.scrollTo({ top: 400, behavior: "smooth" });
+  };
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
@@ -237,23 +247,6 @@ function HomeContent() {
       </section>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Featured Showcase */}
-        {!search && selectedCat === "All" && featuredTools.length > 0 && (
-          <section className="mb-10">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Leaderboard</span>
-                <h2 className="text-xl font-bold text-slate-950">Top Rated AI Tools</h2>
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {featuredTools.map((t) => (
-                <ToolCard key={String(t.id || t.slug)} tool={t} />
-              ))}
-            </div>
-          </section>
-        )}
-
         {/* Category & Pricing Filters */}
         <section className="mb-8 space-y-4">
           {/* Category Chips */}
@@ -318,7 +311,7 @@ function HomeContent() {
             <h2 className="text-lg font-bold text-slate-950">
               {selectedCat === "All" ? "All AI Tools" : `${selectedCat} Tools`}
               <span className="ml-2 text-xs font-bold text-slate-400">
-                ({filteredTools.length})
+                (Showing {(currentPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(currentPage * ITEMS_PER_PAGE, filteredTools.length)} of {filteredTools.length})
               </span>
             </h2>
           </div>
@@ -329,12 +322,58 @@ function HomeContent() {
                 <div key={i} className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />
               ))}
             </div>
-          ) : filteredTools.length > 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredTools.map((tool) => (
-                <ToolCard key={String(tool.id || tool.slug)} tool={tool} />
-              ))}
-            </div>
+          ) : paginatedTools.length > 0 ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {paginatedTools.map((tool) => (
+                  <ToolCard key={String(tool.id || tool.slug)} tool={tool} />
+                ))}
+              </div>
+
+              {/* PAGINATION CONTROLS (PAGES DATA) */}
+              {totalPages > 1 && (
+                <div className="mt-10 flex items-center justify-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    ← Prev
+                  </button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
+                      let p = idx + 1;
+                      if (currentPage > 3 && totalPages > 5) {
+                        p = currentPage - 2 + idx;
+                        if (p > totalPages) p = totalPages - (4 - idx);
+                      }
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => handlePageChange(p)}
+                          className={`h-9 w-9 rounded-xl text-xs font-bold transition ${
+                            currentPage === p
+                              ? "bg-slate-950 text-white shadow-sm"
+                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
             <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
               <p className="text-sm font-bold text-slate-800">No matching AI tools found.</p>

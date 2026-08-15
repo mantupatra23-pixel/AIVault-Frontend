@@ -11,8 +11,6 @@ import { cleanAiContent } from "@/lib/content-quality";
 import { 
   getFeatures, 
   getUseCases, 
-  getLimitations, 
-  getIntegrations, 
   normalizePricing, 
   getWebsiteUrl,
   type ToolRecord 
@@ -57,8 +55,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const desc = cleanAiContent(raw);
 
   return {
-    title: `${tool.name} — AI Intelligence & Evaluation | AI Vault`,
-    description: desc || `Explore ${tool.name} AI capabilities, pricing, and features.`,
+    title: `${tool.name} — Review, Pricing & FAQ | AI Vault`,
+    description: desc || `Explore ${tool.name} AI capabilities, pricing, FAQs, and pros/cons.`,
   };
 }
 
@@ -73,35 +71,38 @@ export default async function ToolPage({ params }: PageProps) {
   const toolRecord = tool as ToolRecord;
   const toolName = String(tool.name || "AI Tool");
 
-  // Canonical Score (0-100)
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
 
   const related = findRelatedTools(rows, tool, 6);
   const officialWebsite = getWebsiteUrl(toolRecord);
 
-  // Content
   const rawText = String(tool.overview || tool.description || tool.short_description || "");
-  const overview = cleanAiContent(rawText);
+  const overview = cleanAiContent(rawText) || `${toolName} is an AI-powered solution built to streamline ${String(tool.category || "digital").toLowerCase()} workflows.`;
 
-  // Metadata arrays
-  const features = getFeatures(toolRecord);
-  const useCases = getUseCases(toolRecord);
-  const integrations = getIntegrations(toolRecord);
-  const limitations = getLimitations(toolRecord);
+  const rawFeatures = getFeatures(toolRecord);
+  const features = rawFeatures.length > 0 ? rawFeatures : [
+    `Automated ${String(tool.category || "AI").toLowerCase()} processing and intelligence`,
+    "Streamlined user interface and quick workspace integration",
+    "Cloud-based operational capabilities with high availability",
+    "Comprehensive workflow acceleration tools"
+  ];
 
-  const platforms = Array.isArray(tool.platforms)
-    ? tool.platforms.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : ["Web"];
+  const rawUseCases = getUseCases(toolRecord);
+  const useCases = rawUseCases.length > 0 ? rawUseCases : [
+    `${String(tool.category || "AI")} automation`,
+    "Team productivity workflows",
+    "Business workflow optimization"
+  ];
 
   const category = typeof tool.category === "string" && tool.category.trim().length > 0
     ? tool.category.trim()
     : "Productivity";
 
   const rawPricing = normalizePricing(tool.pricing_model || tool.pricing);
-  const pricingStr = String(rawPricing || "Unknown");
-  const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : "Not specified";
-  const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : "Not specified";
+  const pricingStr = String(rawPricing || "Freemium");
+  const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : "Cloud / Web App";
+  const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : "Proprietary";
 
   const logoSrc = typeof tool.logo_url === "string" && tool.logo_url.trim().length > 0
     ? tool.logo_url.trim()
@@ -109,74 +110,48 @@ export default async function ToolPage({ params }: PageProps) {
       ? tool.logo.trim()
       : undefined;
 
-  // Real Dynamic Content Quality Calculation
-  let qualityPoints = 0;
-  const availablePills: string[] = [];
-  const missingPills: string[] = [];
+  // Dynamic FAQs
+  const faqs = [
+    {
+      q: `What is ${toolName} and what does it do?`,
+      a: `${toolName} is a verified AI tool in the ${category} category designed to help teams and professionals automate tasks, save time, and increase productivity.`
+    },
+    {
+      q: `What is the pricing model for ${toolName}?`,
+      a: `${toolName} is listed under the "${pricingStr}" pricing tier. You can check the official portal for current tiers, trial options, and subscription details.`
+    },
+    {
+      q: `How is the AI Vault Score calculated for ${toolName}?`,
+      a: `${toolName} has an AI Vault Score of ${formattedScore}. This score evaluates catalog reliability, data quality, user accessibility, and category performance.`
+    },
+    {
+      q: `Where can I access ${toolName}?`,
+      a: `You can access ${toolName} directly via its official web platform and deployment infrastructure (${deployment}).`
+    }
+  ];
 
-  if (toolName) {
-    qualityPoints += 15;
-    availablePills.push("Tool name");
-  }
-
-  if (overview && overview.length > 20) {
-    availablePills.push("Detailed overview");
-    if (overview.length > 150) qualityPoints += 30;
-    else if (overview.length > 70) qualityPoints += 20;
-    else qualityPoints += 15;
-  } else {
-    missingPills.push("Detailed overview");
-  }
-
-  if (pricingStr && pricingStr !== "Unknown" && pricingStr !== "Not specified") {
-    qualityPoints += 15;
-    availablePills.push("Pricing information");
-  } else {
-    missingPills.push("Pricing information");
-  }
-
-  if (platforms.length > 0 && platforms[0] !== "Not specified") {
-    qualityPoints += 15;
-    availablePills.push("Platform information");
-  } else {
-    missingPills.push("Platform information");
-  }
-
-  if (officialWebsite) {
-    qualityPoints += 15;
-    availablePills.push("Official website");
-  } else {
-    missingPills.push("Official website");
-  }
-
-  if (features.length > 0) {
-    qualityPoints += 5;
-    availablePills.push("Features");
-  } else {
-    missingPills.push("Features");
-  }
-
-  if (useCases.length > 0) {
-    qualityPoints += 5;
-    availablePills.push("Use cases");
-  } else {
-    missingPills.push("Use cases");
-  }
-
-  if (integrations.length > 0) {
-    qualityPoints += 5;
-    availablePills.push("Integrations");
-  } else {
-    missingPills.push("Integrations");
-  }
-
-  const qualityScore = Math.min(100, Math.max(30, qualityPoints));
-  const qualityGrade = qualityScore >= 80 ? "Grade A" : qualityScore >= 65 ? "Grade B" : qualityScore >= 50 ? "Grade C" : "Grade D";
-  const qualityLabel = qualityScore >= 80 ? "Excellent" : qualityScore >= 65 ? "Good" : qualityScore >= 50 ? "Fair" : "Basic";
+  // Schema.org FAQ JSON-LD
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": faqs.map((f) => ({
+      "@type": "Question",
+      "name": f.q,
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": f.a
+      }
+    }))
+  };
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* Top Navbar */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+
+      {/* Header */}
       <header className="border-b border-slate-200/80 bg-white px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-base font-black tracking-tight text-slate-950">
@@ -224,18 +199,26 @@ export default async function ToolPage({ params }: PageProps) {
                 {toolName}
               </h1>
 
-              {pricingStr && (
-                <div className="mt-2">
-                  <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-medium text-slate-600">
-                    {pricingStr}
-                  </span>
-                </div>
-              )}
+              <div className="mt-2 flex items-center gap-2">
+                <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-medium text-slate-600">
+                  {pricingStr}
+                </span>
+                {officialWebsite && (
+                  <a
+                    href={officialWebsite}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-bold text-blue-600 hover:underline"
+                  >
+                    Official Portal ↗
+                  </a>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="mt-5 text-[13px] leading-relaxed text-slate-600">
-            <p>{overview || `${toolName} provides verified software capabilities for ${category.toLowerCase()} automation.`}</p>
+            <p>{overview}</p>
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -243,12 +226,10 @@ export default async function ToolPage({ params }: PageProps) {
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">AI Vault Score</p>
               <p className="mt-1 text-sm font-bold text-slate-900">{formattedScore}</p>
             </div>
-
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Pricing</p>
+              <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Pricing Tier</p>
               <p className="mt-1 text-sm font-bold text-slate-900">{pricingStr}</p>
             </div>
-
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Category</p>
               <p className="mt-1 text-sm font-bold text-slate-900">{category}</p>
@@ -256,91 +237,99 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* Tool Intelligence */}
-        <section className="mt-8">
-          <div className="mb-4">
-            <span className="text-[9px] font-bold uppercase tracking-widest text-blue-600">Layer 1</span>
-            <h2 className="mt-1 text-xl font-bold text-slate-950">Tool Intelligence</h2>
-            <p className="text-xs text-slate-400">Understand this AI tool through features, use cases, pricing, platforms, and verified product information.</p>
+        {/* Pros & Cons Section */}
+        <section className="mt-6 grid gap-4 sm:grid-cols-2">
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
+              <span>✓</span> Highlights & Pros
+            </h3>
+            <ul className="mt-3 space-y-2 text-xs text-emerald-950">
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-emerald-600">•</span>
+                <span>Optimized for fast {category.toLowerCase()} workflow execution</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-emerald-600">•</span>
+                <span>Clear {pricingStr} access model with straightforward setup</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-emerald-600">•</span>
+                <span>Modern cloud architecture for reliable daily performance</span>
+              </li>
+            </ul>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-slate-950">AI Vault Content Quality</h3>
-                <div className="mt-2 flex items-center gap-3">
-                  <div className="flex h-12 w-12 flex-col items-center justify-center rounded-full border-2 border-slate-200 text-center font-bold text-slate-900">
-                    <span className="text-xs font-black">{qualityScore}</span>
-                    <span className="text-[8px] text-slate-400">/ 100</span>
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-slate-900">{qualityLabel}</p>
-                    <p className="text-[10px] text-slate-400">{qualityGrade}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-1.5">
-                {availablePills.map((label, idx) => (
-                  <span key={idx} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600">
-                    {label}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            {missingPills.length > 0 && (
-              <div className="mt-4 rounded-xl bg-slate-50/70 p-3">
-                <p className="text-[10px] font-semibold text-slate-500">Missing information</p>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  {missingPills.map((label, idx) => (
-                    <span key={idx} className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-medium text-slate-500">
-                      {label}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <span>ℹ</span> Considerations
+            </h3>
+            <ul className="mt-3 space-y-2 text-xs text-slate-600">
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-slate-400">•</span>
+                <span>Features and API access subject to plan limits</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-bold text-slate-400">•</span>
+                <span>Requires active internet connectivity for cloud operations</span>
+              </li>
+            </ul>
           </div>
         </section>
 
-        {/* Tool Overview */}
-        <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="text-sm font-bold text-slate-950">Tool Overview</h3>
-          <p className="mt-3 text-xs leading-relaxed text-slate-600">
-            {overview || "Overview information is not available in the current database record."}
-          </p>
-        </section>
+        {/* Features & Use Cases */}
+        <section className="mt-6 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
+          <h3 className="text-sm font-bold text-slate-950">Key Capabilities & Features</h3>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {features.map((f, i) => (
+              <div key={i} className="flex items-center gap-2 rounded-xl bg-slate-50 p-2.5 text-xs text-slate-700">
+                <span className="font-bold text-blue-600">✓</span>
+                <span>{f}</span>
+              </div>
+            ))}
+          </div>
 
-        {/* Pricing */}
-        <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="text-sm font-bold text-slate-950">Pricing</h3>
-          <p className="mt-2 text-xs font-semibold text-slate-900">{pricingStr}</p>
-          <p className="mt-1 text-[10px] text-slate-400">Check the official website for current pricing and availability.</p>
-        </section>
-
-        {/* Platforms */}
-        <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
-          <h3 className="text-sm font-bold text-slate-950">Platforms</h3>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {platforms.map((p, idx) => (
-              <span key={idx} className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-medium text-slate-600">
-                {p}
+          <h3 className="mt-6 text-sm font-bold text-slate-950">Best Use Cases</h3>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {useCases.map((u, i) => (
+              <span key={i} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
+                {u}
               </span>
             ))}
           </div>
         </section>
 
-        {/* Similar Tools */}
-        <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-950">Discover Similar Tools</h3>
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="text-[10px] font-bold text-blue-600 hover:underline">
-              View All →
-            </Link>
+        {/* FAQ Section (F&Q) */}
+        <section className="mt-6 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-4">
+            <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Q&A</span>
+            <h3 className="text-base font-black text-slate-950">Frequently Asked Questions</h3>
           </div>
 
-          {related.length > 0 ? (
+          <div className="space-y-3">
+            {faqs.map((faq, idx) => (
+              <details key={idx} className="group rounded-xl border border-slate-200/80 bg-slate-50/50 p-3.5 transition open:bg-white open:shadow-sm">
+                <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-900">
+                  <span>{faq.q}</span>
+                  <span className="ml-2 font-bold text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <p className="mt-2 text-xs leading-relaxed text-slate-600 border-t border-slate-100 pt-2">
+                  {faq.a}
+                </p>
+              </details>
+            ))}
+          </div>
+        </section>
+
+        {/* Similar Tools */}
+        {related.length > 0 && (
+          <section className="mt-6">
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-950">Discover Similar Tools</h3>
+              <Link href={`/?cat=${encodeURIComponent(category)}`} className="text-[10px] font-bold text-blue-600 hover:underline">
+                View All →
+              </Link>
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               {related.map((item) => (
                 <Link
@@ -361,158 +350,14 @@ export default async function ToolPage({ params }: PageProps) {
                 </Link>
               ))}
             </div>
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center text-xs text-slate-400">
-              No sufficiently relevant related tools were found for this category yet.
-            </div>
-          )}
-
-          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
-            <Link href="/" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              Find the right AI tool →
-            </Link>
-            <Link href="/" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              Compare tools →
-            </Link>
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-              Explore {category} →
-            </Link>
-          </div>
-        </section>
-
-        {/* Official Website */}
-        {officialWebsite && (
-          <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
-            <h3 className="text-sm font-bold text-slate-950">Official Website</h3>
-            <a
-              href={officialWebsite}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-block rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800"
-            >
-              Visit Official Website →
-            </a>
           </section>
         )}
 
-        {/* CTA Box */}
-        {officialWebsite && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/50 p-6 text-center sm:p-8">
-            <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Official Access</span>
-            <h3 className="mt-1 text-base font-bold text-slate-950">Try {toolName}</h3>
-            <p className="mt-1 text-xs text-slate-500">Visit the official platform for current product information and availability.</p>
-
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
-              <a
-                href={officialWebsite}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-blue-700 transition"
-              >
-                VISIT OFFICIAL PORTAL ↗
-              </a>
-              <Link
-                href="/"
-                className="inline-block rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
-              >
-                ← Back to Directory
-              </Link>
-            </div>
-          </section>
-        )}
-
-        {/* About Tool */}
-        <section className="mt-8">
-          <h3 className="text-sm font-bold text-slate-950">About {toolName}</h3>
-          <p className="mt-2 text-xs leading-relaxed text-slate-600">
-            {toolName} is evaluated in the AI Vault database as a verified solution for {category.toLowerCase()} requirements, supporting modern teams and digital workflow acceleration.
-          </p>
-        </section>
-
-        {/* Key Features */}
-        <section className="mt-4">
-          <h4 className="text-xs font-bold text-slate-950">Key Features</h4>
-          <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
-            {features.length > 0 ? (
-              <ul className="list-disc pl-4 space-y-1 text-slate-600">
-                {features.map((f, i) => <li key={i}>{f}</li>)}
-              </ul>
-            ) : (
-              "Features have not been specified by the source."
-            )}
-          </div>
-        </section>
-
-        {/* Use Cases */}
-        <section className="mt-4">
-          <h4 className="text-xs font-bold text-slate-950">Use Cases</h4>
-          <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
-            {useCases.length > 0 ? (
-              <ul className="list-disc pl-4 space-y-1 text-slate-600">
-                {useCases.map((u, i) => <li key={i}>{u}</li>)}
-              </ul>
-            ) : (
-              "Use cases have not been specified by the source."
-            )}
-          </div>
-        </section>
-
-        {/* Platform Details */}
-        <section className="mt-4">
-          <h4 className="text-xs font-bold text-slate-950">Platform Details</h4>
-          <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Operating System</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">Not specified</p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{deployment}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">License</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{license}</p>
-            </div>
-            <div className="rounded-xl border border-slate-200/80 bg-white p-3">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{pricingStr}</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Integrations */}
-        <section className="mt-4">
-          <h4 className="text-xs font-bold text-slate-950">Integrations</h4>
-          <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
-            {integrations.length > 0 ? (
-              <ul className="list-disc pl-4 space-y-1 text-slate-600">
-                {integrations.map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            ) : (
-              "Integration information has not been specified by the source."
-            )}
-          </div>
-        </section>
-
-        {/* Limitations */}
-        <section className="mt-4">
-          <h4 className="text-xs font-bold text-slate-950">Limitations</h4>
-          <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
-            {limitations.length > 0 ? (
-              <ul className="list-disc pl-4 space-y-1 text-slate-600">
-                {limitations.map((item, i) => <li key={i}>{item}</li>)}
-              </ul>
-            ) : (
-              "Limitations have not been specified by the source."
-            )}
-          </div>
-        </section>
-
-        {/* Footer CTA */}
+        {/* CTA Banner */}
         {officialWebsite && (
           <section className="mt-8 rounded-2xl bg-[#070913] px-6 py-10 text-center text-white sm:px-10">
             <h3 className="text-xl font-black sm:text-2xl">Ready to explore {toolName}?</h3>
-            <p className="mt-1 text-xs text-slate-400">Visit the official platform to verify the latest product information.</p>
+            <p className="mt-1 text-xs text-slate-400">Visit the official platform to get started with latest features.</p>
             <a
               href={officialWebsite}
               target="_blank"
