@@ -9,6 +9,7 @@ const SUPABASE_URL =
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
   "";
 
 interface RawToolCandidate {
@@ -132,6 +133,7 @@ export async function GET() {
     const slug = generateSlug(item.name);
     const score = calculateDeterministicScore(item.name);
 
+    // Guaranteed core database columns only
     const payload = {
       name: item.name,
       slug,
@@ -141,11 +143,7 @@ export async function GET() {
       description: item.overview,
       overview: item.overview,
       score,
-      ai_vault_score: score,
-      neural_score: score,
       website_url: item.website_url,
-      is_verified: true,
-      updated_at: new Date().toISOString(),
     };
 
     const { error } = await supabase
