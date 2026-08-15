@@ -1,3 +1,4 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
@@ -41,16 +42,14 @@ export const metadata: Metadata = {
     locale: "en_US",
     siteName: SITE_NAME,
     title: "AI Vault — Discover the World's Best AI Software",
-    description:
-      "Discover, compare, and explore 740+ verified AI tools.",
+    description: "Discover, compare, and explore 740+ verified AI tools.",
     url: SITE_URL,
   },
 
   twitter: {
     card: "summary_large_image",
     title: "AI Vault — Discover the World's Best AI Software",
-    description:
-      "Discover, compare, and explore 740+ verified AI tools.",
+    description: "Discover, compare, and explore 740+ verified AI tools.",
   },
 
   icons: {
@@ -62,7 +61,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#ffffff",
+  themeColor: "#040616",
 };
 
 export default function RootLayout({
@@ -71,8 +70,10 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body>{children}</body>
+    <html lang="en" className="scroll-smooth">
+      <body className="min-h-screen bg-[#f8faff] text-slate-950 antialiased selection:bg-blue-500 selection:text-white">
+        {children}
+      </body>
     </html>
   );
 }
