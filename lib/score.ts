@@ -14,24 +14,33 @@ export function toNumber(value: unknown): number | null {
 export function normalizeScore(value: unknown): number | null {
   const n = toNumber(value);
   if (n === null) return null;
-  if (n >= 0 && n <= 10) return Math.round(n * 10);
+  if (n > 0 && n <= 10) return Math.round(n * 10);
   if (n >= 0 && n <= 100) return Math.round(n);
   return null;
 }
 
+/**
+ * Evaluates candidate scores by strict canonical priority:
+ * 1. neural_score
+ * 2. score
+ * 3. rating
+ * 4. ai_vault_score
+ *
+ * Returns a normalized 0-100 number or null (never invents or defaults to 85).
+ */
 export function getToolScore(tool: any): number | null {
   if (!tool || typeof tool !== "object") return null;
 
   const candidates = [
-    tool.score,
-    tool.ai_vault_score,
     tool.neural_score,
+    tool.score,
     tool.rating,
+    tool.ai_vault_score,
   ];
 
   for (const candidate of candidates) {
     const normalized = normalizeScore(candidate);
-    if (normalized !== null) {
+    if (normalized !== null && normalized > 0) {
       return normalized;
     }
   }
@@ -39,18 +48,18 @@ export function getToolScore(tool: any): number | null {
   return null;
 }
 
-// Alias for universal compatibility
+// Universal alias export
 export const getAiVaultScore = getToolScore;
 
 export function formatToolScore(tool: any): string {
   const score = getToolScore(tool);
-  if (score === null || score <= 0) return "Not rated";
+  if (score === null) return "Score unavailable";
   return `${score}/100`;
 }
 
 export function formatAIScore(score: unknown): string {
   const normalized = normalizeScore(score);
-  if (normalized === null || normalized <= 0) return "N/A";
+  if (normalized === null) return "Score unavailable";
   return `${normalized}/100`;
 }
 
