@@ -1,24 +1,175 @@
 @import "tailwindcss";
+
 /* =========================================================
-   AI VAULT — SUPER PREMIUM 3D SYSTEM
+   AI VAULT — SUPER PREMIUM 3D DESIGN SYSTEM
+   Production CSS
 ========================================================= */
 
 :root {
   --av-blue: #2563eb;
+  --av-blue-light: #60a5fa;
   --av-indigo: #4f46e5;
   --av-violet: #7c3aed;
+
   --av-dark: #050816;
+  --av-dark-2: #080d20;
+
   --av-text: #0f172a;
+  --av-text-soft: #334155;
   --av-muted: #64748b;
+  --av-muted-light: #94a3b8;
+
+  --av-white: #ffffff;
+  --av-bg: #f7f9fc;
+  --av-bg-soft: #f8fafc;
+
   --av-border: rgba(15, 23, 42, 0.09);
+  --av-border-light: #e5eaf1;
+
+  --av-radius-sm: 12px;
+  --av-radius-md: 16px;
+  --av-radius-lg: 22px;
+  --av-radius-xl: 28px;
+
+  --av-shadow-sm:
+    0 8px 25px rgba(15, 23, 42, 0.04);
+
+  --av-shadow-md:
+    0 15px 45px rgba(15, 23, 42, 0.07);
+
+  --av-shadow-lg:
+    0 30px 80px rgba(15, 23, 42, 0.12);
+}
+
+/* =========================================================
+   GLOBAL RESET
+========================================================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 html {
   scroll-behavior: smooth;
+  background: var(--av-bg);
 }
 
 body {
+  margin: 0;
+  min-height: 100vh;
+
   overflow-x: hidden;
+
+  background:
+    radial-gradient(
+      circle at 50% -10%,
+      rgba(37, 99, 235, 0.07),
+      transparent 35%
+    ),
+    var(--av-bg);
+
+  color: var(--av-text);
+
+  font-family:
+    Arial,
+    Helvetica,
+    sans-serif;
+
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+img {
+  max-width: 100%;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.18);
+  color: #0f172a;
+}
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+
+::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #cbd5e1;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* =========================================================
+   UTILITY
+========================================================= */
+
+.av-shell {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+  padding-inline: 20px;
+}
+
+.av-gradient-text {
+  background:
+    linear-gradient(
+      90deg,
+      var(--av-blue),
+      var(--av-indigo),
+      var(--av-violet)
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  color: transparent;
+}
+
+.av-glass {
+  background: rgba(255, 255, 255, 0.82);
+
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.av-focus {
+  outline: none;
+}
+
+.av-focus:focus-visible {
+  box-shadow:
+    0 0 0 4px rgba(37, 99, 235, 0.12);
 }
 
 /* =========================================================
@@ -27,6 +178,7 @@ body {
 
 .av-site {
   min-height: 100vh;
+
   background:
     radial-gradient(
       circle at 50% -10%,
@@ -34,6 +186,7 @@ body {
       transparent 32%
     ),
     #fafafa;
+
   color: var(--av-text);
 }
 
@@ -44,6 +197,7 @@ body {
 .av-navbar {
   position: sticky;
   top: 0;
+
   z-index: 100;
 
   width: 100%;
@@ -54,8 +208,8 @@ body {
   background:
     rgba(255, 255, 255, 0.88);
 
-  backdrop-filter:
-    blur(22px);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
 }
 
 .av-nav-inner {
@@ -69,16 +223,19 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 20px;
 }
 
 .av-brand {
-  color: #050816;
+  color: var(--av-dark);
 
   font-size: 21px;
   font-weight: 950;
 
   letter-spacing: -0.055em;
+
+  white-space: nowrap;
 }
 
 .av-brand span,
@@ -89,20 +246,26 @@ body {
 .av-nav-links {
   display: flex;
   align-items: center;
+
   gap: 26px;
 }
 
 .av-nav-link {
-  color: #64748b;
+  color: var(--av-muted);
 
   font-size: 12px;
   font-weight: 700;
 
   transition:
-    color 180ms ease;
+    color 180ms ease,
+    transform 180ms ease;
 }
 
-.av-nav-link:hover,
+.av-nav-link:hover {
+  color: var(--av-blue);
+  transform: translateY(-1px);
+}
+
 .av-nav-link-active {
   color: var(--av-blue);
 }
@@ -110,16 +273,15 @@ body {
 .av-nav-count {
   min-width: 48px;
 
-  padding:
-    8px 13px;
+  padding: 8px 13px;
 
   border-radius: 999px;
 
   background:
     linear-gradient(
       135deg,
-      #2563eb,
-      #4f46e5
+      var(--av-blue),
+      var(--av-indigo)
     );
 
   color: white;
@@ -135,7 +297,7 @@ body {
 }
 
 /* =========================================================
-   3D HERO
+   HERO
 ========================================================= */
 
 .av-hero-3d {
@@ -174,6 +336,10 @@ body {
   perspective: 1400px;
 }
 
+/* =========================================================
+   HERO GRID
+========================================================= */
+
 .av-hero-grid {
   position: absolute;
   inset: 0;
@@ -189,8 +355,7 @@ body {
       transparent 1px
     );
 
-  background-size:
-    48px 48px;
+  background-size: 48px 48px;
 
   mask-image:
     radial-gradient(
@@ -199,8 +364,19 @@ body {
       transparent 78%
     );
 
+  -webkit-mask-image:
+    radial-gradient(
+      ellipse at center,
+      black 15%,
+      transparent 78%
+    );
+
   pointer-events: none;
 }
+
+/* =========================================================
+   HERO GLOWS
+========================================================= */
 
 .av-hero-glow {
   position: absolute;
@@ -221,20 +397,18 @@ body {
   left: -180px;
   top: -150px;
 
-  background:
-    #2563eb;
+  background: #2563eb;
 }
 
 .av-glow-two {
   right: -180px;
   bottom: -150px;
 
-  background:
-    #7c3aed;
+  background: #7c3aed;
 }
 
 /* =========================================================
-   ORBITS
+   HERO ORBITS
 ========================================================= */
 
 .av-orbit {
@@ -248,8 +422,7 @@ body {
 
   pointer-events: none;
 
-  transform-style:
-    preserve-3d;
+  transform-style: preserve-3d;
 }
 
 .av-orbit-one {
@@ -356,8 +529,7 @@ body {
   display: grid;
   place-items: center;
 
-  transform-style:
-    preserve-3d;
+  transform-style: preserve-3d;
 
   transform:
     rotateX(var(--hero-rx))
@@ -365,7 +537,7 @@ body {
 
   transition:
     transform 300ms
-    cubic-bezier(.2,.8,.2,1);
+    cubic-bezier(.2, .8, .2, 1);
 
   z-index: 2;
 }
@@ -428,6 +600,10 @@ body {
   }
 }
 
+/* =========================================================
+   CORE INNER
+========================================================= */
+
 .av-core-inner {
   width: 148px;
   height: 148px;
@@ -456,8 +632,8 @@ body {
     inset 0 1px 0
     rgba(255, 255, 255, 0.18);
 
-  backdrop-filter:
-    blur(25px);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
 
   transform:
     translateZ(60px);
@@ -524,16 +700,16 @@ body {
 
   transition:
     transform 300ms
-    cubic-bezier(.2,.8,.2,1);
+    cubic-bezier(.2, .8, .2, 1);
 }
 
 .av-hero-eyebrow {
   display: inline-flex;
   align-items: center;
+
   gap: 9px;
 
-  padding:
-    8px 14px;
+  padding: 8px 14px;
 
   border-radius: 999px;
 
@@ -544,8 +720,8 @@ body {
   background:
     rgba(255, 255, 255, 0.055);
 
-  backdrop-filter:
-    blur(16px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 
   font-size: 9px;
   font-weight: 900;
@@ -586,6 +762,10 @@ body {
     opacity: 1;
   }
 }
+
+/* =========================================================
+   HERO TYPOGRAPHY
+========================================================= */
 
 .av-hero-content h1 {
   margin:
@@ -645,13 +825,14 @@ body {
 }
 
 /* =========================================================
-   HERO BUTTONS
+   HERO ACTIONS
 ========================================================= */
 
 .av-hero-actions {
   margin-top: 34px;
 
   display: flex;
+
   justify-content: center;
 
   gap: 12px;
@@ -718,8 +899,8 @@ body {
     1px solid
     rgba(255, 255, 255, 0.12);
 
-  backdrop-filter:
-    blur(15px);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
 }
 
 .av-secondary-btn:hover {
@@ -756,8 +937,8 @@ body {
   background:
     rgba(15, 23, 42, 0.55);
 
-  backdrop-filter:
-    blur(15px);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
 
   color:
     rgba(255, 255, 255, 0.46);
@@ -776,6 +957,8 @@ body {
 .av-floating-node span {
   width: 5px;
   height: 5px;
+
+  flex-shrink: 0;
 
   border-radius: 50%;
 
@@ -810,7 +993,7 @@ body {
 }
 
 /* =========================================================
-   STATUS
+   HERO STATUS BAR
 ========================================================= */
 
 .av-status-bar {
@@ -848,8 +1031,8 @@ body {
   background:
     rgba(255, 255, 255, 0.04);
 
-  backdrop-filter:
-    blur(18px);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .av-status-bar span {
@@ -912,6 +1095,8 @@ body {
 }
 
 .av-directory-header h2 {
+  margin: 0;
+
   font-size:
     clamp(30px, 4vw, 48px);
 
@@ -929,7 +1114,7 @@ body {
   margin-top: 14px;
 
   color:
-    #64748b;
+    var(--av-muted);
 
   font-size: 14px;
 
@@ -952,8 +1137,7 @@ body {
     white;
 
   box-shadow:
-    0 10px 35px
-    rgba(15, 23, 42, 0.05);
+    var(--av-shadow-sm);
 
   text-align: center;
 }
@@ -968,7 +1152,7 @@ body {
     0.14em;
 
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 .av-results-count strong {
@@ -984,7 +1168,7 @@ body {
 }
 
 /* =========================================================
-   SEARCH
+   SEARCH PANEL
 ========================================================= */
 
 .av-search-panel {
@@ -1007,7 +1191,7 @@ body {
 }
 
 .av-search-box {
-  height: 55px;
+  min-height: 55px;
 
   display: flex;
   align-items: center;
@@ -1023,7 +1207,7 @@ body {
     #f8fafc;
 
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 .av-search-box input {
@@ -1039,7 +1223,7 @@ body {
   background: transparent;
 
   color:
-    #0f172a;
+    var(--av-text);
 
   font-size: 13px;
   font-weight: 600;
@@ -1047,7 +1231,7 @@ body {
 
 .av-search-box input::placeholder {
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 .av-search-clear {
@@ -1056,6 +1240,8 @@ body {
 
   display: grid;
   place-items: center;
+
+  border: 0;
 
   border-radius: 50%;
 
@@ -1068,16 +1254,19 @@ body {
   font-size: 19px;
 
   transition:
-    background 150ms ease;
+    background 150ms ease,
+    transform 150ms ease;
 }
 
 .av-search-clear:hover {
   background:
     #cbd5e1;
+
+  transform: scale(1.05);
 }
 
 /* =========================================================
-   CATEGORY
+   CATEGORY ROW
 ========================================================= */
 
 .av-category-row {
@@ -1128,7 +1317,8 @@ body {
     transform 160ms ease,
     border-color 160ms ease,
     color 160ms ease,
-    background 160ms ease;
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .av-category-pill:hover {
@@ -1140,14 +1330,18 @@ body {
 
   color:
     var(--av-blue);
+
+  box-shadow:
+    0 5px 18px
+    rgba(37, 99, 235, 0.08);
 }
 
 .av-category-pill-active {
   background:
-    #050816;
+    var(--av-dark);
 
   border-color:
-    #050816;
+    var(--av-dark);
 
   color:
     white;
@@ -1158,7 +1352,7 @@ body {
 }
 
 /* =========================================================
-   3D CARD GRID
+   TOOL GRID
 ========================================================= */
 
 .av-tool-grid {
@@ -1171,6 +1365,10 @@ body {
 
   gap: 20px;
 }
+
+/* =========================================================
+   3D CARD WRAPPER
+========================================================= */
 
 .av-3d-card-wrap {
   --card-rx: 0deg;
@@ -1187,6 +1385,10 @@ body {
   transform-style:
     preserve-3d;
 }
+
+/* =========================================================
+   TOOL CARD
+========================================================= */
 
 .av-tool-card {
   position: relative;
@@ -1230,7 +1432,7 @@ body {
 
   transition:
     transform 180ms
-      cubic-bezier(.2,.8,.2,1),
+      cubic-bezier(.2, .8, .2, 1),
     box-shadow 180ms ease,
     border-color 180ms ease;
 
@@ -1238,6 +1440,7 @@ body {
     transform;
 }
 
+.av-tool-card:hover,
 .av-tool-card-hover {
   border-color:
     rgba(37, 99, 235, 0.24);
@@ -1246,6 +1449,10 @@ body {
     0 28px 80px
     rgba(15, 23, 42, 0.13);
 }
+
+/* =========================================================
+   CARD LIGHT
+========================================================= */
 
 .av-card-light {
   position: absolute;
@@ -1310,6 +1517,8 @@ body {
 
   justify-content: space-between;
 
+  gap: 12px;
+
   transform:
     translateZ(35px);
 }
@@ -1320,6 +1529,8 @@ body {
 
   display: grid;
   place-items: center;
+
+  flex-shrink: 0;
 
   border:
     1px solid
@@ -1333,6 +1544,8 @@ body {
   box-shadow:
     0 10px 25px
     rgba(15, 23, 42, 0.08);
+
+  overflow: hidden;
 }
 
 .av-pricing-badge {
@@ -1353,6 +1566,8 @@ body {
 
   font-size: 8px;
   font-weight: 900;
+
+  white-space: nowrap;
 }
 
 /* =========================================================
@@ -1398,7 +1613,9 @@ body {
     -0.035em;
 
   color:
-    #0f172a;
+    var(--av-text);
+
+  overflow-wrap: anywhere;
 }
 
 .av-card-content p {
@@ -1416,11 +1633,11 @@ body {
   line-height: 1.7;
 
   color:
-    #64748b;
+    var(--av-muted);
 }
 
 /* =========================================================
-   SCORE
+   CARD SCORE
 ========================================================= */
 
 .av-card-score-row {
@@ -1450,7 +1667,7 @@ body {
     0.12em;
 
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 .av-score-number {
@@ -1469,7 +1686,7 @@ body {
   font-size: 8px;
 
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 /* =========================================================
@@ -1490,10 +1707,7 @@ body {
   border-radius: 50%;
 
   background:
-    conic-gradient(
-      #2563eb 0deg,
-      #e2e8f0 0deg
-    );
+    #e2e8f0;
 
   box-shadow:
     0 8px 20px
@@ -1507,6 +1721,8 @@ body {
 
   inset: 5px;
 
+  z-index: 1;
+
   border-radius: 50%;
 
   background:
@@ -1516,13 +1732,15 @@ body {
 .av-score-orb-fill {
   position: absolute;
 
+  inset: 0;
+
   width: 100%;
   height: 100%;
 
   background:
     conic-gradient(
-      #2563eb,
-      #7c3aed
+      var(--av-blue),
+      var(--av-violet)
     );
 
   transform-origin:
@@ -1540,7 +1758,7 @@ body {
   font-weight: 950;
 
   color:
-    #0f172a;
+    var(--av-text);
 }
 
 /* =========================================================
@@ -1562,6 +1780,8 @@ body {
 
   justify-content: space-between;
 
+  gap: 12px;
+
   border-top:
     1px solid
     rgba(15, 23, 42, 0.07);
@@ -1578,7 +1798,7 @@ body {
     0.15em;
 
   color:
-    #94a3b8;
+    var(--av-muted-light);
 }
 
 .av-explore-link {
@@ -1595,13 +1815,19 @@ body {
     var(--av-blue);
 
   transition:
-    transform 160ms ease;
+    transform 160ms ease,
+    color 160ms ease;
 }
 
 .av-tool-card:hover
 .av-explore-link {
   transform:
     translateX(3px);
+}
+
+.av-explore-link:hover {
+  color:
+    #1d4ed8;
 }
 
 .av-explore-link b {
@@ -1634,8 +1860,8 @@ body {
   background:
     linear-gradient(
       90deg,
-      #2563eb,
-      #7c3aed
+      var(--av-blue),
+      var(--av-violet)
     );
 }
 
@@ -1684,7 +1910,7 @@ body {
   font-weight: 700;
 
   color:
-    #64748b;
+    var(--av-muted);
 }
 
 .av-loading-page {
@@ -1715,11 +1941,13 @@ body {
   border-radius: 50%;
 
   background:
-    #2563eb;
+    var(--av-blue);
 
   animation:
-    av-loader 1s
-    ease-in-out infinite;
+    av-loader
+    1s
+    ease-in-out
+    infinite;
 }
 
 .av-loader div:nth-child(2) {
@@ -1735,13 +1963,19 @@ body {
 @keyframes av-loader {
   0%,
   100% {
-    transform: translateY(0);
-    opacity: 0.35;
+    transform:
+      translateY(0);
+
+    opacity:
+      0.35;
   }
 
   50% {
-    transform: translateY(-7px);
-    opacity: 1;
+    transform:
+      translateY(-7px);
+
+    opacity:
+      1;
   }
 }
 
@@ -1806,7 +2040,7 @@ body {
   margin-top: 7px;
 
   color:
-    #64748b;
+    var(--av-muted);
 
   font-size: 13px;
 
@@ -1819,12 +2053,15 @@ body {
   padding:
     11px 18px;
 
+  border: 0;
+
   border-radius: 12px;
 
   background:
-    #050816;
+    var(--av-dark);
 
-  color: white;
+  color:
+    white;
 
   font-size: 11px;
   font-weight: 900;
@@ -1839,7 +2076,7 @@ body {
     translateY(-2px);
 
   background:
-    #2563eb;
+    var(--av-blue);
 }
 
 /* =========================================================
@@ -1873,21 +2110,23 @@ body {
     ),
     #050816;
 
-  color: white;
+  color:
+    white;
 }
 
 .av-final-cta-grid {
   position: absolute;
+
   inset: 0;
 
   background-image:
     linear-gradient(
-      rgba(255,255,255,.035) 1px,
+      rgba(255, 255, 255, 0.035) 1px,
       transparent 1px
     ),
     linear-gradient(
       90deg,
-      rgba(255,255,255,.035) 1px,
+      rgba(255, 255, 255, 0.035) 1px,
       transparent 1px
     );
 
@@ -1895,6 +2134,13 @@ body {
     38px 38px;
 
   mask-image:
+    radial-gradient(
+      ellipse at center,
+      black,
+      transparent 75%
+    );
+
+  -webkit-mask-image:
     radial-gradient(
       ellipse at center,
       black,
@@ -1921,12 +2167,13 @@ body {
 
   border:
     1px solid
-    rgba(255,255,255,.1);
+    rgba(255, 255, 255, 0.1);
 
-  border-radius: 999px;
+  border-radius:
+    999px;
 
   background:
-    rgba(255,255,255,.05);
+    rgba(255, 255, 255, 0.05);
 
   font-size: 8px;
   font-weight: 900;
@@ -1935,7 +2182,7 @@ body {
     0.16em;
 
   color:
-    rgba(255,255,255,.6);
+    rgba(255, 255, 255, 0.6);
 }
 
 .av-final-cta h2 {
@@ -1944,9 +2191,11 @@ body {
   font-size:
     clamp(35px, 6vw, 58px);
 
-  line-height: .98;
+  line-height:
+    0.98;
 
-  font-weight: 950;
+  font-weight:
+    950;
 
   letter-spacing:
     -0.06em;
@@ -1959,7 +2208,7 @@ body {
     18px auto 0;
 
   color:
-    rgba(255,255,255,.52);
+    rgba(255, 255, 255, 0.52);
 
   font-size: 14px;
 
@@ -1979,13 +2228,14 @@ body {
   padding:
     0 20px;
 
-  border-radius: 13px;
+  border-radius:
+    13px;
 
   background:
     white;
 
   color:
-    #050816;
+    var(--av-dark);
 
   font-size: 11px;
   font-weight: 950;
@@ -2001,7 +2251,7 @@ body {
 
   box-shadow:
     0 15px 40px
-    rgba(255,255,255,.15);
+    rgba(255, 255, 255, 0.15);
 }
 
 /* =========================================================
@@ -2108,14 +2358,16 @@ body {
    TABLET
 ========================================================= */
 
-@media (max-width: 1000px) {
-  .av-nav-links {
-    display: none;
-  }
-
+@media (max-width: 1100px) {
   .av-tool-grid {
     grid-template-columns:
       repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1000px) {
+  .av-nav-links {
+    display: none;
   }
 
   .av-hero-3d {
@@ -2128,8 +2380,15 @@ body {
 ========================================================= */
 
 @media (max-width: 680px) {
+  .av-shell {
+    padding-inline: 14px;
+  }
+
   .av-nav-inner {
     height: 62px;
+
+    width:
+      calc(100% - 24px);
   }
 
   .av-brand {
@@ -2149,7 +2408,7 @@ body {
 
   .av-core {
     transform:
-      scale(.68)
+      scale(0.68)
       translateY(-45px);
   }
 
@@ -2223,7 +2482,7 @@ body {
 
   .av-directory {
     width:
-      min(100% - 24px, 1280px);
+      calc(100% - 24px);
 
     padding:
       60px 0 75px;
@@ -2296,10 +2555,10 @@ body {
   }
 
   .av-core {
-    opacity: .65;
+    opacity: 0.65;
 
     transform:
-      scale(.58)
+      scale(0.58)
       translateY(-55px);
   }
 
@@ -2310,10 +2569,18 @@ body {
   .av-directory-header h2 {
     font-size: 30px;
   }
+
+  .av-search-box {
+    min-height: 50px;
+  }
+
+  .av-tool-card {
+    padding: 18px;
+  }
 }
 
 /* =========================================================
-   REDUCED MOTION
+   ACCESSIBILITY / REDUCED MOTION
 ========================================================= */
 
 @media (prefers-reduced-motion: reduce) {
@@ -2336,6 +2603,21 @@ body {
   .av-tool-card,
   .av-core,
   .av-hero-content {
-    transform: none !important;
+    transform:
+      none !important;
+  }
+}
+
+/* =========================================================
+   SAFE AREA — MOBILE DEVICES
+========================================================= */
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .av-footer-bottom {
+    padding-bottom:
+      max(
+        17px,
+        env(safe-area-inset-bottom)
+      );
   }
 }
