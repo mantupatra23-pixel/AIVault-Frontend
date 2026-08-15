@@ -133,13 +133,12 @@ export async function GET() {
     const slug = generateSlug(item.name);
     const score = calculateDeterministicScore(item.name);
 
-    // Guaranteed core database columns only
+    // Sirf valid table columns
     const payload = {
       name: item.name,
       slug,
       category: item.category,
       pricing: item.pricing,
-      pricing_model: item.pricing,
       description: item.overview,
       overview: item.overview,
       score,
