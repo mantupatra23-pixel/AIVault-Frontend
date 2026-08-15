@@ -1,7 +1,7 @@
 // app/tool/[slug]/page.tsx
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 
@@ -44,14 +44,26 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [related, setRelated] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Interactive States
+  // Retention & Engagement States
   const [upvoted, setUpvoted] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(140);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
   const [weeklyHours, setWeeklyHours] = useState(14);
   const [pollVoted, setPollVoted] = useState<"yes" | "no" | null>(null);
-  const [pollStats, setPollStats] = useState({ yes: 93, no: 7 });
+  const [pollStats, setPollStats] = useState({ yes: 94, no: 6 });
+
+  // Interactive Prompt Copy State
+  const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
+  const [notionExported, setNotionExported] = useState(false);
+
+  // Diagnostic Quiz State
+  const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
+  const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
+
+  // Alert Modal / Lead Magnet State
+  const [alertEmail, setAlertEmail] = useState("");
+  const [alertSubscribed, setAlertSubscribed] = useState(false);
 
   useEffect(() => {
     async function loadToolData() {
@@ -59,7 +71,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         setLoading(true);
         const supabase = getSupabase();
 
-        // 1. Fetch Tool Record
+        // 1. Fetch Target Tool Record
         const { data: toolData, error: toolErr } = await supabase
           .from("ai_tools")
           .select("*")
@@ -82,7 +94,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         );
         setUpvoteCount(95 + (seed % 110));
 
-        // 2. Fetch Related Tools
+        // 2. Fetch Category Peers
         const cat = toolData.category || "Productivity";
         const { data: relatedData } = await supabase
           .from("ai_tools")
@@ -113,7 +125,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
-  // Deep Clean Overview
   const rawOverview = String(tool?.overview || tool?.description || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
     .replace(/As a Senior SEO[^.]*\.\s*/gi, "");
@@ -122,9 +133,48 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     cleanAiContent(rawOverview) ||
     `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with automated precision and speed.`;
 
-  // Calculated ROI
+  // Calculated ROI Metrics
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
+
+  // Playbook Prompts Tailored by Category
+  const playbookPrompts = useMemo(() => {
+    const cat = category.toLowerCase();
+    if (cat.includes("market") || cat.includes("invest")) {
+      return [
+        {
+          title: "Investor Pitch & Hook Optimizer",
+          prompt: `Analyze our value proposition for a modern audience. Identify the top 3 high-conviction hooks, potential friction points, and output a concise 60-second elevator pitch structured for ${toolName}.`,
+        },
+        {
+          title: "High-Response Cold Outreach Blueprint",
+          prompt: `Generate a 3-step personalised outreach cadence for prospect decision makers. Keep each message under 110 words with a specific, low-friction call to action.`,
+        },
+      ];
+    }
+    if (cat.includes("code") || cat.includes("dev")) {
+      return [
+        {
+          title: "Production Architecture Refactoring",
+          prompt: `Review the provided logic for bottlenecks. Suggest modular TypeScript/Python refactoring with error boundaries and minimal execution overhead for ${toolName}.`,
+        },
+        {
+          title: "Automated Test Suite Generator",
+          prompt: `Generate complete unit and integration tests covering edge cases, invalid payloads, and timeout handlers for this module.`,
+        },
+      ];
+    }
+    return [
+      {
+        title: "Standard Workflow Acceleration Prompt",
+        prompt: `Act as a senior operations specialist. Break down our standard operational task into an automated 3-step execution pipeline utilizing ${toolName}.`,
+      },
+      {
+        title: "Executive Summary & Key Action Items",
+        prompt: `Synthesize the core findings from this project into 5 bullet points with clear owner assignments and priority scores.`,
+      },
+    ];
+  }, [category, toolName]);
 
   const handleUpvote = () => {
     if (upvoted) {
@@ -144,6 +194,38 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
+  const handleCopyPrompt = (text: string, index: number) => {
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(text);
+      setCopiedPromptIndex(index);
+      setTimeout(() => setCopiedPromptIndex(null), 2000);
+    }
+  };
+
+  const handleExportNotion = () => {
+    const markdown = `# ${toolName} — Intelligence Brief (AI Vault)
+- **Category**: ${category}
+- **Pricing**: ${pricing}
+- **AI Vault Score**: ${formattedScore}
+- **Official URL**: ${officialWebsite || "N/A"}
+
+## Overview
+${cleanOverview}
+
+## Key Capabilities
+- Automated ${category.toLowerCase()} pipeline execution
+- Instant cloud workspace integration
+- Verified high-throughput reliability
+
+Generated via AI Vault (https://aivault.pp.ua)`;
+
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(markdown);
+      setNotionExported(true);
+      setTimeout(() => setNotionExported(false), 2500);
+    }
+  };
+
   const handlePoll = (choice: "yes" | "no") => {
     if (pollVoted) return;
     setPollVoted(choice);
@@ -154,22 +236,30 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
+  const handleAlertSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (alertEmail && alertEmail.includes("@")) {
+      setAlertSubscribed(true);
+      setAlertEmail("");
+    }
+  };
+
   const featuresList = [
     {
-      title: "Intelligent Workflow Automation",
-      desc: `Reduces manual bottlenecks in ${category.toLowerCase()} tasks with high-speed execution.`
+      title: "Intelligent Pipeline Automation",
+      desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`
     },
     {
-      title: "Immediate Workspace Deployment",
-      desc: "Instant cloud accessibility without complex installations or server configurations."
+      title: "Seamless Workspace Integration",
+      desc: "Designed for immediate adoption across standard browser and cloud environments."
     },
     {
-      title: "High Accuracy Processing",
-      desc: "Consistently synthesizes domain data to produce structured, actionable outputs."
+      title: "High-Throughput Processing",
+      desc: "Handles large data inputs and parallel execution without performance degradation."
     },
     {
-      title: "Flexible Team Pipeline Integration",
-      desc: "Easily connects with standard browser workflows, developer tools, and operational stacks."
+      title: "Actionable Intelligence & Exports",
+      desc: "Generates clean, structured outputs ready for production use and team handoffs."
     }
   ];
 
@@ -221,17 +311,25 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Top Navbar */}
+      {/* Top Sticky Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={handleExportNotion}
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+              title="Copy Markdown for Notion"
+            >
+              <span>{notionExported ? "✓ Markdown Copied!" : "📋 Export Notion"}</span>
+            </button>
+
             <button
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
             >
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
@@ -241,7 +339,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 href={officialWebsite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
+                className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
               >
                 Visit Website ↗
               </a>
@@ -251,7 +349,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb */}
+        {/* Breadcrumb & Badges */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-blue-600">Directory</Link>
@@ -266,7 +364,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </span>
         </div>
 
-        {/* HERO CARD */}
+        {/* HERO SECTION */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
             <div className="flex items-start gap-4 min-w-0">
@@ -289,7 +387,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               </div>
             </div>
 
-            {/* Upvote & Bookmark Bar */}
+            {/* Interactive Upvote & Bookmark */}
             <div className="flex items-center gap-2 self-start">
               <button
                 onClick={handleUpvote}
@@ -321,7 +419,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             {cleanOverview}
           </p>
 
-          {/* Quick Stats Grid */}
+          {/* Quick Metrics */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">AI Vault Score</p>
@@ -337,11 +435,11 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-sm font-black text-slate-900 truncate">{deployment}</p>
+              <p className="mt-1 text-xs font-bold text-slate-900 truncate">{deployment}</p>
             </div>
           </div>
 
-          {/* Score Bar */}
+          {/* Score Indicator */}
           <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -365,6 +463,114 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               </div>
             )}
           </div>
+        </section>
+
+        {/* 1. INTERACTIVE PROMPT & WORKFLOW PLAYBOOK (REPEAT VALUE ENGINE) */}
+        <section className="mt-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <div>
+              <span className="inline-block rounded-full bg-indigo-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-indigo-700">
+                ⚡ Ready-to-Use AI Playbook
+              </span>
+              <h2 className="text-base font-black text-slate-950 mt-1">
+                Copy-Paste Prompts for {toolName}
+              </h2>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400">1-Click Copied into Clipboard</span>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {playbookPrompts.map((item, idx) => (
+              <div key={idx} className="flex flex-col justify-between rounded-2xl border border-indigo-100/80 bg-white p-4 shadow-sm">
+                <div>
+                  <h3 className="text-xs font-black text-slate-900">{item.title}</h3>
+                  <p className="mt-2 text-xs font-mono text-slate-600 bg-slate-50 p-2.5 rounded-xl leading-relaxed border border-slate-100">
+                    "{item.prompt}"
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleCopyPrompt(item.prompt, idx)}
+                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-950 py-2 text-xs font-bold text-white transition hover:bg-indigo-600"
+                >
+                  <span>{copiedPromptIndex === idx ? "✓ Copied to Clipboard!" : "📋 Copy Prompt Template"}</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* 2. INTERACTIVE FIT DIAGNOSTIC QUIZ ("Is this tool right for you?") */}
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Quick Decision Engine</span>
+          <h2 className="text-base font-black text-slate-950 mt-0.5">Is {toolName} right for your stack?</h2>
+          <p className="mt-1 text-xs text-slate-500">Answer 2 quick questions to calculate your team compatibility:</p>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+              <p className="text-xs font-bold text-slate-900 mb-2">1. What is your team budget?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setQuizBudget("free")}
+                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
+                    quizBudget === "free" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                  }`}
+                >
+                  Free / Low Cost
+                </button>
+                <button
+                  onClick={() => setQuizBudget("paid")}
+                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
+                    quizBudget === "paid" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                  }`}
+                >
+                  Paid SaaS Budget
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
+              <p className="text-xs font-bold text-slate-900 mb-2">2. Who will be using it?</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setQuizTeam("solo")}
+                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
+                    quizTeam === "solo" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                  }`}
+                >
+                  Solo / Founder
+                </button>
+                <button
+                  onClick={() => setQuizTeam("team")}
+                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
+                    quizTeam === "team" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-slate-700 border-slate-200"
+                  }`}
+                >
+                  Growing Team
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {quizBudget && quizTeam && (
+            <div className="mt-4 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-emerald-900">
+                  ✓ High Match: {toolName} fits your requirements ({pricing} tier).
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Great choice for {quizTeam === "solo" ? "individual fast deployment" : "team scale and cross-collaboration"}.
+                </p>
+              </div>
+              <a
+                href={officialWebsite || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800"
+              >
+                Proceed ↗
+              </a>
+            </div>
+          )}
         </section>
 
         {/* DETAILED ABOUT SECTION */}
@@ -555,8 +761,44 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
+        {/* 3. PRICE DROP & FEATURE TRACKER (RETENTION HOOK) */}
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="max-w-md">
+              <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Daily Intelligence Tracker</span>
+              <h3 className="text-base font-black text-slate-950 mt-0.5">Get Price Drop & Update Alerts for {toolName}</h3>
+              <p className="mt-1 text-xs text-slate-500 leading-relaxed">
+                Be notified when new features, lifetime discounts, or pricing model updates launch for this tool.
+              </p>
+            </div>
+
+            {alertSubscribed ? (
+              <div className="rounded-2xl bg-emerald-50 border border-emerald-200 px-5 py-3 text-xs font-bold text-emerald-800">
+                ✓ Tracking active! You will receive verified update digests.
+              </div>
+            ) : (
+              <form onSubmit={handleAlertSubscribe} className="flex gap-2 w-full sm:w-auto">
+                <input
+                  type="email"
+                  required
+                  value={alertEmail}
+                  onChange={(e) => setAlertEmail(e.target.value)}
+                  placeholder="Enter work email..."
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white flex-1 sm:w-64"
+                />
+                <button
+                  type="submit"
+                  className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-600 transition"
+                >
+                  Track Tool
+                </button>
+              </form>
+            )}
+          </div>
+        </section>
+
         {/* COMMUNITY SENTIMENT POLL */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7 text-center">
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm text-center">
           <h3 className="text-sm font-black text-slate-950">
             Would you recommend {toolName} to your team?
           </h3>
@@ -620,7 +862,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* SIMILAR TOOLS */}
+        {/* SIMILAR TOOLS (COMPARISON LAUNCHER) */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">
@@ -659,7 +901,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </section>
         )}
 
-        {/* HIGH-CONTRAST BOTTOM CTA BANNER (FIXED VISIBILITY) */}
+        {/* HIGH-CONTRAST BOTTOM CTA BANNER */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
