@@ -274,10 +274,9 @@ function OrbitParticles({
    * Do NOT use:
    *
    * <bufferAttribute
-   *   count={count}
-   *   array={positions}
-   *   itemSize={3}
-   * />
+          attach="attributes-position"
+          args={[points, 3]}
+        />
    *
    * Newer React Three Fiber typings require
    * the BufferAttribute constructor arguments.
