@@ -30,10 +30,7 @@ const ITEMS_PER_PAGE = 24;
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-function getSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const CATEGORIES = [
   { name: "All", icon: "⚡" },
@@ -138,12 +135,35 @@ function HomeContent() {
 
   useEffect(() => {
     async function loadCatalog() {
+      // 1. Instant Cache Check for 0ms render
+      if (typeof window !== "undefined") {
+        const cached = sessionStorage.getItem("aivault_catalog_cache");
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setTools(parsed);
+              setLoading(false);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+
       try {
-        setLoading(true);
-        const supabase = getSupabase();
-        const { data, error } = await supabase.from("ai_tools").select("*");
+        const { data, error } = await supabase
+          .from("ai_tools")
+          .select("id, slug, name, category, pricing, pricing_model, score, neural_score, ai_vault_score, overview, description, logo_url, logo");
+
         if (error) throw error;
-        setTools((data as ToolRecord[]) || []);
+        
+        if (data && data.length > 0) {
+          setTools(data as ToolRecord[]);
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("aivault_catalog_cache", JSON.stringify(data));
+          }
+        }
       } catch (err) {
         console.error("Error loading tools:", err);
       } finally {
@@ -196,6 +216,8 @@ function HomeContent() {
     setCurrentPage(p);
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
+
+  const displayCount = tools.length > 0 ? tools.length : 750;
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
@@ -252,7 +274,7 @@ function HomeContent() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${tools.length} verified AI software...`}
+              placeholder={`Search ${displayCount} verified AI software...`}
               className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
             />
             {search && (
@@ -335,7 +357,7 @@ function HomeContent() {
             </h2>
           </div>
 
-          {loading ? (
+          {loading && tools.length === 0 ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />
@@ -349,7 +371,6 @@ function HomeContent() {
                 ))}
               </div>
 
-              {/* HIGH CONTRAST PAGINATION BUTTONS */}
               {totalPages > 1 && (
                 <div className="mt-10 flex items-center justify-center gap-2">
                   <button

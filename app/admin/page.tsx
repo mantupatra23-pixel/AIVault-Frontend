@@ -25,16 +25,13 @@ type ToolRecord = {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-function getSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const AFFILIATE_NETWORKS = ["Direct", "PartnerStack", "Impact", "Rewardful", "FirstPromoter", "CJ", "ShareASale"];
 const CATEGORIES = ["Marketing", "Productivity", "Coding", "Chatbot", "Image", "Writing", "Audio", "Video"];
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "subscribers">("affiliate");
+  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -57,17 +54,14 @@ export default function AdminPage() {
   const [formOverview, setFormOverview] = useState("");
   const [formScore, setFormScore] = useState("92");
 
-  // Show Toast helper
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Load Catalog Data
   async function loadAdminData() {
     try {
       setLoading(true);
-      const supabase = getSupabase();
       const { data, error } = await supabase
         .from("ai_tools")
         .select("*")
@@ -85,7 +79,6 @@ export default function AdminPage() {
     loadAdminData();
   }, []);
 
-  // Filtered Tools
   const filteredTools = useMemo(() => {
     return tools.filter((t) => {
       const q = search.toLowerCase();
@@ -106,7 +99,6 @@ export default function AdminPage() {
     });
   }, [tools, search, statusFilter]);
 
-  // Aggregate Metrics
   const metrics = useMemo(() => {
     const total = tools.length;
     const active = tools.filter((t) => t.affiliate_url && t.affiliate_url.trim().length > 0).length;
@@ -117,14 +109,12 @@ export default function AdminPage() {
     return { total, active, pending, clicks, revenue };
   }, [tools]);
 
-  // Handle Affiliate Save
   const handleSaveAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTool) return;
 
     try {
       setSaving(true);
-      const supabase = getSupabase();
       const isMonetized = editAffiliateUrl.trim().length > 0;
 
       const { error } = await supabase
@@ -151,6 +141,11 @@ export default function AdminPage() {
         )
       );
 
+      // Clear public cache so updates reflect immediately
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("aivault_catalog_cache");
+      }
+
       setSelectedTool(null);
       showToast(`✓ Affiliate URL saved for ${selectedTool.name}`);
     } catch (err) {
@@ -161,38 +156,12 @@ export default function AdminPage() {
     }
   };
 
-  // Open Tool Edit Modal
-  const handleOpenEditTool = (tool: ToolRecord) => {
-    setEditingToolRecord(tool);
-    setFormName(tool.name || "");
-    setFormCategory(tool.category || "Productivity");
-    setFormPricing(tool.pricing || "Freemium");
-    setFormWebsite(tool.website_url || "");
-    setFormOverview(tool.overview || tool.description || "");
-    setFormScore(String(tool.score || "92"));
-    setIsAddModalOpen(true);
-  };
-
-  // Open Tool Add Modal
-  const handleOpenAddTool = () => {
-    setEditingToolRecord(null);
-    setFormName("");
-    setFormCategory("Productivity");
-    setFormPricing("Freemium");
-    setFormWebsite("");
-    setFormOverview("");
-    setFormScore("92");
-    setIsAddModalOpen(true);
-  };
-
-  // Handle Save / Add Tool
   const handleSaveToolRecord = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) return;
 
     try {
       setSaving(true);
-      const supabase = getSupabase();
       const slug = formName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
 
       const payload = {
@@ -217,6 +186,10 @@ export default function AdminPage() {
         showToast(`✓ Added new tool: ${formName}`);
       }
 
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("aivault_catalog_cache");
+      }
+
       await loadAdminData();
       setIsAddModalOpen(false);
     } catch (err) {
@@ -227,14 +200,15 @@ export default function AdminPage() {
     }
   };
 
-  // Handle Delete Tool
   const handleDeleteTool = async (tool: ToolRecord) => {
     if (!confirm(`Are you sure you want to delete ${tool.name}?`)) return;
     try {
-      const supabase = getSupabase();
       const { error } = await supabase.from("ai_tools").delete().eq("id", tool.id);
       if (error) throw error;
       setTools((prev) => prev.filter((t) => t.id !== tool.id));
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("aivault_catalog_cache");
+      }
       showToast(`Deleted ${tool.name}`);
     } catch (err) {
       console.error(err);
@@ -244,7 +218,6 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
-      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black text-white shadow-2xl animate-bounce">
           {toastMessage}
@@ -380,7 +353,7 @@ export default function AdminPage() {
                 <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading directory index...</div>
               ) : filteredTools.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[700px]">
+                  <table className="w-full text-left border-collapse min-w-[750px]">
                     <thead>
                       <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
                         <th className="pb-3">Tool Name</th>
@@ -388,19 +361,20 @@ export default function AdminPage() {
                         <th className="pb-3">Status</th>
                         <th className="pb-3">Clicks</th>
                         <th className="pb-3">Network</th>
-                        <th className="pb-3 text-right">Action</th>
+                        <th className="pb-3 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60 text-xs">
                       {filteredTools.map((t) => {
                         const isMonetized = Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
+                        const slug = String(t.slug || "");
 
                         return (
                           <tr key={t.id} className="hover:bg-slate-900/40 transition">
                             <td className="py-3.5 pr-4 font-bold text-white">
                               <div>
                                 <p>{t.name}</p>
-                                <p className="text-[10px] font-normal text-slate-500">/tool/{t.slug}</p>
+                                <p className="text-[10px] font-normal text-slate-500">/tool/{slug}</p>
                               </div>
                             </td>
 
@@ -422,7 +396,18 @@ export default function AdminPage() {
 
                             <td className="py-3.5 pr-4 text-slate-400">{t.affiliate_network || "Direct"}</td>
 
-                            <td className="py-3.5 text-right">
+                            <td className="py-3.5 text-right space-x-1.5">
+                              {/* DIRECT TEST BUTTON */}
+                              <a
+                                href={`/go/${encodeURIComponent(slug)}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-block rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-blue-600 hover:text-white transition"
+                                title="Test redirect directly"
+                              >
+                                Test /go ↗
+                              </a>
+
                               <button
                                 onClick={() => {
                                   setSelectedTool(t);
@@ -447,7 +432,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 2: TOOL CATALOG MANAGER (ADD / EDIT / DELETE) */}
+        {/* TAB 2: TOOL CATALOG MANAGER */}
         {activeTab === "catalog" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -457,7 +442,16 @@ export default function AdminPage() {
               </div>
 
               <button
-                onClick={handleOpenAddTool}
+                onClick={() => {
+                  setEditingToolRecord(null);
+                  setFormName("");
+                  setFormCategory("Productivity");
+                  setFormPricing("Freemium");
+                  setFormWebsite("");
+                  setFormOverview("");
+                  setFormScore("92");
+                  setIsAddModalOpen(true);
+                }}
                 className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
               >
                 + Add New Tool
@@ -486,8 +480,24 @@ export default function AdminPage() {
                       <td className="py-3.5 pr-4 text-slate-300">{t.pricing || "Freemium"}</td>
                       <td className="py-3.5 pr-4 font-black text-blue-400">{t.score || 90}/100</td>
                       <td className="py-3.5 text-right space-x-2">
+                        <Link
+                          href={`/tool/${encodeURIComponent(String(t.slug || ""))}`}
+                          target="_blank"
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
+                        >
+                          View ↗
+                        </Link>
                         <button
-                          onClick={() => handleOpenEditTool(t)}
+                          onClick={() => {
+                            setEditingToolRecord(t);
+                            setFormName(t.name || "");
+                            setFormCategory(t.category || "Productivity");
+                            setFormPricing(t.pricing || "Freemium");
+                            setFormWebsite(t.website_url || "");
+                            setFormOverview(t.overview || t.description || "");
+                            setFormScore(String(t.score || "92"));
+                            setIsAddModalOpen(true);
+                          }}
                           className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
                         >
                           Edit
@@ -542,6 +552,9 @@ export default function AdminPage() {
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Clicks to `/go/{selectedTool.slug}` route automatically to this destination.
+                </p>
               </div>
 
               <div>
