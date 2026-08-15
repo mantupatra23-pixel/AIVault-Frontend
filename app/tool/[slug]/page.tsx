@@ -26,8 +26,6 @@ type ToolRecord = {
   website?: string | null;
   deployment?: string | null;
   license?: string | null;
-  features?: string[] | string | null;
-  use_cases?: string[] | string | null;
   [key: string]: unknown;
 };
 
@@ -46,7 +44,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [related, setRelated] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Engagement States
+  // Interactive States
   const [upvoted, setUpvoted] = useState(false);
   const [upvoteCount, setUpvoteCount] = useState(140);
   const [bookmarked, setBookmarked] = useState(false);
@@ -61,7 +59,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         setLoading(true);
         const supabase = getSupabase();
 
-        // 1. Fetch Current Tool
+        // 1. Fetch Tool Record
         const { data: toolData, error: toolErr } = await supabase
           .from("ai_tools")
           .select("*")
@@ -77,13 +75,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
         setTool(toolData);
 
-        // Seed deterministic upvotes based on tool name
         const seed = Math.abs(
           String(toolData.name || "AI")
             .split("")
             .reduce((acc, char) => acc + char.charCodeAt(0), 0)
         );
-        setUpvoteCount(90 + (seed % 120));
+        setUpvoteCount(95 + (seed % 110));
 
         // 2. Fetch Related Tools
         const cat = toolData.category || "Productivity";
@@ -105,7 +102,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     loadToolData();
   }, [rawSlug]);
 
-  // Derived Values
   const toolName = String(tool?.name || "AI Tool");
   const category = String(tool?.category || "Productivity");
   const pricing = String(tool?.pricing_model || tool?.pricing || "Freemium");
@@ -117,10 +113,16 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
-  const rawOverview = String(tool?.overview || tool?.description || "");
-  const cleanOverview = cleanAiContent(rawOverview) || `${toolName} provides modern artificial intelligence capabilities designed to optimize and scale ${category.toLowerCase()} workflows.`;
+  // Deep Clean Overview
+  const rawOverview = String(tool?.overview || tool?.description || "")
+    .replace(/I will provide an overview[^.]*\.\s*/gi, "")
+    .replace(/As a Senior SEO[^.]*\.\s*/gi, "");
 
-  // Calculated ROI Metrics
+  const cleanOverview =
+    cleanAiContent(rawOverview) ||
+    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with automated precision and speed.`;
+
+  // Calculated ROI
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
 
@@ -152,55 +154,48 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
-  // Structured Capabilities
   const featuresList = [
     {
-      title: "Intelligent Pipeline Automation",
-      desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`
+      title: "Intelligent Workflow Automation",
+      desc: `Reduces manual bottlenecks in ${category.toLowerCase()} tasks with high-speed execution.`
     },
     {
-      title: "Seamless Workspace Integration",
-      desc: "Designed for immediate adoption across standard browser and cloud environments."
+      title: "Immediate Workspace Deployment",
+      desc: "Instant cloud accessibility without complex installations or server configurations."
     },
     {
-      title: "High-Throughput Processing",
-      desc: "Handles large data inputs and parallel execution without performance degradation."
+      title: "High Accuracy Processing",
+      desc: "Consistently synthesizes domain data to produce structured, actionable outputs."
     },
     {
-      title: "Actionable Intelligence & Exports",
-      desc: "Generates clean, structured outputs ready for production use and team handoffs."
+      title: "Flexible Team Pipeline Integration",
+      desc: "Easily connects with standard browser workflows, developer tools, and operational stacks."
     }
   ];
 
-  // Structured Use Cases
   const useCasesList = [
     `Eliminating repetitive manual hours in ${category.toLowerCase()} routines.`,
-    "Accelerating time-to-market for founders, marketing teams, and developers.",
-    "Centralizing automated analytics and high-volume data operations.",
-    "Scaling individual productivity without increasing operational headcounts."
+    "Accelerating operational turnarounds for founders, creators, and teams.",
+    "Scaling output volume without needing additional specialized headcount.",
+    "Centralizing real-time analytics and task management."
   ];
 
-  // Dynamic FAQs
   const faqs = [
     {
-      q: `What is ${toolName} and how does it work?`,
-      a: `${toolName} is a verified AI software platform in the ${category} category. It leverages specialized machine learning algorithms to automate workflows, reduce human error, and deliver fast, actionable outputs.`
+      q: `What primary problem does ${toolName} solve?`,
+      a: `${toolName} solves operational delays in ${category.toLowerCase()} by applying machine learning automation to deliver structured results in seconds.`
     },
     {
-      q: `What is the pricing model for ${toolName}?`,
-      a: `${toolName} operates under the "${pricing}" tier. Depending on the plan selected, users can access core features or upgrade for expanded API quotas, team collaboration seats, and enterprise support.`
+      q: `How is ${toolName}'s ${pricing} model structured?`,
+      a: `Under the ${pricing} tier, users can access essential features immediately. Expanded limits and premium capabilities are managed through the official portal.`
     },
     {
-      q: `Who benefits most from using ${toolName}?`,
-      a: `Founders, digital marketers, technical specialists, and operations teams looking to optimize ${category.toLowerCase()} efficiency can benefit immediately by cutting down redundant manual tasks.`
+      q: `Who should use ${toolName}?`,
+      a: `It is built for founders, growth teams, and specialists looking to increase productivity in ${category.toLowerCase()} without technical friction.`
     },
     {
-      q: `How does the AI Vault Score for ${toolName} work?`,
-      a: `${toolName} has earned an AI Vault Score of ${formattedScore}. This rating benchmarks product reliability, catalogue data completeness, infrastructure stability, and user experience.`
-    },
-    {
-      q: `Where can I get official support or documentation for ${toolName}?`,
-      a: `Official documentation, live feature updates, and customer support are available directly through the verified official platform.`
+      q: `What does the AI Vault Score (${formattedScore}) mean?`,
+      a: `The AI Vault Score benchmarks catalog reliability, verified uptime, feature completeness, and user feedback quality.`
     }
   ];
 
@@ -218,25 +213,25 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
         <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
         <Link href="/" className="mt-5 rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-bold text-white">
-          ← Return to AI Directory
+          ← Return to Directory
         </Link>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
+      {/* Top Navbar */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/" className="text-base font-black tracking-tight text-slate-950">
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <button
               onClick={handleCopyLink}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100"
             >
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
@@ -246,9 +241,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 href={officialWebsite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-lg bg-slate-950 px-3.5 py-1.5 text-[11px] font-black tracking-wider text-white uppercase transition hover:bg-slate-800"
+                className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
               >
-                VISIT OFFICIAL PORTAL ↗
+                Visit Website ↗
               </a>
             )}
           </div>
@@ -256,7 +251,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb & Verification Badge */}
+        {/* Breadcrumb */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-blue-600">Directory</Link>
@@ -326,7 +321,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             {cleanOverview}
           </p>
 
-          {/* Quick Stat Highlights */}
+          {/* Quick Stats Grid */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">AI Vault Score</p>
@@ -346,7 +341,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             </div>
           </div>
 
-          {/* AI Vault Score Progress */}
+          {/* Score Bar */}
           <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -372,7 +367,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* DETAILED ABOUT SECTION (EXPANDED HIGH-VALUE CONTENT) */}
+        {/* DETAILED ABOUT SECTION */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
             <span className="h-2 w-2 rounded-full bg-blue-600" />
@@ -384,17 +379,17 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             About {toolName}
           </h3>
 
-          <div className="mt-4 space-y-3.5 text-xs sm:text-sm leading-relaxed text-slate-700">
+          <div className="mt-4 space-y-3 text-xs sm:text-sm leading-relaxed text-slate-700">
             <p>
-              <strong>{toolName}</strong> is designed to solve common bottlenecks in the <strong>{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, the tool empowers teams to eliminate manual overhead, improve data turnaround times, and automate mission-critical tasks without demanding complex technical configurations.
+              <strong>{toolName}</strong> is designed to streamline critical operations within the <strong>{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, it eliminates repetitive manual workflows, accelerates task turnaround times, and enhances team productivity.
             </p>
             <p>
-              Whether deployed as a standalone cloud platform or integrated into an established workspace stack, {toolName} provides a clear <strong>{pricing}</strong> model that enables flexible adoption. Users benefit from automated intelligence pipelines, clean user interfaces, and structured exports that integrate seamlessly into everyday production workflows.
+              Operated under a flexible <strong>{pricing}</strong> model, {toolName} provides instant cloud accessibility without requiring complex technical infrastructure or prolonged onboarding.
             </p>
           </div>
         </section>
 
-        {/* CORE FEATURES & CAPABILITIES */}
+        {/* CORE FEATURES */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <h2 className="text-base font-black text-slate-950 mb-4">
             Key Capabilities & Features
@@ -494,7 +489,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* PROS & CONS MATRIX */}
+        {/* PROS & CONS */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
@@ -535,7 +530,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* TECHNICAL & DEPLOYMENT SPECIFICATIONS */}
+        {/* TECHNICAL SPECIFICATIONS */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
             Technical & Deployment Specifications
@@ -560,7 +555,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* COMMUNITY SENTIMENT POLL WIDGET */}
+        {/* COMMUNITY SENTIMENT POLL */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-7 text-center">
           <h3 className="text-sm font-black text-slate-950">
             Would you recommend {toolName} to your team?
@@ -603,7 +598,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           )}
         </section>
 
-        {/* EXPANDED FAQS (5 COMPREHENSIVE QUESTIONS) */}
+        {/* FAQS */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-7 shadow-sm">
           <div className="mb-4">
             <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Q&A Knowledge Base</span>
@@ -664,34 +659,41 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </section>
         )}
 
-        {/* HIGH CONVERSION OFFICIAL CTA BANNER */}
-        {officialWebsite && (
-          <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl">
-            <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
-              Direct Access Portal
-            </div>
-            <h2 className="text-2xl font-black sm:text-3xl">Get Started with {toolName}</h2>
-            <p className="mx-auto mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
-              Explore product plans, interactive demonstrations, and official API documentation directly on their portal.
-            </p>
-            <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+        {/* HIGH-CONTRAST BOTTOM CTA BANNER (FIXED VISIBILITY) */}
+        <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
+          <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
+            Direct Platform Access
+          </div>
+          <h2 className="text-2xl font-black sm:text-3xl">Get Started with {toolName}</h2>
+          <p className="mx-auto mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
+            Explore pricing tiers, interactive demonstrations, and official documentation directly on their portal.
+          </p>
+          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+            {officialWebsite ? (
               <a
                 href={officialWebsite}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-block rounded-xl bg-white px-6 py-3 text-xs font-black text-slate-950 transition hover:bg-slate-100 shadow-md"
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
               >
                 VISIT OFFICIAL PORTAL ↗
               </a>
+            ) : (
               <Link
                 href="/"
-                className="inline-block rounded-xl border border-slate-700 bg-slate-900/60 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
+                className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white"
               >
-                ← Back to AI Directory
+                EXPLORE ALL TOOLS ↗
               </Link>
-            </div>
-          </section>
-        )}
+            )}
+            <Link
+              href="/"
+              className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
+            >
+              ← Back to Directory
+            </Link>
+          </div>
+        </section>
 
         <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-[10px] text-slate-400">
           © 2026 AI Vault. Discover, compare, and scale with verified artificial intelligence software.
