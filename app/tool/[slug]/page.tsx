@@ -73,19 +73,18 @@ export default async function ToolPage({ params }: PageProps) {
   const toolRecord = tool as ToolRecord;
   const toolName = String(tool.name || "AI Tool");
 
-  // 1. Authoritative Canonical Score
+  // Canonical Score (0-100)
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
 
-  // 2. Related Tools & Links
   const related = findRelatedTools(rows, tool, 6);
   const officialWebsite = getWebsiteUrl(toolRecord);
 
-  // 3. Clean Unique Description
+  // Content
   const rawText = String(tool.overview || tool.description || tool.short_description || "");
   const overview = cleanAiContent(rawText);
 
-  // 4. Metadata fields
+  // Metadata arrays
   const features = getFeatures(toolRecord);
   const useCases = getUseCases(toolRecord);
   const integrations = getIntegrations(toolRecord);
@@ -99,7 +98,8 @@ export default async function ToolPage({ params }: PageProps) {
     ? tool.category.trim()
     : "Productivity";
 
-  const pricing = normalizePricing(tool.pricing_model || tool.pricing);
+  const rawPricing = normalizePricing(tool.pricing_model || tool.pricing);
+  const pricingStr = String(rawPricing || "Unknown");
   const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : "Not specified";
   const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : "Not specified";
 
@@ -109,18 +109,16 @@ export default async function ToolPage({ params }: PageProps) {
       ? tool.logo.trim()
       : undefined;
 
-  // 5. REAL DYNAMIC CONTENT QUALITY EVALUATION (NO FAKE STATIC 38)
+  // Real Dynamic Content Quality Calculation
   let qualityPoints = 0;
   const availablePills: string[] = [];
   const missingPills: string[] = [];
 
-  // Name (15 pts)
   if (toolName) {
     qualityPoints += 15;
     availablePills.push("Tool name");
   }
 
-  // Overview Quality (up to 30 pts)
   if (overview && overview.length > 20) {
     availablePills.push("Detailed overview");
     if (overview.length > 150) qualityPoints += 30;
@@ -130,15 +128,13 @@ export default async function ToolPage({ params }: PageProps) {
     missingPills.push("Detailed overview");
   }
 
-  // Pricing info (15 pts)
-  if (pricing && pricing !== "Unknown" && pricing !== "Not specified") {
+  if (pricingStr && pricingStr !== "Unknown" && pricingStr !== "Not specified") {
     qualityPoints += 15;
     availablePills.push("Pricing information");
   } else {
     missingPills.push("Pricing information");
   }
 
-  // Platform info (15 pts)
   if (platforms.length > 0 && platforms[0] !== "Not specified") {
     qualityPoints += 15;
     availablePills.push("Platform information");
@@ -146,7 +142,6 @@ export default async function ToolPage({ params }: PageProps) {
     missingPills.push("Platform information");
   }
 
-  // Official Website (15 pts)
   if (officialWebsite) {
     qualityPoints += 15;
     availablePills.push("Official website");
@@ -154,7 +149,6 @@ export default async function ToolPage({ params }: PageProps) {
     missingPills.push("Official website");
   }
 
-  // Features (5 pts)
   if (features.length > 0) {
     qualityPoints += 5;
     availablePills.push("Features");
@@ -162,7 +156,6 @@ export default async function ToolPage({ params }: PageProps) {
     missingPills.push("Features");
   }
 
-  // Use cases (5 pts)
   if (useCases.length > 0) {
     qualityPoints += 5;
     availablePills.push("Use cases");
@@ -170,7 +163,6 @@ export default async function ToolPage({ params }: PageProps) {
     missingPills.push("Use cases");
   }
 
-  // Integrations (5 pts)
   if (integrations.length > 0) {
     qualityPoints += 5;
     availablePills.push("Integrations");
@@ -184,7 +176,7 @@ export default async function ToolPage({ params }: PageProps) {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* TOP BRAND NAV BAR */}
+      {/* Top Navbar */}
       <header className="border-b border-slate-200/80 bg-white px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-base font-black tracking-tight text-slate-950">
@@ -204,7 +196,7 @@ export default async function ToolPage({ params }: PageProps) {
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* BREADCRUMB */}
+        {/* Breadcrumb */}
         <div className="mb-4 text-[11px] font-medium text-slate-400">
           <Link href="/" className="hover:text-blue-600">Home</Link>
           <span className="mx-2">/</span>
@@ -213,7 +205,7 @@ export default async function ToolPage({ params }: PageProps) {
           <span className="text-slate-600">{toolName}</span>
         </div>
 
-        {/* HERO CARD */}
+        {/* Hero Section */}
         <section className="rounded-2xl border border-slate-200/90 bg-white p-6 shadow-sm sm:p-7">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
             <ToolLogo name={toolName} src={logoSrc} size="lg" />
@@ -232,33 +224,29 @@ export default async function ToolPage({ params }: PageProps) {
                 {toolName}
               </h1>
 
-              {pricing && (
+              {pricingStr && (
                 <div className="mt-2">
                   <span className="inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-medium text-slate-600">
-                    {pricing}
+                    {pricingStr}
                   </span>
                 </div>
               )}
             </div>
           </div>
 
-          {/* PRIMARY OVERVIEW */}
           <div className="mt-5 text-[13px] leading-relaxed text-slate-600">
             <p>{overview || `${toolName} provides verified software capabilities for ${category.toLowerCase()} automation.`}</p>
           </div>
 
-          {/* 3-COLUMN STATS */}
           <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">AI Vault Score</p>
-              <p className="mt-1 text-sm font-bold text-slate-900">
-                {formattedScore}
-              </p>
+              <p className="mt-1 text-sm font-bold text-slate-900">{formattedScore}</p>
             </div>
 
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
               <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Pricing</p>
-              <p className="mt-1 text-sm font-bold text-slate-900">{pricing}</p>
+              <p className="mt-1 text-sm font-bold text-slate-900">{pricingStr}</p>
             </div>
 
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
@@ -268,7 +256,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* LAYER 1: TOOL INTELLIGENCE */}
+        {/* Tool Intelligence */}
         <section className="mt-8">
           <div className="mb-4">
             <span className="text-[9px] font-bold uppercase tracking-widest text-blue-600">Layer 1</span>
@@ -276,7 +264,6 @@ export default async function ToolPage({ params }: PageProps) {
             <p className="text-xs text-slate-400">Understand this AI tool through features, use cases, pricing, platforms, and verified product information.</p>
           </div>
 
-          {/* DYNAMIC CONTENT QUALITY CARD */}
           <div className="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -293,7 +280,6 @@ export default async function ToolPage({ params }: PageProps) {
                 </div>
               </div>
 
-              {/* AVAILABLE METADATA PILLS */}
               <div className="flex flex-wrap gap-1.5">
                 {availablePills.map((label, idx) => (
                   <span key={idx} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600">
@@ -303,7 +289,6 @@ export default async function ToolPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* MISSING INFO PILLS */}
             {missingPills.length > 0 && (
               <div className="mt-4 rounded-xl bg-slate-50/70 p-3">
                 <p className="text-[10px] font-semibold text-slate-500">Missing information</p>
@@ -319,7 +304,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* TOOL OVERVIEW */}
+        {/* Tool Overview */}
         <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
           <h3 className="text-sm font-bold text-slate-950">Tool Overview</h3>
           <p className="mt-3 text-xs leading-relaxed text-slate-600">
@@ -327,14 +312,14 @@ export default async function ToolPage({ params }: PageProps) {
           </p>
         </section>
 
-        {/* PRICING */}
+        {/* Pricing */}
         <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
           <h3 className="text-sm font-bold text-slate-950">Pricing</h3>
-          <p className="mt-2 text-xs font-semibold text-slate-900">{pricing}</p>
+          <p className="mt-2 text-xs font-semibold text-slate-900">{pricingStr}</p>
           <p className="mt-1 text-[10px] text-slate-400">Check the official website for current pricing and availability.</p>
         </section>
 
-        {/* PLATFORMS */}
+        {/* Platforms */}
         <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
           <h3 className="text-sm font-bold text-slate-950">Platforms</h3>
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -346,7 +331,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* DISCOVER SIMILAR TOOLS */}
+        {/* Similar Tools */}
         <section className="mt-6">
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-sm font-bold text-slate-950">Discover Similar Tools</h3>
@@ -382,12 +367,11 @@ export default async function ToolPage({ params }: PageProps) {
             </div>
           )}
 
-          {/* 3 LINK PILLS */}
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">
             <Link href="/" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
               Find the right AI tool →
             </Link>
-            <Link href="/compare" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
+            <Link href="/" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
               Compare tools →
             </Link>
             <Link href={`/?cat=${encodeURIComponent(category)}`} className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
@@ -396,7 +380,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* OFFICIAL WEBSITE */}
+        {/* Official Website */}
         {officialWebsite && (
           <section className="mt-4 rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm sm:p-6">
             <h3 className="text-sm font-bold text-slate-950">Official Website</h3>
@@ -411,7 +395,7 @@ export default async function ToolPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* OFFICIAL ACCESS CTA BOX */}
+        {/* CTA Box */}
         {officialWebsite && (
           <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/50 p-6 text-center sm:p-8">
             <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Official Access</span>
@@ -437,7 +421,7 @@ export default async function ToolPage({ params }: PageProps) {
           </section>
         )}
 
-        {/* ABOUT TOOL SECTION */}
+        {/* About Tool */}
         <section className="mt-8">
           <h3 className="text-sm font-bold text-slate-950">About {toolName}</h3>
           <p className="mt-2 text-xs leading-relaxed text-slate-600">
@@ -445,7 +429,7 @@ export default async function ToolPage({ params }: PageProps) {
           </p>
         </section>
 
-        {/* KEY FEATURES */}
+        {/* Key Features */}
         <section className="mt-4">
           <h4 className="text-xs font-bold text-slate-950">Key Features</h4>
           <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
@@ -459,7 +443,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* USE CASES */}
+        {/* Use Cases */}
         <section className="mt-4">
           <h4 className="text-xs font-bold text-slate-950">Use Cases</h4>
           <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
@@ -473,7 +457,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* PLATFORM DETAILS */}
+        {/* Platform Details */}
         <section className="mt-4">
           <h4 className="text-xs font-bold text-slate-950">Platform Details</h4>
           <div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -491,12 +475,12 @@ export default async function ToolPage({ params }: PageProps) {
             </div>
             <div className="rounded-xl border border-slate-200/80 bg-white p-3">
               <p className="text-[9px] font-bold uppercase text-slate-400">Pricing</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{pricing}</p>
+              <p className="mt-1 text-xs font-bold text-slate-900">{pricingStr}</p>
             </div>
           </div>
         </section>
 
-        {/* INTEGRATIONS */}
+        {/* Integrations */}
         <section className="mt-4">
           <h4 className="text-xs font-bold text-slate-950">Integrations</h4>
           <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
@@ -510,7 +494,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* LIMITATIONS */}
+        {/* Limitations */}
         <section className="mt-4">
           <h4 className="text-xs font-bold text-slate-950">Limitations</h4>
           <div className="mt-1.5 rounded-xl bg-slate-50/70 p-3 text-xs text-slate-400">
@@ -524,20 +508,7 @@ export default async function ToolPage({ params }: PageProps) {
           </div>
         </section>
 
-        {/* 3 BOTTOM PILL LINKS */}
-        <div className="mt-6 grid grid-cols-1 gap-2 sm:grid-cols-3">
-          <Link href={`/?cat=${encodeURIComponent(category)}`} className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            More {category} Tools →
-          </Link>
-          <Link href="/" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Find AI Tools →
-          </Link>
-          <Link href="/compare" className="rounded-xl border border-slate-200 bg-white p-2.5 text-center text-xs font-semibold text-slate-700 hover:bg-slate-50">
-            Compare Tools →
-          </Link>
-        </div>
-
-        {/* BOTTOM DARK BANNER */}
+        {/* Footer CTA */}
         {officialWebsite && (
           <section className="mt-8 rounded-2xl bg-[#070913] px-6 py-10 text-center text-white sm:px-10">
             <h3 className="text-xl font-black sm:text-2xl">Ready to explore {toolName}?</h3>
