@@ -61,6 +61,23 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [alertEmail, setAlertEmail] = useState("");
   const [alertSubscribed, setAlertSubscribed] = useState(false);
 
+  // Initialize Bookmark from LocalStorage
+  useEffect(() => {
+    if (typeof window !== "undefined" && rawSlug) {
+      try {
+        const stored = localStorage.getItem("aivault_saved_tools");
+        if (stored) {
+          const list: string[] = JSON.parse(stored);
+          if (list.some((s) => s.toLowerCase() === rawSlug.toLowerCase())) {
+            setBookmarked(true);
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [rawSlug]);
+
   useEffect(() => {
     async function loadToolData() {
       try {
@@ -178,6 +195,24 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
+  const handleBookmarkToggle = () => {
+    if (typeof window === "undefined" || !rawSlug) return;
+    try {
+      const stored = localStorage.getItem("aivault_saved_tools");
+      let list: string[] = stored ? JSON.parse(stored) : [];
+      if (bookmarked) {
+        list = list.filter((s) => s.toLowerCase() !== rawSlug.toLowerCase());
+        setBookmarked(false);
+      } else {
+        if (!list.includes(rawSlug)) list.push(rawSlug);
+        setBookmarked(true);
+      }
+      localStorage.setItem("aivault_saved_tools", JSON.stringify(list));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handleCopyLink = () => {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(window.location.href);
@@ -242,8 +277,8 @@ Generated via AI Vault (https://aivault.pp.ua)`;
       desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`
     },
     {
-      title: "Seamless Workspace Integration",
-      desc: "Designed for immediate adoption across standard browser and cloud environments."
+      title: "Immediate Workspace Deployment",
+      desc: "Instant cloud accessibility without complex installations or server configurations."
     },
     {
       title: "High-Throughput Processing",
@@ -303,14 +338,14 @@ Generated via AI Vault (https://aivault.pp.ua)`;
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Top Navbar with Compare Link */}
+      {/* Top Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-2.5">
             <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
@@ -318,12 +353,12 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               <span>⚖️ Compare</span>
             </Link>
 
-            <button
-              onClick={handleExportNotion}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition"
+            <Link
+              href="/vault"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              <span>{notionExported ? "✓ Copied" : "📋 Notion"}</span>
-            </button>
+              <span>★ Vault</span>
+            </Link>
 
             <button
               onClick={handleCopyLink}
@@ -398,15 +433,15 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               </button>
 
               <button
-                onClick={() => setBookmarked(!bookmarked)}
+                onClick={handleBookmarkToggle}
                 className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
                   bookmarked
                     ? "border-amber-400 bg-amber-50 text-amber-600"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
-                title="Save to Vault"
+                title={bookmarked ? "Saved in Vault" : "Save to Vault"}
               >
-                ★
+                {bookmarked ? "★ Saved" : "★ Save"}
               </button>
             </div>
           </div>
@@ -470,7 +505,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 Copy-Paste Prompts for {toolName}
               </h2>
             </div>
-            <span className="text-[10px] font-bold text-slate-400">1-Click Copied to Clipboard</span>
+            <span className="text-[10px] font-bold text-slate-400">1-Click Copied into Clipboard</span>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -755,7 +790,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </div>
         </section>
 
-        {/* SIMILAR TOOLS (DIRECT 1-CLICK COMPARE LAUNCHER) */}
+        {/* SIMILAR TOOLS */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">

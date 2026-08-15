@@ -37,10 +37,10 @@ function getSupabase() {
 
 const CATEGORIES = [
   { name: "All", icon: "⚡" },
+  { name: "Marketing", icon: "📈" },
   { name: "Productivity", icon: "🚀" },
   { name: "Chatbot", icon: "🤖" },
   { name: "Coding", icon: "💻" },
-  { name: "Marketing", icon: "📈" },
   { name: "Image", icon: "🎨" },
   { name: "Writing", icon: "✍️" },
   { name: "Audio", icon: "🎵" },
@@ -58,7 +58,11 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   const slug = String(tool.slug || "").trim();
   const category = String(tool.category || "AI Tool");
   const pricing = String(tool.pricing_model || tool.pricing || "Freemium");
-  const rawDesc = String(tool.description || tool.overview || "");
+  
+  const rawDesc = String(tool.description || tool.overview || "")
+    .replace(/I will provide an overview[^.]*\.\s*/gi, "")
+    .replace(/As a Senior SEO[^.]*\.\s*/gi, "");
+    
   const desc = cleanAiContent(rawDesc) || `${name} provides software solutions for ${category.toLowerCase()}.`;
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
@@ -193,22 +197,34 @@ function HomeContent() {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* Top Navbar with Direct Compare Action */}
+      {/* Top Navbar with All Phase 3 Hub Links */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
           </Link>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/find"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>⚡ Matcher</span>
+            </Link>
+
             <Link
               href="/compare"
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              <span>⚖️ Compare Matrix</span>
+              <span>⚖️ Compare</span>
             </Link>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-600">
-              {tools.length} Tools
-            </span>
+
+            <Link
+              href="/vault"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>★ Vault</span>
+            </Link>
           </div>
         </div>
       </header>
