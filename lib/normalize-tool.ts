@@ -1,34 +1,25 @@
 import type { Tool } from "./tool-types";
+import {
+  getAiVaultScore,
+  normalizeUserRating,
+} from "./utils/score";
 
-/**
- * Safely convert unknown values into a non-empty string.
- * Objects, arrays, numbers, booleans, etc. are rejected.
- */
 function cleanString(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== "string") {
+    return null;
+  }
 
   const result = value.trim();
 
   return result.length > 0 ? result : null;
 }
 
-/**
- * Safely normalize an ID.
- *
- * Tool.id accepts:
- *   string | number | null
- *
- * Database/API data can sometimes contain:
- *   {}
- *   []
- *   boolean
- *   undefined
- *
- * Those values must never reach the Tool type.
- */
-function cleanId(value: unknown): string | number | null {
+function cleanId(
+  value: unknown,
+): string | number | null {
   if (typeof value === "string") {
     const result = value.trim();
+
     return result.length > 0 ? result : null;
   }
 
@@ -39,15 +30,13 @@ function cleanId(value: unknown): string | number | null {
   return null;
 }
 
-/**
- * Safely normalize arrays into string arrays.
- */
 function cleanArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
       .filter(
         (item): item is string | number =>
-          typeof item === "string" || typeof item === "number",
+          typeof item === "string" ||
+          typeof item === "number",
       )
       .map((item) => String(item).trim())
       .filter(Boolean);
@@ -64,83 +53,10 @@ function cleanArray(value: unknown): string[] {
 }
 
 /**
- * Convert a value into a valid 0–100 AI Vault score.
+ * Generate a slug only when the source does not
+ * already contain a production slug.
  *
- * Priority is handled by normalizeTool:
- *   score -> neural_score -> rating
- *
- * Supports:
- *   85
- *   "85"
- *   8.5/10
- *   "85/100"
- *   "85/10"
- *
- * Everything invalid becomes null.
- */
-function cleanScore(value: unknown): number | null {
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) return null;
-
-    if (value >= 0 && value <= 10) {
-      return Math.round(value * 10);
-    }
-
-    if (value >= 0 && value <= 100) {
-      return Math.round(value);
-    }
-
-    return null;
-  }
-
-  if (typeof value !== "string") return null;
-
-  const raw = value.trim();
-
-  if (!raw) return null;
-
-  const slashMatch = raw.match(
-    /^(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)$/,
-  );
-
-  if (slashMatch) {
-    const numerator = Number(slashMatch[1]);
-    const denominator = Number(slashMatch[2]);
-
-    if (
-      !Number.isFinite(numerator) ||
-      !Number.isFinite(denominator) ||
-      denominator <= 0
-    ) {
-      return null;
-    }
-
-    const normalized = (numerator / denominator) * 100;
-
-    if (normalized < 0 || normalized > 100) {
-      return null;
-    }
-
-    return Math.round(normalized);
-  }
-
-  const numeric = Number(raw);
-
-  if (!Number.isFinite(numeric)) return null;
-
-  if (numeric >= 0 && numeric <= 10) {
-    return Math.round(numeric * 10);
-  }
-
-  if (numeric >= 0 && numeric <= 100) {
-    return Math.round(numeric);
-  }
-
-  return null;
-}
-
-/**
- * Normalize a slug into the canonical AI Vault URL format.
+ * Existing slugs are NEVER changed here.
  */
 function slugify(value: string): string {
   return value
@@ -153,22 +69,23 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/**
- * Public slug normalizer.
- */
-export function normalizeSlug(value: unknown): string {
+export function normalizeSlug(
+  value: unknown,
+): string {
   return slugify(String(value ?? ""));
 }
 
 /**
- * Normalize any raw tool/database object into the application's Tool shape.
+ * Normalize raw database/API tool data.
  *
- * Important:
- * - Never trust raw database values.
- * - Never pass {} as id.
- * - Never pass malformed scores.
- * - Keep all score values on a 0–100 scale.
- * - Keep canonical slug generation consistent.
+ * IMPORTANT:
+ * - Existing ID is preserved.
+ * - Existing slug is preserved.
+ * - No fake score is generated.
+ * - rating remains a USER rating.
+ * - AI Vault Score remains 0-100.
+ * - Arrays are safely normalized.
+ * - Missing factual data stays missing.
  */
 export function normalizeTool(
   input: Record<string, unknown>,
@@ -180,6 +97,13 @@ export function normalizeTool(
     cleanString(input.title) ??
     "Unnamed AI Tool";
 
+  /*
+   * Production slug protection.
+   *
+   * If slug already exists, use it exactly as supplied.
+   * We only generate a slug for records that genuinely
+   * have no slug.
+   */
   const explicitSlug =
     cleanString(input.slug) ??
     cleanString(input.canonical_slug);
@@ -195,7 +119,6 @@ export function normalizeTool(
 
   const overview =
     cleanString(input.overview) ??
-    cleanString(input.description) ??
     description;
 
   const category =
@@ -233,27 +156,41 @@ export function normalizeTool(
     cleanString(input.logo) ??
     cleanString(input.image_url);
 
-  /**
-   * Score priority:
+  /*
+   * CANONICAL AI VAULT SCORE.
    *
-   * 1. score
-   * 2. neural_score
-   * 3. rating
+   * Priority:
+   * score
+   * -> neural_score
+   * -> ai_vault_score
    *
-   * All output is normalized to 0–100.
+   * rating is deliberately NOT included.
    */
-  const score =
-    cleanScore(input.score) ??
-    cleanScore(input.neural_score) ??
-    cleanScore(input.rating);
+  const score = getAiVaultScore(input);
 
+  /*
+   * User rating is a completely separate concept.
+   *
+   * Valid range: 0-5.
+   */
+  const rating = normalizeUserRating(
+    input.rating,
+  );
+
+  /*
+   * Preserve the raw neural score independently.
+   *
+   * If no neural_score exists, keep it null.
+   * Do NOT copy score into neural_score because
+   * that would create fake source data.
+   */
   const neuralScore =
-    cleanScore(input.neural_score) ??
-    score;
-
-  const rating =
-    cleanScore(input.rating) ??
-    score;
+    input.neural_score !== undefined &&
+    input.neural_score !== null
+      ? getAiVaultScore({
+          score: input.neural_score,
+        })
+      : null;
 
   return {
     id,
@@ -274,18 +211,39 @@ export function normalizeTool(
     logo,
     logo_url: logoUrl,
 
-    platforms: cleanArray(input.platforms),
+    platforms: cleanArray(
+      input.platforms,
+    ),
 
-    features: cleanArray(input.features),
+    features: cleanArray(
+      input.features,
+    ),
 
-    use_cases: cleanArray(input.use_cases),
+    use_cases: cleanArray(
+      input.use_cases,
+    ),
 
-    integrations: cleanArray(input.integrations),
+    integrations: cleanArray(
+      input.integrations,
+    ),
 
-    limitations: cleanArray(input.limitations),
+    limitations: cleanArray(
+      input.limitations,
+    ),
 
+    /*
+     * AI Vault Score = 0-100.
+     */
     score,
+
+    /*
+     * neural_score stays separate.
+     */
     neural_score: neuralScore,
+
+    /*
+     * User rating = 0-5.
+     */
     rating,
-  };
+  } as Tool;
 }
