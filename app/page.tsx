@@ -10,9 +10,9 @@ import {
   useState,
 } from "react";
 import { useSearchParams } from "next/navigation";
+import type { CSSProperties } from "react";
 
 import ToolLogo from "@/components/ToolLogo";
-import Vault3DCard from "@/components/Vault3DCard";
 
 import {
   trackToolClick,
@@ -27,20 +27,37 @@ import { SITE_URL } from "@/lib/site-url";
 
 type ToolRecord = {
   id?: string | number | null;
+
   slug?: string | null;
+
   name?: string | null;
+
   description?: string | null;
+
   short_description?: string | null;
+
   overview?: string | null;
+
   category?: string | null;
+
   pricing?: string | null;
+
   pricing_model?: string | null;
+
   score?: number | string | null;
+
   ai_vault_score?: number | string | null;
+
   logo_url?: string | null;
+
   logo?: string | null;
+
   image_url?: string | null;
+
   icon_url?: string | null;
+
+  verified?: boolean | null;
+
   [key: string]: unknown;
 };
 
@@ -49,13 +66,16 @@ type ToolRecord = {
 ========================================================= */
 
 const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 const SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-const getSupabase = () => {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+function getSupabase() {
+  if (
+    !SUPABASE_URL ||
+    !SUPABASE_ANON_KEY
+  ) {
     throw new Error(
       "Supabase environment variables are missing."
     );
@@ -65,7 +85,7 @@ const getSupabase = () => {
     SUPABASE_URL,
     SUPABASE_ANON_KEY
   );
-};
+}
 
 /* =========================================================
    CATEGORIES
@@ -106,31 +126,36 @@ const categories = [
    HELPERS
 ========================================================= */
 
-const getCanonicalSlug = (
+function getCanonicalSlug(
   tool: ToolRecord
-): string => {
-  if (typeof tool.slug !== "string") {
+): string {
+  if (
+    typeof tool.slug !== "string"
+  ) {
     return "";
   }
 
   return tool.slug.trim();
-};
+}
 
-const getToolHref = (
+function getToolHref(
   tool: ToolRecord
-): string | null => {
-  const slug = getCanonicalSlug(tool);
+): string | null {
+  const slug =
+    getCanonicalSlug(tool);
 
   if (!slug) {
     return null;
   }
 
-  return `/tool/${encodeURIComponent(slug)}`;
-};
+  return `/tool/${encodeURIComponent(
+    slug
+  )}`;
+}
 
-const getToolName = (
+function getToolName(
   tool: ToolRecord
-): string => {
+): string {
   if (
     typeof tool.name === "string" &&
     tool.name.trim()
@@ -139,12 +164,18 @@ const getToolName = (
   }
 
   return "AI Tool";
-};
+}
 
-const cleanGeneratedContent = (
+/* =========================================================
+   CONTENT CLEANER
+========================================================= */
+
+function cleanGeneratedContent(
   value: unknown
-): string => {
-  if (typeof value !== "string") {
+): string {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
@@ -156,44 +187,79 @@ const cleanGeneratedContent = (
 
   const patterns = [
     /As a Senior SEO & AI Analyst for Visora AI,?\s*/gi,
+
     /As a Senior SEO and AI Analyst for Visora AI,?\s*/gi,
+
+    /As a Senior SEO & AI Analyst,?\s*/gi,
+
+    /As a Senior SEO and AI Analyst,?\s*/gi,
+
     /In this professional review,?\s*/gi,
+
     /Our professional review aims to provide an in-depth analysis of the tool,?\s*/gi,
+
+    /I have conducted an in-depth analysis of\s*/gi,
+
+    /I have conducted an in-depth analysis of this\s*/gi,
+
+    /I have analyzed\s*/gi,
+
+    /We will delve into\s*/gi,
+
+    /we will delve into\s*/gi,
+
+    /With the ever-evolving landscape of\s*/gi,
+
+    /our Professional Review of\s*/gi,
+
+    /Best .*? Alternatives available in the market/gi,
   ];
 
-  for (const pattern of patterns) {
-    text = text.replace(pattern, "");
+  for (
+    const pattern of patterns
+  ) {
+    text = text.replace(
+      pattern,
+      ""
+    );
   }
 
   return text
-    .replace(/\s{2,}/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/\s+\./g, ".")
     .trim();
-};
+}
 
-const getToolDescription = (
+function getToolDescription(
   tool: ToolRecord
-): string => {
+): string {
   const candidates = [
-    tool.description,
     tool.short_description,
+    tool.description,
     tool.overview,
   ];
 
-  for (const candidate of candidates) {
+  for (
+    const candidate of candidates
+  ) {
     const cleaned =
-      cleanGeneratedContent(candidate);
+      cleanGeneratedContent(
+        candidate
+      );
 
     if (cleaned) {
       return cleaned;
     }
   }
 
-  return "Description not specified.";
-};
+  return `Explore ${getToolName(
+    tool
+  )}, its capabilities, pricing, platforms and use cases.`;
+}
 
-const getToolCategory = (
+function getToolCategory(
   tool: ToolRecord
-): string => {
+): string {
   if (
     typeof tool.category === "string" &&
     tool.category.trim()
@@ -202,28 +268,34 @@ const getToolCategory = (
   }
 
   return "General AI";
-};
+}
 
 /* =========================================================
    PRICING
 ========================================================= */
 
-const normalizePricing = (
+function normalizePricing(
   value: unknown
-): string => {
-  if (typeof value !== "string") {
+): string {
+  if (
+    typeof value !== "string"
+  ) {
     return "Unknown";
   }
 
-  const raw = value.trim();
+  const raw =
+    value.trim();
 
   if (!raw) {
     return "Unknown";
   }
 
-  const v = raw.toLowerCase();
+  const v =
+    raw.toLowerCase();
 
-  if (v.includes("freemium")) {
+  if (
+    v.includes("freemium")
+  ) {
     return "Freemium";
   }
 
@@ -256,7 +328,9 @@ const normalizePricing = (
     return "Open Source";
   }
 
-  if (v.includes("enterprise")) {
+  if (
+    v.includes("enterprise")
+  ) {
     return "Enterprise";
   }
 
@@ -268,40 +342,46 @@ const normalizePricing = (
   }
 
   return raw;
-};
+}
 
-const getToolPricing = (
+function getToolPricing(
   tool: ToolRecord
-): string => {
+): string {
   const model =
-    typeof tool.pricing_model === "string"
+    typeof tool.pricing_model ===
+    "string"
       ? tool.pricing_model.trim()
       : "";
 
   const pricing =
-    typeof tool.pricing === "string"
+    typeof tool.pricing ===
+    "string"
       ? tool.pricing.trim()
       : "";
 
   return normalizePricing(
     model || pricing
   );
-};
+}
 
 /* =========================================================
    SCORE
 ========================================================= */
 
-const getToolScore = (
+function getToolScore(
   tool: ToolRecord
-): number => {
+): number {
   const raw =
     tool.ai_vault_score ??
-    tool.score;
+    tool.score ??
+    0;
 
-  const value = Number(raw);
+  const value =
+    Number(raw);
 
-  if (!Number.isFinite(value)) {
+  if (
+    !Number.isFinite(value)
+  ) {
     return 0;
   }
 
@@ -312,15 +392,15 @@ const getToolScore = (
       Math.round(value)
     )
   );
-};
+}
 
 /* =========================================================
    LOGO
 ========================================================= */
 
-const getToolLogo = (
+function getToolLogo(
   tool: ToolRecord
-): string | null => {
+): string | null {
   const candidates = [
     tool.logo_url,
     tool.logo,
@@ -328,7 +408,9 @@ const getToolLogo = (
     tool.icon_url,
   ];
 
-  for (const value of candidates) {
+  for (
+    const value of candidates
+  ) {
     if (
       typeof value === "string" &&
       value.trim()
@@ -338,15 +420,10 @@ const getToolLogo = (
   }
 
   return null;
-};
+}
 
 /* =========================================================
-   CSS 3D HERO
-   Production-safe:
-   - No WebGL
-   - No Canvas
-   - No Three runtime
-   - No external assets
+   3D HERO
 ========================================================= */
 
 function Vault3DHero({
@@ -359,28 +436,36 @@ function Vault3DHero({
       ? toolCount
       : 0;
 
-  const particles = useMemo(() => {
-    return Array.from(
-      { length: 42 },
-      (_, index) => ({
-        id: index,
-        left:
-          8 +
-          ((index * 37) % 84),
-        top:
-          8 +
-          ((index * 61) % 84),
-        delay:
-          (index % 9) * 0.35,
-        duration:
-          3.5 +
-          (index % 6) * 0.7,
-        size:
-          2 +
-          (index % 3),
-      })
-    );
-  }, []);
+  const particles =
+    useMemo(() => {
+      return Array.from(
+        {
+          length: 42,
+        },
+        (_, index) => ({
+          id: index,
+
+          left:
+            8 +
+            ((index * 37) % 84),
+
+          top:
+            8 +
+            ((index * 61) % 84),
+
+          delay:
+            (index % 9) * 0.35,
+
+          duration:
+            3.5 +
+            (index % 6) * 0.7,
+
+          size:
+            2 +
+            (index % 3),
+        })
+      );
+    }, []);
 
   return (
     <>
@@ -405,20 +490,21 @@ function Vault3DHero({
           opacity: 0.16;
           background-image:
             linear-gradient(
-              rgba(255,255,255,0.035) 1px,
+              rgba(255, 255, 255, 0.035) 1px,
               transparent 1px
             ),
             linear-gradient(
               90deg,
-              rgba(255,255,255,0.035) 1px,
+              rgba(255, 255, 255, 0.035) 1px,
               transparent 1px
             );
           background-size: 48px 48px;
-          mask-image: radial-gradient(
-            circle at center,
-            black,
-            transparent 78%
-          );
+          mask-image:
+            radial-gradient(
+              circle at center,
+              black,
+              transparent 78%
+            );
         }
 
         .vaultGlow {
@@ -427,17 +513,20 @@ function Vault3DHero({
           top: 48%;
           width: 520px;
           height: 520px;
-          transform: translate(-50%, -50%);
+          transform:
+            translate(-50%, -50%);
           border-radius: 9999px;
           background:
             radial-gradient(
               circle,
-              rgba(99,102,241,0.25),
-              rgba(79,70,229,0.12) 35%,
+              rgba(99, 102, 241, 0.25),
+              rgba(79, 70, 229, 0.12) 35%,
               transparent 70%
             );
           filter: blur(20px);
-          animation: vaultPulse 4s ease-in-out infinite;
+          animation:
+            vaultPulse 4s
+            ease-in-out infinite;
         }
 
         .vaultStage {
@@ -473,14 +562,23 @@ function Vault3DHero({
               #1e1b4b 70%,
               #08091a 100%
             );
-          border: 1px solid rgba(147,197,253,0.7);
+          border:
+            1px solid
+            rgba(147, 197, 253, 0.7);
           box-shadow:
-            0 0 20px rgba(96,165,250,0.9),
-            0 0 70px rgba(99,102,241,0.65),
-            0 0 150px rgba(79,70,229,0.38),
-            inset -20px -25px 45px rgba(0,0,0,0.55),
-            inset 15px 15px 30px rgba(255,255,255,0.25);
-          animation: coreFloat 3.8s ease-in-out infinite;
+            0 0 20px
+              rgba(96, 165, 250, 0.9),
+            0 0 70px
+              rgba(99, 102, 241, 0.65),
+            0 0 150px
+              rgba(79, 70, 229, 0.38),
+            inset -20px -25px 45px
+              rgba(0, 0, 0, 0.55),
+            inset 15px 15px 30px
+              rgba(255, 255, 255, 0.25);
+          animation:
+            coreFloat 3.8s
+            ease-in-out infinite;
         }
 
         .vaultCore::before {
@@ -488,10 +586,14 @@ function Vault3DHero({
           position: absolute;
           inset: 17px;
           border-radius: 50%;
-          border: 1px solid rgba(191,219,254,0.7);
+          border:
+            1px solid
+            rgba(191, 219, 254, 0.7);
           box-shadow:
-            0 0 30px rgba(129,140,248,0.8),
-            inset 0 0 22px rgba(255,255,255,0.15);
+            0 0 30px
+              rgba(129, 140, 248, 0.8),
+            inset 0 0 22px
+              rgba(255, 255, 255, 0.15);
         }
 
         .vaultCore::after {
@@ -502,7 +604,8 @@ function Vault3DHero({
           width: 30px;
           height: 20px;
           border-radius: 50%;
-          background: rgba(255,255,255,0.45);
+          background:
+            rgba(255, 255, 255, 0.45);
           filter: blur(8px);
           transform: rotate(-25deg);
         }
@@ -512,11 +615,15 @@ function Vault3DHero({
           left: 50%;
           top: 50%;
           border-radius: 50%;
-          border: 1px solid rgba(129,140,248,0.58);
+          border:
+            1px solid
+            rgba(129, 140, 248, 0.58);
           transform-style: preserve-3d;
           box-shadow:
-            0 0 22px rgba(99,102,241,0.22),
-            inset 0 0 16px rgba(99,102,241,0.08);
+            0 0 22px
+              rgba(99, 102, 241, 0.22),
+            inset 0 0 16px
+              rgba(99, 102, 241, 0.08);
         }
 
         .ringOne {
@@ -529,7 +636,8 @@ function Vault3DHero({
             rotateZ(12deg)
             translateZ(12px);
           animation:
-            ringOne 9s linear infinite;
+            ringOne 9s
+            linear infinite;
         }
 
         .ringTwo {
@@ -537,13 +645,15 @@ function Vault3DHero({
           height: 270px;
           margin-left: -135px;
           margin-top: -135px;
-          border-color: rgba(96,165,250,0.42);
+          border-color:
+            rgba(96, 165, 250, 0.42);
           transform:
             rotateX(68deg)
             rotateY(18deg)
             translateZ(-5px);
           animation:
-            ringTwo 13s linear infinite;
+            ringTwo 13s
+            linear infinite;
         }
 
         .ringThree {
@@ -551,12 +661,14 @@ function Vault3DHero({
           height: 355px;
           margin-left: -177.5px;
           margin-top: -177.5px;
-          border-color: rgba(167,139,250,0.28);
+          border-color:
+            rgba(167, 139, 250, 0.28);
           transform:
             rotateX(74deg)
             rotateY(-22deg);
           animation:
-            ringThree 17s linear infinite;
+            ringThree 17s
+            linear infinite;
         }
 
         .ringFour {
@@ -564,12 +676,14 @@ function Vault3DHero({
           height: 410px;
           margin-left: -205px;
           margin-top: -205px;
-          border-color: rgba(59,130,246,0.18);
+          border-color:
+            rgba(59, 130, 246, 0.18);
           transform:
             rotateX(75deg)
             rotateY(30deg);
           animation:
-            ringFour 22s linear infinite;
+            ringFour 22s
+            linear infinite;
         }
 
         .energyArc {
@@ -581,18 +695,27 @@ function Vault3DHero({
           margin-left: -150px;
           margin-top: -150px;
           border-radius: 50%;
-          border-top: 3px solid rgba(125,211,252,0.9);
-          border-right: 3px solid transparent;
-          border-bottom: 3px solid rgba(139,92,246,0.75);
-          border-left: 3px solid transparent;
-          filter: drop-shadow(
-            0 0 12px rgba(96,165,250,0.8)
-          );
+          border-top:
+            3px solid
+            rgba(125, 211, 252, 0.9);
+          border-right:
+            3px solid transparent;
+          border-bottom:
+            3px solid
+            rgba(139, 92, 246, 0.75);
+          border-left:
+            3px solid transparent;
+          filter:
+            drop-shadow(
+              0 0 12px
+              rgba(96, 165, 250, 0.8)
+            );
           transform:
             rotateX(70deg)
             rotateZ(-25deg);
           animation:
-            energySpin 5s linear infinite;
+            energySpin 5s
+            linear infinite;
         }
 
         .energyArcTwo {
@@ -601,9 +724,11 @@ function Vault3DHero({
           margin-left: -122.5px;
           margin-top: -122.5px;
           border-top-color: transparent;
-          border-right-color: rgba(167,139,250,0.9);
+          border-right-color:
+            rgba(167, 139, 250, 0.9);
           border-bottom-color: transparent;
-          border-left-color: rgba(96,165,250,0.7);
+          border-left-color:
+            rgba(96, 165, 250, 0.7);
           animation-duration: 3.8s;
           animation-direction: reverse;
         }
@@ -613,14 +738,17 @@ function Vault3DHero({
           border-radius: 9999px;
           background: #93c5fd;
           box-shadow:
-            0 0 8px rgba(96,165,250,0.95),
-            0 0 20px rgba(99,102,241,0.7);
+            0 0 8px
+              rgba(96, 165, 250, 0.95),
+            0 0 20px
+              rgba(99, 102, 241, 0.7);
           animation:
             particleFloat
             var(--duration)
             ease-in-out
             infinite;
-          animation-delay: var(--delay);
+          animation-delay:
+            var(--delay);
         }
 
         .heroContent {
@@ -632,8 +760,7 @@ function Vault3DHero({
           align-items: center;
           justify-content: center;
           padding:
-            100px 20px
-            70px;
+            100px 20px 70px;
           text-align: center;
           pointer-events: none;
         }
@@ -643,9 +770,12 @@ function Vault3DHero({
           display: inline-flex;
           align-items: center;
           gap: 8px;
-          border: 1px solid rgba(147,197,253,0.18);
+          border:
+            1px solid
+            rgba(147, 197, 253, 0.18);
           border-radius: 9999px;
-          background: rgba(15,23,42,0.55);
+          background:
+            rgba(15, 23, 42, 0.55);
           padding: 8px 13px;
           color: #bfdbfe;
           font-size: 10px;
@@ -654,23 +784,19 @@ function Vault3DHero({
           text-transform: uppercase;
           backdrop-filter: blur(14px);
           box-shadow:
-            0 10px 40px rgba(0,0,0,0.22);
+            0 10px 40px
+            rgba(0, 0, 0, 0.22);
         }
 
         .heroTitle {
           margin-top: 25px;
           max-width: 920px;
-          font-size: clamp(
-            38px,
-            7vw,
-            76px
-          );
+          font-size:
+            clamp(38px, 7vw, 76px);
           line-height: 0.98;
           font-weight: 950;
           letter-spacing: -0.055em;
           color: white;
-          text-shadow:
-            0 0 30px rgba(99,102,241,0.2);
         }
 
         .heroTitle span {
@@ -687,14 +813,15 @@ function Vault3DHero({
           background-clip: text;
           color: transparent;
           animation:
-            titleGradient
-            5s linear infinite;
+            titleGradient 5s
+            linear infinite;
         }
 
         .heroText {
           max-width: 650px;
           margin-top: 22px;
-          color: rgba(203,213,225,0.76);
+          color:
+            rgba(203, 213, 225, 0.76);
           font-size: 14px;
           line-height: 1.8;
         }
@@ -711,13 +838,14 @@ function Vault3DHero({
         .heroStat {
           border:
             1px solid
-            rgba(148,163,184,0.16);
+            rgba(148, 163, 184, 0.16);
           background:
-            rgba(15,23,42,0.58);
+            rgba(15, 23, 42, 0.58);
           backdrop-filter: blur(16px);
           border-radius: 14px;
           padding: 9px 13px;
-          color: rgba(226,232,240,0.8);
+          color:
+            rgba(226, 232, 240, 0.8);
           font-size: 10px;
           font-weight: 800;
         }
@@ -727,12 +855,14 @@ function Vault3DHero({
         }
 
         @keyframes vaultPulse {
-          0%, 100% {
+          0%,
+          100% {
             transform:
               translate(-50%, -50%)
               scale(0.94);
             opacity: 0.72;
           }
+
           50% {
             transform:
               translate(-50%, -50%)
@@ -742,12 +872,14 @@ function Vault3DHero({
         }
 
         @keyframes coreFloat {
-          0%, 100% {
+          0%,
+          100% {
             transform:
               translate(-50%, -50%)
               translateZ(42px)
               scale(0.97);
           }
+
           50% {
             transform:
               translate(-50%, -50%)
@@ -763,6 +895,7 @@ function Vault3DHero({
               rotateZ(12deg)
               translateZ(12px);
           }
+
           to {
             transform:
               rotateX(72deg)
@@ -779,6 +912,7 @@ function Vault3DHero({
               rotateZ(0deg)
               translateZ(-5px);
           }
+
           to {
             transform:
               rotateX(68deg)
@@ -795,6 +929,7 @@ function Vault3DHero({
               rotateY(-22deg)
               rotateZ(0deg);
           }
+
           to {
             transform:
               rotateX(74deg)
@@ -810,6 +945,7 @@ function Vault3DHero({
               rotateY(30deg)
               rotateZ(0deg);
           }
+
           to {
             transform:
               rotateX(75deg)
@@ -824,6 +960,7 @@ function Vault3DHero({
               rotateX(70deg)
               rotateZ(0deg);
           }
+
           to {
             transform:
               rotateX(70deg)
@@ -832,12 +969,14 @@ function Vault3DHero({
         }
 
         @keyframes particleFloat {
-          0%, 100% {
+          0%,
+          100% {
             opacity: 0.18;
             transform:
               translate3d(0, 8px, 0)
               scale(0.7);
           }
+
           50% {
             opacity: 1;
             transform:
@@ -850,6 +989,7 @@ function Vault3DHero({
           from {
             background-position: 0% center;
           }
+
           to {
             background-position: 220% center;
           }
@@ -863,8 +1003,7 @@ function Vault3DHero({
           .heroContent {
             min-height: 570px;
             padding:
-              85px 16px
-              50px;
+              85px 16px 50px;
           }
 
           .vaultStage {
@@ -952,35 +1091,58 @@ function Vault3DHero({
         }
       `}</style>
 
-      <section className="vaultHero">
+      <section
+        className="vaultHero"
+        aria-label="AI Vault hero"
+      >
         <div className="vaultNoise" />
+
         <div className="vaultGlow" />
 
-        {particles.map((particle) => (
-          <span
-            key={particle.id}
-            className="particle"
-            style={
-              {
-                left: `${particle.left}%`,
-                top: `${particle.top}%`,
-                width: `${particle.size}px`,
-                height: `${particle.size}px`,
-                "--delay": `${particle.delay}s`,
-                "--duration": `${particle.duration}s`,
-              } as React.CSSProperties
-            }
-          />
-        ))}
+        {particles.map(
+          (particle) => (
+            <span
+              key={particle.id}
+              className="particle"
+              style={
+                {
+                  left:
+                    `${particle.left}%`,
+
+                  top:
+                    `${particle.top}%`,
+
+                  width:
+                    `${particle.size}px`,
+
+                  height:
+                    `${particle.size}px`,
+
+                  "--delay":
+                    `${particle.delay}s`,
+
+                  "--duration":
+                    `${particle.duration}s`,
+                } as CSSProperties
+              }
+            />
+          )
+        )}
 
         <div className="vaultStage">
           <div className="ring ringFour" />
+
           <div className="ring ringThree" />
+
           <div className="ring ringTwo" />
+
           <div className="ring ringOne" />
 
           <div className="energyArc" />
-          <div className="energyArc energyArcTwo" />
+
+          <div
+            className="energyArc energyArcTwo"
+          />
 
           <div className="vaultCore" />
         </div>
@@ -988,19 +1150,24 @@ function Vault3DHero({
         <div className="heroContent">
           <div className="heroBadge">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+
             AI INTELLIGENCE VAULT
           </div>
 
           <h1 className="heroTitle">
             Discover the
             <br />
-            <span>Right AI.</span>
+
+            <span>
+              Right AI.
+            </span>
           </h1>
 
           <p className="heroText">
-            Search, compare and discover verified AI
-            software from one intelligent directory.
-            Explore tools for productivity, coding,
+            Search, compare and discover
+            verified AI software from one
+            intelligent directory. Explore
+            tools for productivity, coding,
             creativity and more.
           </p>
 
@@ -1013,18 +1180,373 @@ function Vault3DHero({
             </div>
 
             <div className="heroStat">
-              <strong>VERIFIED</strong>{" "}
+              <strong>
+                VERIFIED
+              </strong>{" "}
               DIRECTORY
             </div>
 
             <div className="heroStat">
-              <strong>AI VAULT</strong>{" "}
+              <strong>
+                AI VAULT
+              </strong>{" "}
               SCORE
             </div>
           </div>
         </div>
       </section>
     </>
+  );
+}
+
+/* =========================================================
+   TOOL CARD
+========================================================= */
+
+function ToolCard({
+  tool,
+  index,
+}: {
+  tool: ToolRecord;
+  index: number;
+}) {
+  const href =
+    getToolHref(tool);
+
+  const name =
+    getToolName(tool);
+
+  const description =
+    getToolDescription(tool);
+
+  const category =
+    getToolCategory(tool);
+
+  const pricing =
+    getToolPricing(tool);
+
+  const logo =
+    getToolLogo(tool);
+
+  const score =
+    getToolScore(tool);
+
+  const cardKey =
+    tool.id != null
+      ? String(tool.id)
+      : getCanonicalSlug(tool) ||
+        `tool-${index}`;
+
+  if (!href) {
+    return (
+      <article
+        key={cardKey}
+        className="
+          flex h-full flex-col
+          rounded-[25px]
+          border border-slate-200
+          bg-white
+          p-6
+          shadow-[0_12px_40px_rgba(15,23,42,0.05)]
+        "
+      >
+        <div className="flex items-center gap-4">
+          <div
+            className="
+              h-12 w-12 shrink-0
+              overflow-hidden
+              rounded-2xl
+              border border-slate-200
+              bg-slate-50
+            "
+          >
+            <ToolLogo
+              name={name}
+              logoUrl={logo}
+            />
+          </div>
+
+          <div className="min-w-0">
+            <h3 className="truncate text-base font-black text-slate-950">
+              {name}
+            </h3>
+
+            <p className="mt-1 text-xs font-semibold text-slate-400">
+              {category}
+            </p>
+          </div>
+        </div>
+
+        <p className="mt-5 text-sm leading-6 text-slate-500">
+          {description}
+        </p>
+      </article>
+    );
+  }
+
+  return (
+    <article
+      key={cardKey}
+      className="
+        group relative flex h-full
+        flex-col overflow-hidden
+        rounded-[25px]
+        border border-slate-200/90
+        bg-white
+        shadow-[0_10px_40px_rgba(15,23,42,0.045)]
+        transition-all duration-300
+        hover:-translate-y-1
+        hover:border-blue-200
+        hover:shadow-[0_25px_65px_rgba(37,99,235,0.11)]
+      "
+    >
+      <Link
+        href={href}
+        onClick={() => {
+          try {
+            const slug =
+              getCanonicalSlug(
+                tool
+              );
+
+            if (!slug) {
+              return;
+            }
+
+            trackToolClick(
+              slug,
+              name,
+              category,
+              index
+            );
+          } catch (error) {
+            console.error(
+              "[TRAFFIC_CLICK_ERR]",
+              error
+            );
+          }
+        }}
+        className="
+          flex h-full
+          flex-col
+          p-5
+          sm:p-6
+        "
+      >
+        {/* HEADER */}
+
+        <div
+          className="
+            flex items-start
+            justify-between
+            gap-3
+          "
+        >
+          <div
+            className="
+              flex min-w-0
+              items-center
+              gap-3
+            "
+          >
+            <div
+              className="
+                h-12 w-12
+                shrink-0
+                overflow-hidden
+                rounded-2xl
+                border border-slate-200
+                bg-slate-50
+              "
+            >
+              <ToolLogo
+                name={name}
+                logoUrl={logo}
+              />
+            </div>
+
+            <div className="min-w-0">
+              <h3
+                className="
+                  truncate
+                  text-[16px]
+                  font-black
+                  tracking-tight
+                  text-slate-950
+                "
+              >
+                {name}
+              </h3>
+
+              <p
+                className="
+                  mt-1
+                  truncate
+                  text-xs
+                  font-semibold
+                  text-slate-400
+                "
+              >
+                {category}
+              </p>
+            </div>
+          </div>
+
+          <span
+            className="
+              shrink-0
+              rounded-full
+              border border-slate-200
+              bg-slate-50
+              px-2.5 py-1
+              text-[9px]
+              font-black
+              text-slate-600
+            "
+          >
+            {pricing}
+          </span>
+        </div>
+
+        {/* DESCRIPTION */}
+
+        <p
+          className="
+            mt-5
+            line-clamp-3
+            min-h-[72px]
+            text-[13px]
+            leading-6
+            text-slate-500
+          "
+        >
+          {description}
+        </p>
+
+        {/* SCORE */}
+
+        <div className="mt-5">
+          <div
+            className="
+              mb-2
+              flex items-center
+              justify-between
+            "
+          >
+            <span
+              className="
+                text-[9px]
+                font-black
+                uppercase
+                tracking-[0.16em]
+                text-slate-400
+              "
+            >
+              AI Vault Score
+            </span>
+
+            <span
+              className="
+                text-xs
+                font-black
+                text-blue-600
+              "
+            >
+              {score}/100
+            </span>
+          </div>
+
+          <div
+            className="
+              h-1.5
+              overflow-hidden
+              rounded-full
+              bg-slate-100
+            "
+          >
+            <div
+              className="
+                h-full
+                rounded-full
+                bg-gradient-to-r
+                from-blue-500
+                via-indigo-500
+                to-violet-500
+                transition-all
+                duration-700
+              "
+              style={{
+                width:
+                  `${score}%`,
+              }}
+            />
+          </div>
+        </div>
+
+        {/* FOOTER */}
+
+        <div
+          className="
+            mt-5
+            flex items-center
+            justify-between
+            border-t
+            border-slate-100
+            pt-4
+          "
+        >
+          <span
+            className="
+              text-[9px]
+              font-black
+              uppercase
+              tracking-[0.16em]
+              text-slate-400
+            "
+          >
+            Verified AI Tool
+          </span>
+
+          <span
+            className="
+              text-xs
+              font-black
+              text-blue-600
+              transition-transform
+              duration-200
+              group-hover:translate-x-1
+            "
+          >
+            Explore →
+          </span>
+        </div>
+      </Link>
+
+      {/* SCORE ACCENT */}
+
+      <div
+        className="
+          absolute
+          bottom-0 left-0 right-0
+          h-[3px]
+          bg-slate-100
+        "
+      >
+        <div
+          className="
+            h-full
+            rounded-r-full
+            bg-gradient-to-r
+            from-blue-500
+            to-violet-500
+          "
+          style={{
+            width:
+              `${score}%`,
+          }}
+        />
+      </div>
+    </article>
   );
 }
 
@@ -1048,41 +1570,69 @@ function HomeContent() {
   const [errorMessage, setErrorMessage] =
     useState("");
 
+  const initialQuery =
+    searchParams
+      .get("q")
+      ?.trim() ?? "";
+
   const [localSearch, setLocalSearch] =
-    useState("");
+    useState(initialQuery);
 
   const impressionSent =
-    useRef<Set<string>>(new Set());
+    useRef<Set<string>>(
+      new Set()
+    );
 
   /* =======================================================
-     CATEGORY
+     ACTIVE CATEGORY
   ======================================================= */
 
   const activeCat =
     searchParams
       .get("cat")
-      ?.trim() || "ALL";
+      ?.trim() || "All";
 
   const isAllCategory =
     activeCat.toLowerCase() ===
     "all";
 
   /* =======================================================
-     FETCH TOOLS
+     SYNC URL SEARCH
   ======================================================= */
 
   useEffect(() => {
-    let cancelled = false;
+    const query =
+      searchParams
+        .get("q")
+        ?.trim() ?? "";
+
+    setLocalSearch(
+      query
+    );
+  }, [searchParams]);
+
+  /* =======================================================
+     FETCH
+  ======================================================= */
+
+  useEffect(() => {
+    let cancelled =
+      false;
 
     async function fetchTools() {
       setLoading(true);
+
       setErrorMessage("");
 
       try {
         const supabase =
           getSupabase();
 
-        let countQuery =
+        /* -----------------------------------------------
+           COUNT
+        ------------------------------------------------ */
+
+        let countBuilder =
           supabase
             .from("ai_tools")
             .select("id", {
@@ -1090,18 +1640,24 @@ function HomeContent() {
               head: true,
             });
 
-        if (!isAllCategory) {
-          countQuery =
-            countQuery.ilike(
+        if (
+          !isAllCategory
+        ) {
+          countBuilder =
+            countBuilder.ilike(
               "category",
               activeCat
             );
         }
 
         const countResult =
-          await countQuery;
+          await countBuilder;
 
-        let query =
+        /* -----------------------------------------------
+           DATA
+        ------------------------------------------------ */
+
+        let dataBuilder =
           supabase
             .from("ai_tools")
             .select("*")
@@ -1110,9 +1666,11 @@ function HomeContent() {
               nullsFirst: false,
             });
 
-        if (!isAllCategory) {
-          query =
-            query.ilike(
+        if (
+          !isAllCategory
+        ) {
+          dataBuilder =
+            dataBuilder.ilike(
               "category",
               activeCat
             );
@@ -1121,7 +1679,8 @@ function HomeContent() {
         const {
           data,
           error,
-        } = await query;
+        } =
+          await dataBuilder;
 
         if (error) {
           throw error;
@@ -1132,6 +1691,10 @@ function HomeContent() {
             ? (data as ToolRecord[])
             : [];
 
+        /* -----------------------------------------------
+           REMOVE DUPLICATES
+        ------------------------------------------------ */
+
         const uniqueMap =
           new Map<
             string,
@@ -1139,19 +1702,37 @@ function HomeContent() {
           >();
 
         rawData.forEach(
-          (tool, index) => {
+          (
+            tool,
+            index
+          ) => {
             const slug =
-              getCanonicalSlug(tool);
+              getCanonicalSlug(
+                tool
+              );
 
-            const key = slug
-              ? `slug:${slug}`
-              : tool.id != null
-                ? `id:${String(
-                    tool.id
-                  )}`
-                : `missing:${index}`;
+            let key: string;
 
-            if (!uniqueMap.has(key)) {
+            if (slug) {
+              key =
+                `slug:${slug}`;
+            } else if (
+              tool.id != null
+            ) {
+              key =
+                `id:${String(
+                  tool.id
+                )}`;
+            } else {
+              key =
+                `missing:${index}`;
+            }
+
+            if (
+              !uniqueMap.has(
+                key
+              )
+            ) {
               uniqueMap.set(
                 key,
                 tool
@@ -1165,11 +1746,15 @@ function HomeContent() {
             uniqueMap.values()
           );
 
-        if (cancelled) {
+        if (
+          cancelled
+        ) {
           return;
         }
 
-        setTools(uniqueList);
+        setTools(
+          uniqueList
+        );
 
         if (
           !countResult.error &&
@@ -1190,17 +1775,28 @@ function HomeContent() {
           error
         );
 
-        if (!cancelled) {
-          setTools([]);
-          setTotalCount(0);
+        if (
+          !cancelled
+        ) {
+          setTools(
+            []
+          );
+
+          setTotalCount(
+            0
+          );
 
           setErrorMessage(
             "Unable to load the AI tool directory. Please try again."
           );
         }
       } finally {
-        if (!cancelled) {
-          setLoading(false);
+        if (
+          !cancelled
+        ) {
+          setLoading(
+            false
+          );
         }
       }
     }
@@ -1216,7 +1812,7 @@ function HomeContent() {
   ]);
 
   /* =======================================================
-     SEARCH
+     FILTER
   ======================================================= */
 
   const filteredTools =
@@ -1253,10 +1849,18 @@ function HomeContent() {
             ).toLowerCase();
 
           return (
-            name.includes(term) ||
-            description.includes(term) ||
-            category.includes(term) ||
-            slug.includes(term)
+            name.includes(
+              term
+            ) ||
+            description.includes(
+              term
+            ) ||
+            category.includes(
+              term
+            ) ||
+            slug.includes(
+              term
+            )
           );
         }
       );
@@ -1275,9 +1879,14 @@ function HomeContent() {
     }
 
     filteredTools.forEach(
-      (tool, index) => {
+      (
+        tool,
+        index
+      ) => {
         const slug =
-          getCanonicalSlug(tool);
+          getCanonicalSlug(
+            tool
+          );
 
         if (!slug) {
           return;
@@ -1298,8 +1907,12 @@ function HomeContent() {
         try {
           trackToolImpression(
             slug,
-            getToolName(tool),
-            getToolCategory(tool),
+            getToolName(
+              tool
+            ),
+            getToolCategory(
+              tool
+            ),
             index
           );
         } catch (error) {
@@ -1315,55 +1928,106 @@ function HomeContent() {
     loading,
   ]);
 
-  const totalDisplay =
-    totalCount;
-
   /* =======================================================
-     WEBSITE SCHEMA
+     SCHEMA
   ======================================================= */
 
-  const websiteSchema = {
-    "@context":
-      "https://schema.org",
+  const websiteSchema =
+    useMemo(
+      () => ({
+        "@context":
+          "https://schema.org",
 
-    "@type": "WebSite",
-
-    name: "AI Vault",
-
-    url: SITE_URL,
-
-    potentialAction: {
-      "@type":
-        "SearchAction",
-
-      target: {
         "@type":
-          "EntryPoint",
+          "WebSite",
 
-        urlTemplate:
-          `${SITE_URL}/?q={search_term_string}`,
-      },
+        name:
+          "AI Vault",
 
-      "query-input":
-        "required name=search_term_string",
-    },
-  };
+        url:
+          SITE_URL,
 
-  /* =======================================================
-     VIEW ALL
-  ======================================================= */
+        potentialAction: {
+          "@type":
+            "SearchAction",
 
-  const handleViewAll = () => {
-    setLocalSearch("");
+          target: {
+            "@type":
+              "EntryPoint",
 
-    window.history.replaceState(
-      null,
-      "",
-      "/"
+            urlTemplate:
+              `${SITE_URL}/?q={search_term_string}`,
+          },
+
+          "query-input":
+            "required name=search_term_string",
+        },
+      }),
+      []
     );
 
-    window.location.reload();
-  };
+  /* =======================================================
+     CLEAR SEARCH
+  ======================================================= */
+
+  const clearSearch =
+    () => {
+      setLocalSearch("");
+
+      const params =
+        new URLSearchParams(
+          searchParams.toString()
+        );
+
+      params.delete(
+        "q"
+      );
+
+      const query =
+        params.toString();
+
+      window.history.replaceState(
+        null,
+        "",
+        query
+          ? `/?${query}`
+          : "/"
+      );
+    };
+
+  /* =======================================================
+     CATEGORY URL
+  ======================================================= */
+
+  const categoryHref =
+    (
+      category: string
+    ) => {
+      if (
+        category === "All"
+      ) {
+        return "/";
+      }
+
+      const params =
+        new URLSearchParams();
+
+      params.set(
+        "cat",
+        category
+      );
+
+      if (
+        localSearch.trim()
+      ) {
+        params.set(
+          "q",
+          localSearch.trim()
+        );
+      }
+
+      return `/?${params.toString()}`;
+    };
 
   /* =======================================================
      RENDER
@@ -1381,32 +2045,68 @@ function HomeContent() {
         }}
       />
 
-      <main className="min-h-screen bg-[#f8faff] text-slate-950">
+      <main
+        className="
+          min-h-screen
+          bg-[#f8faff]
+          text-slate-950
+        "
+      >
 
         {/* =================================================
-            NAVIGATION
+            NAVBAR
         ================================================= */}
 
-        <nav className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-2xl">
-          <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-4 sm:px-6">
-
+        <nav
+          className="
+            sticky top-0 z-50
+            border-b
+            border-slate-200/80
+            bg-white/90
+            backdrop-blur-2xl
+          "
+        >
+          <div
+            className="
+              mx-auto
+              flex
+              h-[68px]
+              max-w-7xl
+              items-center
+              justify-between
+              px-4
+              sm:px-6
+            "
+          >
             <Link
               href="/"
-              className="group flex items-center gap-2"
+              className="
+                text-xl
+                font-black
+                tracking-[-0.05em]
+                text-slate-950
+              "
             >
-              <span className="text-xl font-black tracking-[-0.04em]">
-                AI Vault
-                <span className="text-blue-600">
-                  .
-                </span>
+              AI Vault
+              <span className="text-blue-600">
+                .
               </span>
             </Link>
 
-            <div className="hidden items-center gap-6 md:flex">
+            <div
+              className="
+                hidden
+                items-center
+                gap-6
+                md:flex
+              "
+            >
               {categories
                 .slice(0, 5)
                 .map(
-                  (category) => {
+                  (
+                    category
+                  ) => {
                     const active =
                       activeCat.toLowerCase() ===
                       category.name.toLowerCase();
@@ -1416,19 +2116,19 @@ function HomeContent() {
                         key={
                           category.name
                         }
-                        href={
-                          category.name ===
-                          "All"
-                            ? "/"
-                            : `/?cat=${encodeURIComponent(
-                                category.name
-                              )}`
-                        }
-                        className={`text-sm font-semibold transition ${
-                          active
-                            ? "text-blue-600"
-                            : "text-slate-500 hover:text-blue-600"
-                        }`}
+                        href={categoryHref(
+                          category.name
+                        )}
+                        className={`
+                          text-xs
+                          font-bold
+                          transition
+                          ${
+                            active
+                              ? "text-blue-600"
+                              : "text-slate-500 hover:text-blue-600"
+                          }
+                        `}
                       >
                         {
                           category.name
@@ -1439,8 +2139,21 @@ function HomeContent() {
                 )}
             </div>
 
-            <div className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-blue-500/20">
-              {totalDisplay.toLocaleString()}
+            <div
+              className="
+                rounded-full
+                bg-gradient-to-r
+                from-blue-600
+                to-indigo-600
+                px-4 py-2
+                text-[10px]
+                font-black
+                text-white
+                shadow-lg
+                shadow-blue-500/20
+              "
+            >
+              {totalCount.toLocaleString()}
             </div>
           </div>
         </nav>
@@ -1451,7 +2164,7 @@ function HomeContent() {
 
         <Vault3DHero
           toolCount={
-            totalDisplay
+            totalCount
           }
         />
 
@@ -1459,10 +2172,29 @@ function HomeContent() {
             SEARCH
         ================================================= */}
 
-        <section className="relative z-20 -mt-8 px-4">
-          <div className="mx-auto max-w-4xl rounded-[28px] border border-white/80 bg-white/95 p-3 shadow-[0_25px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-
-            <div className="relative">
+        <section
+          className="
+            relative z-20
+            -mt-8
+            px-4
+          "
+        >
+          <div
+            className="
+              mx-auto
+              max-w-4xl
+              rounded-[28px]
+              border
+              border-white/80
+              bg-white/95
+              p-3
+              shadow-[0_25px_80px_rgba(15,23,42,0.12)]
+              backdrop-blur-xl
+            "
+          >
+            <div
+              className="relative"
+            >
               <input
                 type="text"
                 value={
@@ -1470,44 +2202,127 @@ function HomeContent() {
                 }
                 onChange={(
                   event
-                ) =>
+                ) => {
                   setLocalSearch(
                     event.target.value
-                  )
-                }
+                  );
+                }}
+                onKeyDown={(
+                  event
+                ) => {
+                  if (
+                    event.key ===
+                    "Escape"
+                  ) {
+                    clearSearch();
+                  }
+                }}
                 placeholder={
-                  totalDisplay
-                    ? `Search ${totalDisplay.toLocaleString()}+ AI tools...`
+                  totalCount
+                    ? `Search ${totalCount.toLocaleString()}+ AI tools...`
                     : "Search AI tools..."
                 }
                 aria-label="Search AI tools"
-                className="h-14 w-full rounded-2xl border border-slate-200 bg-slate-50/80 px-5 pr-14 text-sm font-semibold outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                className="
+                  h-14
+                  w-full
+                  rounded-2xl
+                  border
+                  border-slate-200
+                  bg-slate-50/80
+                  px-5
+                  pr-14
+                  text-sm
+                  font-semibold
+                  text-slate-900
+                  outline-none
+                  transition
+                  placeholder:text-slate-400
+                  focus:border-blue-500
+                  focus:bg-white
+                  focus:ring-4
+                  focus:ring-blue-100
+                "
               />
 
-              <div className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-slate-400">
-                <svg
-                  width="21"
-                  height="21"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              {localSearch && (
+                <button
+                  type="button"
+                  onClick={
+                    clearSearch
+                  }
+                  aria-label="Clear search"
+                  className="
+                    absolute
+                    right-4
+                    top-1/2
+                    flex
+                    h-8 w-8
+                    -translate-y-1/2
+                    items-center
+                    justify-center
+                    rounded-full
+                    bg-slate-200
+                    text-slate-700
+                    transition
+                    hover:bg-slate-300
+                  "
                 >
-                  <circle
-                    cx="11"
-                    cy="11"
-                    r="7"
-                  />
-                  <path d="m20 20-4-4" />
-                </svg>
-              </div>
+                  ×
+                </button>
+              )}
+
+              {!localSearch && (
+                <div
+                  className="
+                    pointer-events-none
+                    absolute
+                    right-5
+                    top-1/2
+                    -translate-y-1/2
+                    text-slate-400
+                  "
+                >
+                  <svg
+                    width="21"
+                    height="21"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle
+                      cx="11"
+                      cy="11"
+                      r="7"
+                    />
+
+                    <path
+                      d="m20 20-4-4"
+                    />
+                  </svg>
+                </div>
+              )}
             </div>
 
-            <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+            {/* CATEGORY PILLS */}
+
+            <div
+              className="
+                mt-3
+                flex
+                gap-2
+                overflow-x-auto
+                pb-1
+                scrollbar-none
+              "
+            >
               {categories.map(
-                (category) => {
+                (
+                  category
+                ) => {
                   const active =
                     activeCat.toLowerCase() ===
                     category.name.toLowerCase();
@@ -1517,19 +2332,26 @@ function HomeContent() {
                       key={
                         category.name
                       }
-                      href={
-                        category.name ===
-                        "All"
-                          ? "/"
-                          : `/?cat=${encodeURIComponent(
-                              category.name
-                            )}`
-                      }
-                      className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-xs font-bold transition ${
-                        active
-                          ? "border-slate-950 bg-slate-950 text-white shadow-lg"
-                          : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
-                      }`}
+                      href={categoryHref(
+                        category.name
+                      )}
+                      className={`
+                        flex
+                        shrink-0
+                        items-center
+                        gap-2
+                        rounded-full
+                        border
+                        px-4 py-2
+                        text-xs
+                        font-bold
+                        transition
+                        ${
+                          active
+                            ? "border-slate-950 bg-slate-950 text-white shadow-lg"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                        }
+                      `}
                     >
                       <span>
                         {
@@ -1552,36 +2374,103 @@ function HomeContent() {
             DIRECTORY
         ================================================= */}
 
-        <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
-
-          <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <section
+          className="
+            mx-auto
+            max-w-7xl
+            px-4
+            py-14
+            sm:px-6
+          "
+        >
+          <div
+            className="
+              mb-7
+              flex
+              flex-wrap
+              items-end
+              justify-between
+              gap-4
+            "
+          >
             <div>
-              <div className="mb-2 text-[10px] font-black uppercase tracking-[0.2em] text-blue-600">
+              <div
+                className="
+                  mb-2
+                  text-[10px]
+                  font-black
+                  uppercase
+                  tracking-[0.2em]
+                  text-blue-600
+                "
+              >
                 AI DISCOVERY ENGINE
               </div>
 
-              <h2 className="text-2xl font-black tracking-tight sm:text-3xl">
+              <h2
+                className="
+                  text-2xl
+                  font-black
+                  tracking-tight
+                  text-slate-950
+                  sm:text-3xl
+                "
+              >
                 {isAllCategory
                   ? "Verified AI Directory"
                   : `${activeCat} AI Tools`}
 
-                <span className="ml-2 text-blue-600">
+                <span
+                  className="
+                    ml-2
+                    text-blue-600
+                  "
+                >
                   (
-                  {totalDisplay.toLocaleString()}
+                  {
+                    filteredTools.length.toLocaleString()
+                  }
                   )
                 </span>
               </h2>
+
+              {localSearch && (
+                <p
+                  className="
+                    mt-2
+                    text-xs
+                    font-semibold
+                    text-slate-400
+                  "
+                >
+                  Showing results for "
+                  {localSearch}"
+                </p>
+              )}
             </div>
 
             {localSearch && (
               <button
                 type="button"
-                onClick={() =>
-                  setLocalSearch("")
+                onClick={
+                  clearSearch
                 }
-                className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm hover:border-blue-300 hover:text-blue-600"
+                className="
+                  rounded-full
+                  border
+                  border-slate-200
+                  bg-white
+                  px-4 py-2
+                  text-xs
+                  font-bold
+                  text-slate-600
+                  shadow-sm
+                  transition
+                  hover:border-blue-300
+                  hover:text-blue-600
+                "
               >
-                Clear search
+                Clear Search
               </button>
             )}
           </div>
@@ -1589,17 +2478,56 @@ function HomeContent() {
           {/* ERROR */}
 
           {errorMessage ? (
-            <div className="rounded-[30px] border border-red-100 bg-white px-6 py-20 text-center shadow-sm">
-
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-red-50 text-xl font-black text-red-500">
+            <div
+              className="
+                rounded-[30px]
+                border
+                border-red-100
+                bg-white
+                px-6
+                py-20
+                text-center
+                shadow-sm
+              "
+            >
+              <div
+                className="
+                  mx-auto
+                  flex
+                  h-16 w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-red-50
+                  text-xl
+                  font-black
+                  text-red-500
+                "
+              >
                 !
               </div>
 
-              <h3 className="mt-5 text-xl font-black">
+              <h3
+                className="
+                  mt-5
+                  text-xl
+                  font-black
+                  text-slate-950
+                "
+              >
                 Directory unavailable
               </h3>
 
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
+              <p
+                className="
+                  mx-auto
+                  mt-2
+                  max-w-md
+                  text-sm
+                  leading-6
+                  text-slate-500
+                "
+              >
                 {errorMessage}
               </p>
 
@@ -1608,314 +2536,317 @@ function HomeContent() {
                 onClick={() =>
                   window.location.reload()
                 }
-                className="mt-6 rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white"
+                className="
+                  mt-6
+                  rounded-xl
+                  bg-slate-950
+                  px-6 py-3
+                  text-sm
+                  font-bold
+                  text-white
+                  transition
+                  hover:bg-blue-600
+                "
               >
                 Try Again
               </button>
             </div>
           ) : loading ? (
-            <div className="py-24 text-center">
-              <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+            <div
+              className="
+                py-24
+                text-center
+              "
+            >
+              <div
+                className="
+                  mx-auto
+                  h-12 w-12
+                  animate-spin
+                  rounded-full
+                  border-4
+                  border-slate-200
+                  border-t-blue-600
+                "
+              />
 
-              <p className="mt-5 text-sm font-bold text-slate-500">
+              <p
+                className="
+                  mt-5
+                  text-sm
+                  font-bold
+                  text-slate-500
+                "
+              >
                 Loading Intelligence Vault...
               </p>
             </div>
           ) : filteredTools.length ===
             0 ? (
-            <div className="rounded-[30px] border border-slate-200 bg-white px-6 py-20 text-center shadow-sm">
-
-              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+            <div
+              className="
+                rounded-[30px]
+                border
+                border-slate-200
+                bg-white
+                px-6
+                py-20
+                text-center
+                shadow-sm
+              "
+            >
+              <div
+                className="
+                  mx-auto
+                  flex
+                  h-16 w-16
+                  items-center
+                  justify-center
+                  rounded-2xl
+                  bg-slate-100
+                  text-2xl
+                "
+              >
                 🔎
               </div>
 
-              <h3 className="mt-5 text-xl font-black">
+              <h3
+                className="
+                  mt-5
+                  text-xl
+                  font-black
+                  text-slate-950
+                "
+              >
                 No AI tools found
               </h3>
 
-              <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-                Try another search term or choose another category.
+              <p
+                className="
+                  mx-auto
+                  mt-2
+                  max-w-md
+                  text-sm
+                  leading-6
+                  text-slate-500
+                "
+              >
+                Try another search term
+                or choose another category.
               </p>
 
               <button
                 type="button"
                 onClick={
-                  handleViewAll
+                  clearSearch
                 }
-                className="mt-6 rounded-xl bg-slate-950 px-6 py-3 text-sm font-bold text-white"
+                className="
+                  mt-6
+                  rounded-xl
+                  bg-slate-950
+                  px-6 py-3
+                  text-sm
+                  font-bold
+                  text-white
+                  transition
+                  hover:bg-blue-600
+                "
               >
                 View All Tools
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-
+            <div
+              className="
+                grid
+                grid-cols-1
+                gap-6
+                md:grid-cols-2
+                xl:grid-cols-3
+              "
+            >
               {filteredTools.map(
                 (
                   tool,
                   index
-                ) => {
-                  const href =
-                    getToolHref(
+                ) => (
+                  <ToolCard
+                    key={
+                      tool.id != null
+                        ? String(
+                            tool.id
+                          )
+                        : getCanonicalSlug(
+                            tool
+                          ) ||
+                          `tool-${index}`
+                    }
+                    tool={
                       tool
-                    );
-
-                  const name =
-                    getToolName(
-                      tool
-                    );
-
-                  const description =
-                    getToolDescription(
-                      tool
-                    );
-
-                  const category =
-                    getToolCategory(
-                      tool
-                    );
-
-                  const pricing =
-                    getToolPricing(
-                      tool
-                    );
-
-                  const logoUrl =
-                    getToolLogo(
-                      tool
-                    );
-
-                  const score =
-                    getToolScore(
-                      tool
-                    );
-
-                  if (!href) {
-                    return (
-                      <Vault3DCard
-                        key={
-                          tool.id !=
-                          null
-                            ? String(
-                                tool.id
-                              )
-                            : `missing-${index}`
-                        }
-                      >
-                        <div className="p-6">
-
-                          <div className="flex items-center gap-4">
-                            <ToolLogo
-                              src={
-                                logoUrl
-                              }
-                              fallbackSrc={
-                                typeof tool.logo ===
-                                "string"
-                                  ? tool.logo
-                                  : null
-                              }
-                              name={
-                                name
-                              }
-                              size="md"
-                            />
-
-                            <div>
-                              <h3 className="font-black">
-                                {
-                                  name
-                                }
-                              </h3>
-
-                              <p className="text-xs text-slate-500">
-                                {
-                                  category
-                                }
-                              </p>
-                            </div>
-                          </div>
-
-                          <p className="mt-5 text-sm text-slate-500">
-                            Canonical database URL unavailable.
-                          </p>
-                        </div>
-                      </Vault3DCard>
-                    );
-                  }
-
-                  return (
-                    <Vault3DCard
-                      key={
-                        tool.id !=
-                        null
-                          ? String(
-                              tool.id
-                            )
-                          : getCanonicalSlug(
-                              tool
-                            )
-                      }
-                    >
-                      <Link
-                        href={
-                          href
-                        }
-                        onClick={() => {
-                          try {
-                            const slug =
-                              getCanonicalSlug(
-                                tool
-                              );
-
-                            if (!slug) {
-                              return;
-                            }
-
-                            trackToolClick(
-                              slug,
-                              name,
-                              category,
-                              index
-                            );
-                          } catch (
-                            error
-                          ) {
-                            console.error(
-                              "[TRAFFIC_CLICK_ERR]",
-                              error
-                            );
-                          }
-                        }}
-                        className="group block h-full p-6"
-                      >
-
-                        <div className="flex items-start justify-between gap-3">
-
-                          <div className="flex min-w-0 items-center gap-4">
-
-                            <div className="relative">
-                              <div className="absolute inset-0 rounded-2xl bg-blue-500/20 blur-lg opacity-0 transition group-hover:opacity-100" />
-
-                              <ToolLogo
-                                src={
-                                  logoUrl
-                                }
-                                fallbackSrc={
-                                  typeof tool.logo ===
-                                  "string"
-                                    ? tool.logo
-                                    : null
-                                }
-                                name={
-                                  name
-                                }
-                                size="md"
-                              />
-                            </div>
-
-                            <div className="min-w-0">
-                              <h3 className="truncate text-base font-black text-slate-950">
-                                {
-                                  name
-                                }
-                              </h3>
-
-                              <p className="mt-1 truncate text-xs font-semibold text-slate-400">
-                                {
-                                  category
-                                }
-                              </p>
-                            </div>
-                          </div>
-
-                          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[10px] font-black text-slate-600">
-                            {
-                              pricing
-                            }
-                          </span>
-                        </div>
-
-                        <p className="mt-5 line-clamp-3 min-h-[72px] text-sm leading-6 text-slate-500">
-                          {
-                            description
-                          }
-                        </p>
-
-                        <div className="mt-5">
-
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">
-                              AI Vault Score
-                            </span>
-
-                            <span className="text-xs font-black text-blue-600">
-                              {
-                                score
-                              }
-                              /100
-                            </span>
-                          </div>
-
-                          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
-                            <div
-                              className="h-full rounded-full bg-gradient-to-r from-blue-500 to-violet-500 transition-all duration-700"
-                              style={{
-                                width: `${score}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-4">
-
-                          <span className="text-[9px] font-black uppercase tracking-[0.16em] text-slate-400">
-                            Verified AI Tool
-                          </span>
-
-                          <span className="text-sm font-black text-blue-600 transition group-hover:translate-x-1">
-                            Explore →
-                          </span>
-                        </div>
-
-                      </Link>
-                    </Vault3DCard>
-                  );
-                }
+                    }
+                    index={
+                      index
+                    }
+                  />
+                )
               )}
             </div>
           )}
         </section>
 
         {/* =================================================
-            PREMIUM CTA
+            FINAL CTA — MUST REMAIN LAST
         ================================================= */}
 
-        <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6">
+        <section
+          className="
+            mx-auto
+            max-w-7xl
+            px-4
+            pb-16
+            sm:px-6
+          "
+        >
+          <div
+            className="
+              relative
+              overflow-hidden
+              rounded-[36px]
+              bg-[#050714]
+              px-6
+              py-16
+              text-center
+              text-white
+              shadow-[0_30px_100px_rgba(15,23,42,0.15)]
+              sm:px-10
+            "
+          >
+            {/* Glow */}
 
-          <div className="relative overflow-hidden rounded-[36px] bg-[#050714] px-6 py-16 text-center text-white shadow-[0_30px_100px_rgba(15,23,42,0.15)] sm:px-10">
+            <div
+              className="
+                absolute
+                left-1/2
+                top-0
+                h-64 w-64
+                -translate-x-1/2
+                -translate-y-1/2
+                rounded-full
+                bg-blue-600/20
+                blur-[100px]
+              "
+            />
 
-            <div className="absolute left-1/2 top-0 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/20 blur-[100px]" />
+            <div
+              className="
+                absolute
+                bottom-0
+                left-1/4
+                h-40 w-40
+                rounded-full
+                bg-violet-600/10
+                blur-[80px]
+              "
+            />
 
-            <div className="relative">
+            {/* Grid */}
 
-              <div className="mb-4 text-[10px] font-black uppercase tracking-[0.25em] text-blue-300">
+            <div
+              className="
+                pointer-events-none
+                absolute
+                inset-0
+                opacity-[0.035]
+                [background-image:linear-gradient(rgba(255,255,255,.7)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.7)_1px,transparent_1px)]
+                [background-size:38px_38px]
+              "
+            />
+
+            <div
+              className="
+                relative
+                z-10
+              "
+            >
+              <div
+                className="
+                  mb-4
+                  text-[10px]
+                  font-black
+                  uppercase
+                  tracking-[0.25em]
+                  text-blue-300
+                "
+              >
                 THE INTELLIGENCE VAULT
               </div>
 
-              <h2 className="text-3xl font-black tracking-tight sm:text-5xl">
+              <h2
+                className="
+                  text-4xl
+                  font-black
+                  tracking-[-0.045em]
+                  text-white
+                  sm:text-6xl
+                "
+              >
                 Find the right AI.
               </h2>
 
-              <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
-                Search, compare and discover the next generation of AI software from one intelligent directory.
+              <p
+                className="
+                  mx-auto
+                  mt-4
+                  max-w-xl
+                  text-sm
+                  leading-7
+                  text-slate-400
+                  sm:text-base
+                "
+              >
+                Search, compare and discover
+                the next generation of AI
+                software from one intelligent
+                directory.
               </p>
+
+              {/* IMPORTANT:
+                  Explicit white background + black text
+                  so button can NEVER appear blank. */}
 
               <Link
                 href="/ai-finder"
-                className="mt-8 inline-flex rounded-2xl bg-white px-7 py-3.5 text-sm font-black text-slate-950 shadow-xl transition hover:-translate-y-1"
+                className="
+                  mt-8
+                  inline-flex
+                  min-h-[52px]
+                  items-center
+                  justify-center
+                  gap-2
+                  rounded-2xl
+                  bg-white
+                  px-7
+                  py-3.5
+                  text-sm
+                  font-black
+                  text-slate-950
+                  shadow-xl
+                  shadow-black/20
+                  transition
+                  hover:-translate-y-1
+                  hover:bg-slate-100
+                "
               >
-                Find My AI Tool →
+                <span className="text-slate-950">
+                  Find My AI Tool
+                </span>
+
+                <span
+                  aria-hidden="true"
+                  className="text-slate-950"
+                >
+                  →
+                </span>
               </Link>
             </div>
           </div>
@@ -1925,46 +2856,82 @@ function HomeContent() {
             FOOTER
         ================================================= */}
 
-        <footer className="border-t border-slate-200 bg-white">
-
-          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-xs text-slate-500 sm:px-6 md:flex-row md:items-center md:justify-between">
-
+        <footer
+          className="
+            border-t
+            border-slate-200
+            bg-white
+          "
+        >
+          <div
+            className="
+              mx-auto
+              flex
+              max-w-7xl
+              flex-col
+              gap-4
+              px-4
+              py-8
+              text-xs
+              text-slate-500
+              sm:px-6
+              md:flex-row
+              md:items-center
+              md:justify-between
+            "
+          >
             <p>
               ©{" "}
               {new Date().getFullYear()}{" "}
               AI Vault. All rights reserved.
             </p>
 
-            <div className="flex flex-wrap gap-5">
-
+            <div
+              className="
+                flex
+                flex-wrap
+                gap-5
+              "
+            >
               <Link
                 href="/"
-                className="hover:text-blue-600"
+                className="
+                  transition
+                  hover:text-blue-600
+                "
               >
                 AI Tools
               </Link>
 
               <Link
                 href="/ai-finder"
-                className="hover:text-blue-600"
+                className="
+                  transition
+                  hover:text-blue-600
+                "
               >
                 AI Finder
               </Link>
 
               <Link
                 href="/compare"
-                className="hover:text-blue-600"
+                className="
+                  transition
+                  hover:text-blue-600
+                "
               >
                 Compare
               </Link>
 
               <Link
                 href="/saved"
-                className="hover:text-blue-600"
+                className="
+                  transition
+                  hover:text-blue-600
+                "
               >
                 Saved
               </Link>
-
             </div>
           </div>
         </footer>
@@ -1981,16 +2948,38 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center bg-[#050714]">
-
+        <main
+          className="
+            flex
+            min-h-screen
+            items-center
+            justify-center
+            bg-[#050714]
+          "
+        >
           <div className="text-center">
+            <div
+              className="
+                mx-auto
+                h-12 w-12
+                animate-spin
+                rounded-full
+                border-4
+                border-white/10
+                border-t-blue-500
+              "
+            />
 
-            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-white/10 border-t-blue-500" />
-
-            <p className="mt-5 text-sm font-bold text-slate-400">
+            <p
+              className="
+                mt-5
+                text-sm
+                font-bold
+                text-slate-400
+              "
+            >
               Loading AI Vault...
             </p>
-
           </div>
         </main>
       }

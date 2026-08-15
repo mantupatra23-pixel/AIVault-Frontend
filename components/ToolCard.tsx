@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ToolLogo from "@/components/ToolLogo";
 
 type Tool = {
   id?: string | number | null;
@@ -21,26 +22,30 @@ type Tool = {
 };
 
 function scoreOf(tool: Tool): number {
-  const n = Number(
-    tool.ai_vault_score ?? tool.score ?? 0
-  );
+  const value =
+    tool.ai_vault_score ??
+    tool.score ??
+    0;
 
-  if (!Number.isFinite(n)) {
+  const score = Number(value);
+
+  if (!Number.isFinite(score)) {
     return 0;
   }
 
   return Math.max(
     0,
-    Math.min(100, Math.round(n))
+    Math.min(100, Math.round(score))
   );
 }
 
 function pricingOf(tool: Tool): string {
-  const value = String(
+  const raw =
     tool.pricing_model ??
-      tool.pricing ??
-      ""
-  ).trim();
+    tool.pricing ??
+    "";
+
+  const value = String(raw).trim();
 
   if (!value) {
     return "Unknown";
@@ -81,83 +86,65 @@ function pricingOf(tool: Tool): string {
   return value;
 }
 
+/* =========================================================
+   CLEAN AI-GENERATED SEO JUNK
+========================================================= */
+
 function cleanText(value: unknown): string {
-  if (typeof value !== "string") {
+  if (
+    typeof value !== "string"
+  ) {
     return "";
   }
 
-  return value
-    .replace(
-      /As a Senior SEO & AI Analyst for Visora AI,?\s*/gi,
+  let text = value;
+
+  const removePatterns = [
+    /As a Senior SEO & AI Analyst for Visora AI,?\s*/gi,
+
+    /As a Senior SEO and AI Analyst for Visora AI,?\s*/gi,
+
+    /As a Senior SEO & AI Analyst,?\s*/gi,
+
+    /As a Senior SEO and AI Analyst,?\s*/gi,
+
+    /I have conducted an in-depth analysis of\s*/gi,
+
+    /I have conducted an in-depth analysis of this\s*/gi,
+
+    /I have analyzed\s*/gi,
+
+    /We will delve into\s*/gi,
+
+    /we will delve into\s*/gi,
+
+    /With the ever-evolving landscape of\s*/gi,
+
+    /our Professional Review of/gi,
+
+    /Best .*? Alternatives available in the market/gi,
+  ];
+
+  for (
+    const pattern of removePatterns
+  ) {
+    text = text.replace(
+      pattern,
       ""
-    )
-    .replace(
-      /As a Senior SEO and AI Analyst for Visora AI,?\s*/gi,
-      ""
-    )
-    .replace(
-      /I have conducted an in-depth analysis of/gi,
-      ""
-    )
-    .replace(
-      /I have analyzed/gi,
-      ""
-    )
-    .replace(
-      /we will delve into/gi,
-      ""
-    )
-    .replace(
-      /it appears to be/gi,
-      ""
-    )
-    .replace(
-      /\s+/g,
-      " "
-    )
+    );
+  }
+
+  return text
+    .replace(/\s+/g, " ")
+    .replace(/\s+\./g, ".")
     .trim();
 }
 
-function getInitials(name: string): string {
-  const words = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length === 0) {
-    return "AI";
-  }
-
-  if (words.length === 1) {
-    return words[0]
-      .slice(0, 2)
-      .toUpperCase();
-  }
-
-  return (
-    words[0][0] +
-    words[1][0]
-  ).toUpperCase();
-}
-
-function getLogo(tool: Tool): string | null {
-  const candidates = [
-    tool.logo_url,
-    tool.logo,
-    tool.image_url,
-    tool.icon_url,
-  ];
-
-  for (const value of candidates) {
-    if (
-      typeof value === "string" &&
-      value.trim()
-    ) {
-      return value.trim();
-    }
-  }
-
-  return null;
+function fallbackDescription(
+  name: string,
+  category: string
+): string {
+  return `${name} is an AI tool in the ${category} category. Explore its capabilities, pricing, platform availability and use cases in AI Vault.`;
 }
 
 export default function ToolCard({
@@ -176,32 +163,48 @@ export default function ToolCard({
   const name =
     String(
       tool.name ?? "AI Tool"
-    ).trim() || "AI Tool";
+    ).trim();
 
   const category =
     String(
       tool.category ?? "AI"
-    ).trim() || "AI";
+    ).trim();
 
-  const description =
+  const rawDescription =
     cleanText(
       tool.short_description ??
         tool.description
-    ) ||
-    "Explore this AI tool, its capabilities, pricing and platform availability.";
+    );
 
-  const score = scoreOf(tool);
+  const description =
+    rawDescription ||
+    fallbackDescription(
+      name,
+      category
+    );
 
-  const pricing = pricingOf(tool);
+  const score =
+    scoreOf(tool);
 
-  const logo = getLogo(tool);
+  const pricing =
+    pricingOf(tool);
 
-  const initials = getInitials(name);
+  const logo =
+    tool.logo_url ??
+    tool.logo ??
+    tool.image_url ??
+    tool.icon_url ??
+    null;
+
+  const toolHref =
+    `/tool/${encodeURIComponent(
+      slug
+    )}`;
 
   return (
     <article
       className="
-        group relative flex h-full min-w-0 flex-col
+        group relative flex h-full flex-col
         overflow-hidden rounded-[24px]
         border border-slate-200/80
         bg-white p-5
@@ -212,97 +215,46 @@ export default function ToolCard({
         hover:shadow-[0_18px_50px_rgba(37,99,235,0.12)]
       "
     >
-      {/* =====================================================
-          CARD HEADER
-      ===================================================== */}
+      {/* =================================================
+          HEADER
+      ================================================= */}
+
       <div
         className="
-          flex min-w-0 items-start
-          justify-between gap-3
+          flex items-start
+          justify-between gap-4
         "
       >
-        {/* Tool identity */}
         <div
           className="
-            flex min-w-0 items-center gap-3
+            flex min-w-0
+            items-center gap-3
           "
         >
-          {/* Logo */}
           <div
             className="
-              relative flex h-12 w-12
-              shrink-0 items-center justify-center
-              overflow-hidden rounded-2xl
+              h-12 w-12 shrink-0
+              overflow-hidden
+              rounded-2xl
               border border-slate-200
-              bg-gradient-to-br
-              from-slate-50 to-white
-              shadow-sm
+              bg-slate-50
             "
           >
-            {logo ? (
-              <img
-                src={logo}
-                alt={`${name} logo`}
-                className="
-                  h-full w-full
-                  object-contain p-2
-                "
-                loading="lazy"
-                referrerPolicy="no-referrer"
-                onError={(event) => {
-                  event.currentTarget.style.display =
-                    "none";
-
-                  const fallback =
-                    event.currentTarget
-                      .parentElement
-                      ?.querySelector(
-                        "[data-logo-fallback]"
-                      );
-
-                  if (
-                    fallback instanceof HTMLElement
-                  ) {
-                    fallback.style.display =
-                      "flex";
-                  }
-                }}
-              />
-            ) : null}
-
-            {/* Initial fallback */}
-            <div
-              data-logo-fallback
-              className={`
-                ${
-                  logo
-                    ? "hidden"
-                    : "flex"
-                }
-                absolute inset-0
-                items-center justify-center
-                bg-gradient-to-br
-                from-blue-600
-                via-indigo-600
-                to-violet-600
-                text-sm font-black
-                text-white
-              `}
-            >
-              {initials}
-            </div>
+            <ToolLogo
+              name={name}
+              logoUrl={logo}
+            />
           </div>
 
-          {/* Name + category */}
           <div className="min-w-0">
             <h2
               className="
-                truncate text-[16px]
+                truncate
+                text-[16px]
                 font-extrabold
                 tracking-tight
                 text-slate-950
               "
-              title={name}
             >
               {name}
             </h2>
@@ -313,21 +265,22 @@ export default function ToolCard({
                 text-xs font-medium
                 text-slate-500
               "
-              title={category}
             >
               {category}
             </p>
           </div>
         </div>
 
-        {/* Pricing */}
+        {/* PRICING */}
         <span
           className="
-            shrink-0 rounded-full
+            shrink-0
+            rounded-full
             border border-slate-200
             bg-slate-50
             px-2.5 py-1
-            text-[10px] font-bold
+            text-[10px]
+            font-bold
             text-slate-600
           "
         >
@@ -335,12 +288,14 @@ export default function ToolCard({
         </span>
       </div>
 
-      {/* =====================================================
+      {/* =================================================
           DESCRIPTION
-      ===================================================== */}
+      ================================================= */}
+
       <p
         className="
-          mt-5 line-clamp-3
+          mt-5
+          line-clamp-3
           min-h-[66px]
           text-[13px]
           leading-6
@@ -350,14 +305,15 @@ export default function ToolCard({
         {description}
       </p>
 
-      {/* =====================================================
+      {/* =================================================
           SCORE
-      ===================================================== */}
+      ================================================= */}
+
       <div className="mt-5">
         <div
           className="
-            mb-2 flex
-            items-center
+            mb-2
+            flex items-center
             justify-between
           "
         >
@@ -384,7 +340,6 @@ export default function ToolCard({
           </span>
         </div>
 
-        {/* Score bar */}
         <div
           className="
             h-1.5
@@ -402,7 +357,6 @@ export default function ToolCard({
               via-indigo-500
               to-violet-500
               transition-all
-              duration-500
             "
             style={{
               width: `${score}%`,
@@ -411,20 +365,20 @@ export default function ToolCard({
         </div>
       </div>
 
-      {/* =====================================================
+      {/* =================================================
           FOOTER
-      ===================================================== */}
+      ================================================= */}
+
       <div
         className="
-          mt-5 flex
-          items-center
+          mt-5
+          flex items-center
           justify-between
           border-t
           border-slate-100
           pt-4
         "
       >
-        {/* Verification */}
         <span
           className="
             text-[9px]
@@ -434,17 +388,13 @@ export default function ToolCard({
             text-slate-400
           "
         >
-          {tool.verified
-            ? "Verified AI Tool"
-            : "AI Tool"}
+          {tool.verified === false
+            ? "AI Tool"
+            : "Verified AI Tool"}
         </span>
 
-        {/* Explore */}
         <Link
-          href={`/tool/${encodeURIComponent(
-            slug
-          )}`}
-          aria-label={`Explore ${name}`}
+          href={toolHref}
           className="
             inline-flex
             items-center
@@ -464,7 +414,6 @@ export default function ToolCard({
             aria-hidden="true"
             className="
               transition-transform
-              duration-200
               group-hover:translate-x-1
             "
           >
@@ -473,25 +422,31 @@ export default function ToolCard({
         </Link>
       </div>
 
-      {/* =====================================================
-          PREMIUM BOTTOM ACCENT
-      ===================================================== */}
+      {/* =================================================
+          BOTTOM SCORE ACCENT
+      ================================================= */}
+
       <div
         className="
-          pointer-events-none
-          absolute bottom-0 left-0 right-0
-          h-[2px]
-          origin-left
-          scale-x-0
-          bg-gradient-to-r
-          from-blue-500
-          via-indigo-500
-          to-violet-500
-          transition-transform
-          duration-300
-          group-hover:scale-x-100
+          absolute
+          bottom-0 left-0 right-0
+          h-[3px]
+          bg-slate-100
         "
-      />
+      >
+        <div
+          className="
+            h-full
+            rounded-r-full
+            bg-gradient-to-r
+            from-blue-500
+            to-violet-500
+          "
+          style={{
+            width: `${score}%`,
+          }}
+        />
+      </div>
     </article>
   );
 }
