@@ -1,3 +1,5 @@
+// lib/content-quality.ts
+
 export type ContentQualityIssue =
   | "empty"
   | "too-short"
@@ -24,6 +26,7 @@ const BAD_PATTERNS: RegExp[] = [
   /best .* alternatives/i,
   /pricing 2026/i,
   /professional analysis/i,
+  /i have (analyzed|conducted|reviewed|tested)/i,
 ];
 
 const SEO_TERMS = [
@@ -52,14 +55,13 @@ function sentenceList(text: string): string[] {
         .trim()
         .toLowerCase()
         .replace(/[^a-z0-9\s]/g, "")
-        .replace(/\s+/g, " "),
+        .replace(/\s+/g, " ")
     )
     .filter(Boolean);
 }
 
 function detectKeywordStuffing(text: string): boolean {
   const lower = text.toLowerCase();
-
   const words = lower.split(/\s+/).filter(Boolean);
 
   if (words.length < 40) {
@@ -91,15 +93,39 @@ function detectRepeatedSentences(text: string): boolean {
   }
 
   const unique = new Set(sentences);
-
   return unique.size / sentences.length < 0.65;
 }
 
+/**
+ * Strips known generic AI repetitive phrases, intros, and SEO filler lines.
+ */
+export function cleanAiContent(text: unknown): string {
+  if (!text || typeof text !== "string") return "";
+
+  let cleaned = text.trim();
+
+  // 1. Remove generic intro boilerplate
+  cleaned = cleaned.replace(/^I have (analyzed|conducted|reviewed|tested) [^.]*\.\s*/gi, "");
+  cleaned = cleaned.replace(/^As (a|an) [^.]*,\s*/gi, "");
+  cleaned = cleaned.replace(/^(In this|Our) (professional|in-depth) review[^.]*\.\s*/gi, "");
+  cleaned = cleaned.replace(/^Our analysis reveals that\s*/gi, "");
+
+  // 2. Remove trailing generic SEO wrap-ups
+  cleaned = cleaned.replace(/In conclusion,?[^.]*explore alternative options\.?/gi, "");
+  cleaned = cleaned.replace(/By evaluating the pros and cons[^.]*needs\.?/gi, "");
+  cleaned = cleaned.replace(/For those looking for the 'Best [^']*Alternatives'[^.]*\./gi, "");
+  cleaned = cleaned.replace(/It's essential to consider the features and pricing plans[^.]*\./gi, "");
+
+  // 3. Normalize multiple spaces & trim
+  cleaned = cleaned.replace(/\s{2,}/g, " ").trim();
+
+  return cleaned.length > 20 ? cleaned : "";
+}
+
 export function analyzeContentQuality(
-  value: unknown,
+  value: unknown
 ): ContentQualityResult {
   const text = normalizeText(value);
-
   const issues: ContentQualityIssue[] = [];
 
   if (!text) {
@@ -122,8 +148,7 @@ export function analyzeContentQuality(
 
   const score = Math.max(
     0,
-    100 -
-      issues.length * 20,
+    100 - issues.length * 20
   );
 
   return {
@@ -142,7 +167,7 @@ export function isGenericContent(value: unknown): boolean {
 }
 
 export function cleanVerifiedDescription(
-  value: unknown,
+  value: unknown
 ): string | null {
   const text = normalizeText(value);
 
@@ -150,9 +175,11 @@ export function cleanVerifiedDescription(
     return null;
   }
 
-  if (isGenericContent(text)) {
+  const cleaned = cleanAiContent(text);
+
+  if (!cleaned) {
     return null;
   }
 
-  return text;
+  return cleaned;
 }
