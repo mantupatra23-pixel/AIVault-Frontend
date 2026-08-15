@@ -37,7 +37,7 @@ export default function AIFinderPage() {
 
   const [results, setResults] = useState<Recommendation[]>([]);
   const [requirements, setRequirements] =
-    useState<DecisionResponse["requirements"]>(null);
+    useState<DecisionResponse["requirements"] | null>(null);;
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
