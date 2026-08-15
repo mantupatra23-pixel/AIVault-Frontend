@@ -73,7 +73,7 @@ export default async function ToolPage({ params }: PageProps) {
   const toolRecord = tool as ToolRecord;
   const toolName = String(tool.name || "AI Tool");
 
-  // 1. Normalized Score (0-100)
+  // 1. Score Calculation (0-100)
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
@@ -84,27 +84,23 @@ export default async function ToolPage({ params }: PageProps) {
   // 3. Official Website
   const officialWebsite = getWebsiteUrl(toolRecord);
 
-  // 4. Clean Description
+  // 4. Clean Unique Description
   const rawText = String(tool.overview || tool.description || tool.short_description || "");
   const overview = cleanAiContent(rawText);
 
-  // 5. Structured Data Arrays
+  // 5. Database Arrays (NO FAKE / DUPLICATE FALLBACKS)
   const features = getFeatures(toolRecord);
   const useCases = getUseCases(toolRecord);
   const integrations = getIntegrations(toolRecord);
   const limitations = getLimitations(toolRecord);
 
-  const platforms = Array.isArray(tool.platforms)
-    ? tool.platforms.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-    : [];
-
   const category = typeof tool.category === "string" && tool.category.trim().length > 0
     ? tool.category.trim()
-    : "Productivity";
+    : "AI Tool";
 
   const pricing = normalizePricing(tool.pricing_model || tool.pricing);
-  const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : "Cloud / Web App";
-  const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : "Proprietary";
+  const deployment = typeof tool.deployment === "string" && tool.deployment.trim() ? tool.deployment.trim() : null;
+  const license = typeof tool.license === "string" && tool.license.trim() ? tool.license.trim() : null;
 
   const logoSrc = typeof tool.logo_url === "string" && tool.logo_url.trim().length > 0
     ? tool.logo_url.trim()
@@ -190,74 +186,78 @@ export default async function ToolPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* OVERVIEW */}
+          {/* UNIQUE CLEAN OVERVIEW */}
           <div className="mt-7 text-sm leading-relaxed text-slate-700">
             <p>
-              {overview || `${toolName} is an automated intelligence tool designed to optimize ${category.toLowerCase()} workflows with modern software performance.`}
+              {overview || `${toolName} provides verified software capabilities for ${category.toLowerCase()} automation and digital workflows.`}
             </p>
           </div>
 
           {/* SPECIFICATION PILLS */}
-          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <SpecCard label="Pricing Model" value={pricing} />
             <SpecCard label="Primary Category" value={category} />
-            <SpecCard label="Deployment" value={deployment} />
-            <SpecCard label="License" value={license} />
+            <SpecCard label="Deployment" value={deployment || "Web / Cloud"} />
           </div>
         </section>
 
-        {/* FEATURES (Render only if present or generate clean items) */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-black text-slate-950 mb-4">Key Capabilities</h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {(features.length > 0 ? features : [
-              "Automated data parsing and intelligent scraping",
-              "Integrated workflow acceleration",
-              "Real-time processing and pipeline exports",
-              "Enterprise-grade reliability and API compatibility"
-            ]).map((item, idx) => (
-              <div key={idx} className="flex items-start gap-2.5 text-sm text-slate-700">
-                <span className="text-emerald-500 font-bold">✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* KEY CAPABILITIES (Render only when actual features exist in database) */}
+        {features.length > 0 && (
+          <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-black text-slate-950 mb-4">Key Capabilities</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {features.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2.5 text-sm text-slate-700">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
-        {/* USE CASES & INTEGRATIONS */}
-        <div className="mt-6 grid gap-6 sm:grid-cols-2">
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        {/* USE CASES (Render only when real use cases exist) */}
+        {useCases.length > 0 && (
+          <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-3">Best Use Cases</h2>
             <div className="flex flex-wrap gap-2">
-              {(useCases.length > 0 ? useCases : [
-                "Automated monitoring",
-                "Productivity workflows",
-                "Developer automation",
-                "Data extraction"
-              ]).map((useCase, idx) => (
+              {useCases.map((useCase, idx) => (
                 <span key={idx} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
                   {useCase}
                 </span>
               ))}
             </div>
           </section>
+        )}
 
-          <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        {/* INTEGRATIONS (Render only when real integrations exist) */}
+        {integrations.length > 0 && (
+          <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-black text-slate-950 mb-3">Platform & Integrations</h2>
             <div className="flex flex-wrap gap-2">
-              {(integrations.length > 0 ? integrations : [
-                "REST API",
-                "Webhook Events",
-                "Cloud Storage",
-                "Browser Extension"
-              ]).map((item, idx) => (
+              {integrations.map((item, idx) => (
                 <span key={idx} className="rounded-xl border border-blue-100 bg-blue-50/50 px-3 py-1.5 text-xs font-semibold text-blue-700">
                   {item}
                 </span>
               ))}
             </div>
           </section>
-        </div>
+        )}
+
+        {/* LIMITATIONS (Render only when actual limitations exist) */}
+        {limitations.length > 0 && (
+          <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-black text-slate-950 mb-3">Considerations & Limitations</h2>
+            <div className="space-y-2">
+              {limitations.map((item, idx) => (
+                <div key={idx} className="text-xs text-slate-600 flex items-start gap-2">
+                  <span className="text-amber-500 font-bold">•</span>
+                  <span>{item}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* RELATED TOOLS */}
         {related.length > 0 && (
