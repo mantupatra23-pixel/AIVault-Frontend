@@ -1,75 +1,91 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
-import * as THREE from "three";
 import { useMemo, useRef } from "react";
+import * as THREE from "three";
 
-type HeroProps = {
+type Vault3DHeroProps = {
   toolCount?: number;
 };
 
-function ParticleField() {
-  const pointsRef = useRef<THREE.Points>(null);
+function Core() {
+  const group = useRef<THREE.Group>(null);
 
-  const geometry = useMemo(() => {
-    const count = 900;
-    const positions = new Float32Array(count * 3);
+  useFrame((state, delta) => {
+    if (!group.current) return;
 
-    for (let i = 0; i < count; i++) {
-      const radius = 3.2 + Math.random() * 4.5;
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos(2 * Math.random() - 1);
+    group.current.rotation.y += delta * 0.22;
+    group.current.rotation.x += delta * 0.04;
 
-      positions[i * 3] =
-        radius * Math.sin(phi) * Math.cos(theta);
+    const pulse =
+      1 + Math.sin(state.clock.elapsedTime * 1.8) * 0.035;
 
-      positions[i * 3 + 1] =
-        radius * Math.sin(phi) * Math.sin(theta);
-
-      positions[i * 3 + 2] =
-        radius * Math.cos(phi);
-    }
-
-    const g = new THREE.BufferGeometry();
-
-    g.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(positions, 3)
-    );
-
-    return g;
-  }, []);
-
-  useFrame((_, delta) => {
-    if (!pointsRef.current) return;
-
-    pointsRef.current.rotation.y += delta * 0.025;
-    pointsRef.current.rotation.x += delta * 0.008;
+    group.current.scale.setScalar(pulse);
   });
 
   return (
-    <points ref={pointsRef} geometry={geometry}>
-      <pointsMaterial
-        size={0.025}
-        color="#8b9cff"
-        transparent
-        opacity={0.65}
-        sizeAttenuation
-      />
-    </points>
+    <group ref={group}>
+      {/* Large outer wire sphere */}
+      <mesh>
+        <sphereGeometry args={[1.35, 32, 24]} />
+        <meshBasicMaterial
+          color="#6575ff"
+          wireframe
+          transparent
+          opacity={0.42}
+        />
+      </mesh>
+
+      {/* Inner glowing sphere */}
+      <mesh>
+        <sphereGeometry args={[0.82, 48, 48]} />
+        <meshStandardMaterial
+          color="#7555ff"
+          emissive="#5b35ff"
+          emissiveIntensity={2.8}
+          roughness={0.12}
+          metalness={0.25}
+        />
+      </mesh>
+
+      {/* Inner wire shell */}
+      <mesh scale={1.12}>
+        <sphereGeometry args={[0.82, 20, 20]} />
+        <meshBasicMaterial
+          color="#a78bfa"
+          wireframe
+          transparent
+          opacity={0.32}
+        />
+      </mesh>
+
+      {/* Core glow */}
+      <mesh scale={1.32}>
+        <sphereGeometry args={[0.82, 32, 32]} />
+        <meshBasicMaterial
+          color="#6045ff"
+          transparent
+          opacity={0.075}
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+        />
+      </mesh>
+    </group>
   );
 }
 
 function Orbit({
-  rotation,
   radius,
+  rotation,
   color,
   speed,
+  tube = 0.025,
 }: {
-  rotation: [number, number, number];
   radius: number;
+  rotation: [number, number, number];
   color: string;
   speed: number;
+  tube?: number;
 }) {
   const ref = useRef<THREE.Mesh>(null);
 
@@ -81,215 +97,331 @@ function Orbit({
   });
 
   return (
-    <mesh
-      ref={ref}
-      rotation={rotation}
-    >
-      <torusGeometry
-        args={[radius, 0.018, 16, 160]}
-      />
-
+    <mesh ref={ref} rotation={rotation}>
+      <torusGeometry args={[radius, tube, 16, 180]} />
       <meshBasicMaterial
         color={color}
         transparent
-        opacity={0.8}
+        opacity={0.9}
+        blending={THREE.AdditiveBlending}
+        depthWrite={false}
       />
     </mesh>
   );
 }
 
-function Core() {
-  const group = useRef<THREE.Group>(null);
+function Particles() {
+  const ref = useRef<THREE.Points>(null);
+
+  const geometry = useMemo(() => {
+    const count = 650;
+    const positions = new Float32Array(count * 3);
+
+    for (let i = 0; i < count; i++) {
+      const radius = 2.5 + Math.random() * 4.5;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(
+        2 * Math.random() - 1
+      );
+
+      positions[i * 3] =
+        radius *
+        Math.sin(phi) *
+        Math.cos(theta);
+
+      positions[i * 3 + 1] =
+        radius *
+        Math.sin(phi) *
+        Math.sin(theta);
+
+      positions[i * 3 + 2] =
+        radius * Math.cos(phi);
+    }
+
+    const geometry = new THREE.BufferGeometry();
+
+    geometry.setAttribute(
+      "position",
+      new THREE.BufferAttribute(
+        positions,
+        3
+      )
+    );
+
+    return geometry;
+  }, []);
 
   useFrame((_, delta) => {
-    if (!group.current) return;
+    if (!ref.current) return;
 
-    group.current.rotation.y += delta * 0.25;
-    group.current.rotation.x += delta * 0.06;
+    ref.current.rotation.y += delta * 0.025;
+    ref.current.rotation.x += delta * 0.008;
   });
 
   return (
-    <group ref={group}>
-      {/* Outer wire sphere */}
-      <mesh>
-        <sphereGeometry args={[1.05, 32, 32]} />
-
-        <meshBasicMaterial
-          color="#647cff"
-          wireframe
-          transparent
-          opacity={0.28}
-        />
-      </mesh>
-
-      {/* Inner intelligence core */}
-      <mesh>
-        <sphereGeometry args={[0.72, 48, 48]} />
-
-        <meshStandardMaterial
-          color="#7c5cff"
-          emissive="#4f46e5"
-          emissiveIntensity={1.8}
-          roughness={0.18}
-          metalness={0.35}
-          transparent
-          opacity={0.94}
-        />
-      </mesh>
-
-      {/* Inner glow */}
-      <mesh scale={1.16}>
-        <sphereGeometry args={[0.72, 32, 32]} />
-
-        <meshBasicMaterial
-          color="#6366f1"
-          transparent
-          opacity={0.08}
-        />
-      </mesh>
-    </group>
+    <points
+      ref={ref}
+      geometry={geometry}
+    >
+      <pointsMaterial
+        color="#8fa0ff"
+        size={0.055}
+        sizeAttenuation
+        transparent
+        opacity={0.85}
+        depthWrite={false}
+        blending={THREE.AdditiveBlending}
+      />
+    </points>
   );
 }
 
 function Scene() {
+  const scene = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (!scene.current) return;
+
+    const targetX =
+      state.pointer.y * 0.12;
+
+    const targetY =
+      state.pointer.x * 0.18;
+
+    scene.current.rotation.x +=
+      (targetX - scene.current.rotation.x) *
+      0.025;
+
+    scene.current.rotation.y +=
+      (targetY - scene.current.rotation.y) *
+      0.025;
+  });
+
   return (
-    <>
-      <ambientLight intensity={0.55} />
+    <group ref={scene}>
+      <ambientLight intensity={1.2} />
 
       <pointLight
-        position={[3, 3, 4]}
+        position={[4, 4, 5]}
+        intensity={12}
+        color="#7565ff"
+      />
+
+      <pointLight
+        position={[-4, -2, 3]}
         intensity={8}
-        color="#6366f1"
+        color="#3977ff"
       />
 
-      <pointLight
-        position={[-3, -2, 2]}
-        intensity={5}
-        color="#8b5cf6"
-      />
+      <Particles />
 
       <Core />
 
       <Orbit
-        radius={1.65}
-        rotation={[0.8, 0.25, 0.2]}
-        color="#5b8cff"
-        speed={0.22}
+        radius={1.75}
+        rotation={[1.05, 0.2, 0]}
+        color="#4f8cff"
+        speed={0.7}
+        tube={0.032}
       />
 
       <Orbit
-        radius={1.95}
-        rotation={[1.45, 0.15, 0.75]}
+        radius={2.05}
+        rotation={[0.2, 1.1, 0.7]}
         color="#a855f7"
-        speed={-0.16}
+        speed={-0.45}
+        tube={0.028}
       />
 
       <Orbit
-        radius={2.25}
-        rotation={[0.15, 1.2, 0.35]}
-        color="#8b9cff"
-        speed={0.1}
+        radius={2.35}
+        rotation={[1.6, 0.4, 1.2]}
+        color="#6675ff"
+        speed={0.3}
+        tube={0.022}
       />
-
-      <ParticleField />
-    </>
+    </group>
   );
 }
 
 export default function Vault3DHero({
   toolCount = 740,
-}: HeroProps) {
+}: Vault3DHeroProps) {
   return (
     <section className="relative min-h-[620px] overflow-hidden bg-[#050714]">
-      {/* Background glow */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/2 top-1/2 h-[520px] w-[520px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-indigo-600/10 blur-[100px]" />
 
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.12),transparent_52%)]" />
+      {/* Background */}
+      <div className="absolute inset-0">
+        <div
+          className="absolute left-1/2 top-1/2
+          h-[500px] w-[500px]
+          -translate-x-1/2 -translate-y-1/2
+          rounded-full
+          bg-indigo-600/20
+          blur-[120px]"
+        />
 
         <div
-          className="absolute inset-0 opacity-20"
+          className="absolute inset-0 opacity-25"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(129,140,248,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(129,140,248,0.12) 1px, transparent 1px)",
+              "linear-gradient(rgba(100,116,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(100,116,255,.12) 1px, transparent 1px)",
             backgroundSize: "55px 55px",
           }}
         />
       </div>
 
-      {/* 3D */}
-      <div className="absolute inset-0">
+      {/* 3D Canvas */}
+      <div className="absolute inset-0 z-[1]">
         <Canvas
           camera={{
             position: [0, 0, 6],
-            fov: 45,
+            fov: 48,
+            near: 0.1,
+            far: 100,
           }}
           dpr={[1, 1.5]}
           gl={{
             antialias: true,
             alpha: true,
-            powerPreference: "high-performance",
+            powerPreference:
+              "high-performance",
+          }}
+          onCreated={({ gl }) => {
+            gl.setClearColor(
+              new THREE.Color("#050714"),
+              1
+            );
           }}
         >
           <Scene />
         </Canvas>
       </div>
 
-      {/* Hero text */}
-      <div className="relative z-10 flex min-h-[620px] flex-col items-center justify-start px-5 pt-12 text-center pointer-events-none">
-        <div className="rounded-full border border-white/10 bg-white/[0.05] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-indigo-200 backdrop-blur-md">
+      {/* Hero content */}
+      <div
+        className="
+        relative z-[5]
+        flex min-h-[620px]
+        flex-col items-center
+        px-5 pt-12
+        text-center
+        pointer-events-none
+        "
+      >
+        <div
+          className="
+          rounded-full
+          border border-white/10
+          bg-white/[0.06]
+          px-4 py-2
+          text-[10px]
+          font-semibold
+          uppercase
+          tracking-[0.22em]
+          text-indigo-200
+          backdrop-blur-md
+          "
+        >
           AI INTELLIGENCE VAULT
         </div>
 
-        <h2 className="mt-6 max-w-3xl text-4xl font-black tracking-[-0.04em] text-white sm:text-6xl">
+        <h1
+          className="
+          mt-6
+          text-4xl
+          font-black
+          tracking-[-0.05em]
+          text-white
+          sm:text-6xl
+          "
+        >
           Discover
-          <span className="block bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">
+          <span
+            className="
+            block
+            bg-gradient-to-r
+            from-blue-400
+            via-indigo-400
+            to-purple-400
+            bg-clip-text
+            text-transparent
+            "
+          >
             Intelligence.
           </span>
-        </h2>
+        </h1>
 
-        <p className="mt-5 max-w-xl text-sm leading-7 text-slate-300 sm:text-base">
+        <p
+          className="
+          mt-5
+          max-w-xl
+          text-sm
+          leading-7
+          text-slate-300
+          sm:text-base
+          "
+        >
           Explore, compare and discover{" "}
           <strong className="text-white">
             {toolCount}+
           </strong>{" "}
-          AI tools through the world&apos;s intelligent software vault.
+          AI tools through the world&apos;s
+          intelligent software vault.
         </p>
 
         <div className="mt-6 flex gap-2">
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
-            <div className="text-lg font-bold text-white">
-              {toolCount}+
-            </div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-400">
-              AI Tools
-            </div>
-          </div>
+          <Stat
+            value={`${toolCount}+`}
+            label="AI TOOLS"
+          />
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
-            <div className="text-lg font-bold text-white">
-              100%
-            </div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-400">
-              Discoverable
-            </div>
-          </div>
+          <Stat
+            value="100%"
+            label="DISCOVERABLE"
+          />
 
-          <div className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 backdrop-blur-md">
-            <div className="text-lg font-bold text-white">
-              AI
-            </div>
-            <div className="text-[9px] uppercase tracking-wider text-slate-400">
-              Intelligence
-            </div>
-          </div>
+          <Stat
+            value="AI"
+            label="INTELLIGENCE"
+          />
         </div>
       </div>
-
-      {/* Mobile performance hint */}
-      <div className="pointer-events-none absolute bottom-4 right-4 z-10 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[8px] uppercase tracking-wider text-slate-400 backdrop-blur-md">
-        AI 3D
-      </div>
     </section>
+  );
+}
+
+function Stat({
+  value,
+  label,
+}: {
+  value: string;
+  label: string;
+}) {
+  return (
+    <div
+      className="
+      rounded-xl
+      border border-white/10
+      bg-white/[0.06]
+      px-4 py-3
+      backdrop-blur-md
+      "
+    >
+      <div className="text-lg font-bold text-white">
+        {value}
+      </div>
+
+      <div
+        className="
+        text-[9px]
+        uppercase
+        tracking-wider
+        text-slate-400
+        "
+      >
+        {label}
+      </div>
+    </div>
   );
 }
