@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
 import { getToolScore } from "@/lib/score";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const alt = "AI Vault Tool Intelligence Dossier";
 export const size = {
   width: 1200,
@@ -25,14 +25,14 @@ export default async function Image({
   const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   const { data: tool } = await supabase
     .from("ai_tools")
-    .select("*")
+    .select("name, category, pricing, pricing_model, score, neural_score, ai_vault_score")
     .or(`slug.eq.${rawSlug},name.ilike.${rawSlug}`)
     .limit(1)
     .maybeSingle();
 
   const name = String(tool?.name || "AI Tool");
   const category = String(tool?.category || "AI Software");
-  const pricing = String(tool?.pricing_model || tool?.pricing || "Verified Tier");
+  const pricing = String(tool?.pricing_model || tool?.pricing || "Verified");
   const score = getToolScore(tool) ?? 90;
 
   return new ImageResponse(
@@ -47,23 +47,9 @@ export default async function Image({
           backgroundColor: "#050714",
           padding: "60px 80px",
           fontFamily: "sans-serif",
-          position: "relative",
         }}
       >
-        {/* Glow Effects */}
-        <div
-          style={{
-            position: "absolute",
-            top: "-120px",
-            right: "-120px",
-            width: "500px",
-            height: "500px",
-            borderRadius: "50%",
-            background: "radial-gradient(circle, rgba(37,99,235,0.35) 0%, transparent 70%)",
-          }}
-        />
-
-        {/* Top Branding Row */}
+        {/* Top Branding */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <div
@@ -90,15 +76,14 @@ export default async function Image({
               fontSize: "16px",
               fontWeight: "800",
               textTransform: "uppercase",
-              letterSpacing: "0.12em",
             }}
           >
             Verified AI Intelligence
           </div>
         </div>
 
-        {/* Center Main Content */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px", zIndex: 10 }}>
+        {/* Center Content */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
           <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
             <span
               style={{
@@ -129,7 +114,7 @@ export default async function Image({
 
           <h1
             style={{
-              fontSize: "68px",
+              fontSize: "64px",
               fontWeight: "900",
               color: "#ffffff",
               letterSpacing: "-0.04em",
@@ -153,7 +138,7 @@ export default async function Image({
           </p>
         </div>
 
-        {/* Bottom Metrics Bar */}
+        {/* Bottom Score Row */}
         <div
           style={{
             display: "flex",
@@ -165,7 +150,7 @@ export default async function Image({
           }}
         >
           <span style={{ fontSize: "18px", color: "#64748b", fontWeight: "600" }}>
-            https://aivault.pp.ua/tool/{encodeURIComponent(rawSlug)}
+            https://aivault.pp.ua
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
