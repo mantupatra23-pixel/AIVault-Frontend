@@ -33,7 +33,7 @@ import { SITE_URL } from "@/lib/site-url";
    3D HERO
 ========================================================= */
 
-const Vault3DHero = () => (
+const Vault3DHero = ({ toolCount }: { toolCount?: number }) => (
   <section className="min-h-[620px] bg-[#050714] relative overflow-hidden">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(79,70,229,0.22),transparent_45%)]" />
     <div className="relative z-10 flex min-h-[620px] items-center justify-center">
