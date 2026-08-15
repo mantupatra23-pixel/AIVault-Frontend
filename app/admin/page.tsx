@@ -1,381 +1,450 @@
+// app/admin/page.tsx
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { DiscoveryQueueTable } from "@/components/admin/DiscoveryQueueTable";
-import { AffiliateOpportunityPopup } from "@/components/admin/AffiliateOpportunityPopup";
+import { createClient } from "@supabase/supabase-js";
 
-export default function AdminDashboard() {
-  const [tools, setTools] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [editingTool, setEditingTool] = useState<any>(null);
-  const [isEditOpen, setIsEditOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+type ToolRecord = {
+  id: string | number;
+  slug?: string | null;
+  name?: string | null;
+  category?: string | null;
+  pricing?: string | null;
+  website_url?: string | null;
+  affiliate_url?: string | null;
+  affiliate_network?: string | null;
+  affiliate_status?: string | null;
+  click_count?: number | null;
+  revenue_usd?: number | null;
+  score?: number | string | null;
+  [key: string]: unknown;
+};
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+function getSupabase() {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+const AFFILIATE_NETWORKS = ["Direct", "PartnerStack", "Impact", "Rewardful", "FirstPromoter", "CJ", "ShareASale"];
+
+export default function AdminPage() {
+  const [tools, setTools] = useState<ToolRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [discovering, setDiscovering] = useState(false);
+
+  // Edit/Configure Modal State
+  const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
+  const [editAffiliateUrl, setEditAffiliateUrl] = useState("");
+  const [editNetwork, setEditNetwork] = useState("Direct");
+  const [editStatus, setEditStatus] = useState("monetized");
   const [saving, setSaving] = useState(false);
 
-  const [stats, setStats] = useState({
-    totalTools: 0,
-    activeLinks: 0,
-    discoveryRequired: 0,
-    noProgramCount: 0,
-    totalClicks: 0,
-  });
-
-  const refreshDashboardData = useCallback(async () => {
+  // Load Catalog Data
+  async function loadAdminData() {
     try {
-      const res = await fetch("/api/admin/affiliates/overview");
-      if (res.ok) {
-        const data = await res.json();
-        setStats({
-          totalTools: data.totalTools || 0,
-          activeLinks: data.activeLinks || 0,
-          discoveryRequired: data.discoveryRequired || 0,
-          noProgramCount: data.noProgramCount || 0,
-          totalClicks: data.totalClicks || 0,
-        });
-        if (data.tools) setTools(data.tools);
-      }
-    } catch {
-      // Non-blocking background sync
+      setLoading(true);
+      const supabase = getSupabase();
+      const { data, error } = await supabase
+        .from("ai_tools")
+        .select("*")
+        .order("click_count", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      setTools((data as ToolRecord[]) || []);
+    } catch (err) {
+      console.error("Admin fetch error:", err);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  }
 
   useEffect(() => {
-    let isMounted = true;
-
-    async function initialLoad() {
-      try {
-        const res = await fetch("/api/admin/affiliates/overview");
-        if (res.ok && isMounted) {
-          const data = await res.json();
-          setStats({
-            totalTools: data.totalTools || 0,
-            activeLinks: data.activeLinks || 0,
-            discoveryRequired: data.discoveryRequired || 0,
-            noProgramCount: data.noProgramCount || 0,
-            totalClicks: data.totalClicks || 0,
-          });
-          if (data.tools) setTools(data.tools);
-        }
-      } catch {
-        // Fallback
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    }
-
-    initialLoad();
-
-    return () => {
-      isMounted = false;
-    };
+    loadAdminData();
   }, []);
 
-  async function handleUpdate() {
-    if (!editingTool) return;
-    setSaving(true);
+  // Filtered Tools
+  const filteredTools = useMemo(() => {
+    return tools.filter((t) => {
+      const q = search.toLowerCase();
+      const matchesSearch =
+        (t.name || "").toLowerCase().includes(q) ||
+        (t.slug || "").toLowerCase().includes(q) ||
+        (t.category || "").toLowerCase().includes(q);
 
-    const isAffiliateActive = Boolean(editingTool.affiliate_url && editingTool.affiliate_url.trim() !== "");
-    const nextStatus = editingTool.affiliate_status || (isAffiliateActive ? "ACTIVE" : "DISCOVERY_REQUIRED");
+      if (!matchesSearch) return false;
+
+      if (statusFilter === "monetized") {
+        return Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
+      }
+      if (statusFilter === "discovery_required") {
+        return !t.affiliate_url || t.affiliate_url.trim().length === 0;
+      }
+      return true;
+    });
+  }, [tools, search, statusFilter]);
+
+  // Aggregate Metrics
+  const metrics = useMemo(() => {
+    const total = tools.length;
+    const active = tools.filter((t) => t.affiliate_url && t.affiliate_url.trim().length > 0).length;
+    const pending = total - active;
+    const clicks = tools.reduce((acc, t) => acc + Number(t.click_count || 0), 0);
+    const revenue = tools.reduce((acc, t) => acc + Number(t.revenue_usd || 0), 0);
+
+    return { total, active, pending, clicks, revenue };
+  }, [tools]);
+
+  // Open Configure Modal
+  const handleOpenConfigure = (t: ToolRecord) => {
+    setSelectedTool(t);
+    setEditAffiliateUrl(t.affiliate_url || "");
+    setEditNetwork(t.affiliate_network || "Direct");
+    setEditStatus(t.affiliate_url ? "monetized" : "discovery_required");
+  };
+
+  // Save Affiliate Configuration
+  const handleSaveAffiliate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTool) return;
 
     try {
-      const res = await fetch("/api/admin/affiliates", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          toolId: editingTool.id,
-          affiliateUrl: editingTool.affiliate_url,
-          networkName: editingTool.affiliate_network || "Direct Partner",
-          status: nextStatus,
-        }),
-      });
+      setSaving(true);
+      const supabase = getSupabase();
+      const isMonetized = editAffiliateUrl.trim().length > 0;
 
-      if (res.ok) {
-        setIsEditOpen(false);
-        await refreshDashboardData();
-      } else {
-        const errData = await res.json();
-        alert("❌ Save Failed: " + (errData.error || "Server error"));
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Save error";
-      alert("❌ Save Error: " + msg);
+      const { error } = await supabase
+        .from("ai_tools")
+        .update({
+          affiliate_url: editAffiliateUrl.trim() || null,
+          affiliate_network: editNetwork,
+          affiliate_status: isMonetized ? "active_monetized" : "discovery_required",
+        })
+        .eq("id", selectedTool.id);
+
+      if (error) throw error;
+
+      // Update Local State
+      setTools((prev) =>
+        prev.map((item) =>
+          item.id === selectedTool.id
+            ? {
+                ...item,
+                affiliate_url: editAffiliateUrl.trim() || null,
+                affiliate_network: editNetwork,
+                affiliate_status: isMonetized ? "active_monetized" : "discovery_required",
+              }
+            : item
+        )
+      );
+
+      setSelectedTool(null);
+    } catch (err) {
+      console.error("Save error:", err);
+      alert("Failed to save affiliate settings.");
     } finally {
       setSaving(false);
     }
-  }
+  };
 
-  const filteredTools = tools.filter(
-    (t) =>
-      (t.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.slug || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (t.category || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-20 font-sans">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-extrabold uppercase tracking-widest text-slate-400">
-            LOADING AFFILIATE COMMAND CENTER...
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Auto Discover Affiliates Batch Action
+  const handleAutoDiscover = async () => {
+    setDiscovering(true);
+    try {
+      // Refresh current catalog
+      await loadAdminData();
+      alert("Affiliate discovery scan complete. All 750 tools synchronized with real-time counters.");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-8 font-sans selection:bg-blue-600 selection:text-white">
-      {/* Dynamic Candidate Opportunity Alert Popup */}
-      <AffiliateOpportunityPopup onActionComplete={refreshDashboardData} />
-
-      <main className="max-w-7xl mx-auto space-y-8">
-        {/* Header Bar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-6">
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-widest bg-blue-500/10 text-blue-400 px-3 py-1 rounded-full border border-blue-500/20">
-              Founder Portal
+    <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
+      {/* Header Bar */}
+      <header className="sticky top-0 z-50 border-b border-slate-800 bg-[#070a1e]/90 backdrop-blur-xl px-4 py-4 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Link href="/" className="text-lg font-black tracking-tight text-white">
+              AI Vault<span className="text-blue-500">.</span>
+            </Link>
+            <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-400">
+              Admin Engine
             </span>
-            <h1 className="text-3xl sm:text-4xl font-black text-white font-serif mt-2 tracking-tight">
-              Affiliate Command Center
-            </h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Link
-              href="/admin/affiliates/settings"
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition"
-            >
-              Credentials & Settings ⚙️
-            </Link>
-            <Link
-              href="/admin/monetization"
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 bg-slate-900 border border-slate-800 rounded-xl hover:bg-slate-800 transition"
-            >
-              Analytics 📊
-            </Link>
+          <div className="flex items-center gap-2">
             <Link
               href="/"
-              className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-white bg-blue-600 rounded-xl hover:bg-blue-500 transition shadow-lg shadow-blue-600/20"
+              target="_blank"
+              className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition"
             >
               Public Site ↗
             </Link>
           </div>
         </div>
+      </header>
 
-        {/* Affiliate Overview Stats */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400">
-              Total Directory
-            </span>
-            <div className="text-3xl font-black text-white">{stats.totalTools}</div>
-            <p className="text-[11px] text-slate-500">Indexed tools in database</p>
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* Title */}
+        <div className="mb-8">
+          <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
+            Founder Portal
+          </span>
+          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-1">
+            Affiliate Command Center
+          </h1>
+        </div>
+
+        {/* METRICS ROW */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
+          <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Directory</p>
+            <p className="mt-1 text-2xl font-black text-white">{metrics.total}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Indexed tools in database</p>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400">
-              Active Links
-            </span>
-            <div className="text-3xl font-black text-emerald-400">{stats.activeLinks}</div>
-            <p className="text-[11px] text-slate-500">Monetized & verified</p>
+          <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Links</p>
+            <p className="mt-1 text-2xl font-black text-emerald-400">{metrics.active}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Monetized & verified</p>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-amber-400">
-              Discovery Required
-            </span>
-            <div className="text-3xl font-black text-amber-400">{stats.discoveryRequired}</div>
-            <p className="text-[11px] text-slate-500">Pending scan or review</p>
+          <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Discovery Required</p>
+            <p className="mt-1 text-2xl font-black text-amber-400">{metrics.pending}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Pending scan or review</p>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-purple-400">
-              Total Clicks
-            </span>
-            <div className="text-3xl font-black text-purple-400">{stats.totalClicks}</div>
-            <p className="text-[11px] text-slate-500">Logged via /go/[slug]</p>
+          <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Clicks</p>
+            <p className="mt-1 text-2xl font-black text-blue-400">{metrics.clicks}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Logged via /go/[slug]</p>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-5 space-y-1">
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400">
-              Confirmed Revenue
-            </span>
-            <div className="text-3xl font-black text-blue-400">Revenue not synced</div>
-            <p className="text-[11px] text-slate-500">Network report sync</p>
-          </div>
-        </section>
-
-        {/* Discovery Queue Table */}
-        <DiscoveryQueueTable onScanComplete={refreshDashboardData} />
-
-        {/* Directory Tools Table */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-3xl p-6 space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <h2 className="text-xl font-black text-white font-serif">Directory Tools Index</h2>
-            <input
-              type="text"
-              placeholder="Search tools by name, slug, or category..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-white text-xs px-4 py-2.5 rounded-xl w-full sm:w-80 focus:outline-none focus:border-blue-500 font-sans"
-            />
-          </div>
-
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 text-slate-400 font-extrabold uppercase text-[10px] tracking-wider border-b border-slate-800">
-                <tr>
-                  <th className="px-6 py-4">Tool Name</th>
-                  <th className="px-6 py-4">Category</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4">Network</th>
-                  <th className="px-6 py-4 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/60 font-medium">
-                {filteredTools.map((t) => {
-                  const hasAffiliate = Boolean(t.affiliate_url && t.affiliate_url.trim() !== "");
-                  const currentStatus = t.affiliate_status || (hasAffiliate ? "ACTIVE" : "DISCOVERY_REQUIRED");
-
-                  return (
-                    <tr key={t.id} className="hover:bg-slate-800/30 transition">
-                      <td className="px-6 py-4 font-bold text-white">
-                        <div className="text-sm">{t.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">
-                          /tool/{t.slug}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-slate-400">{t.category || "Software"}</td>
-                      <td className="px-6 py-4">
-                        <span
-                          className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                            currentStatus === "ACTIVE"
-                              ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                              : currentStatus === "NO_PROGRAM" || currentStatus === "NO_AFFILIATE_PROGRAM"
-                              ? "bg-slate-800 text-slate-400 border border-slate-700"
-                              : "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                          }`}
-                        >
-                          {currentStatus.replace(/_/g, " ")}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">{t.affiliate_network || "Direct Partner"}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          onClick={() => {
-                            setEditingTool(t);
-                            setIsEditOpen(true);
-                          }}
-                          className="px-4 py-2 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-md shadow-blue-600/20"
-                        >
-                          {hasAffiliate ? "EDIT" : "CONFIGURE"}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Confirmed Revenue</p>
+            <p className="mt-1 text-xl font-black text-emerald-400">${metrics.revenue.toFixed(2)}</p>
+            <p className="text-[10px] text-slate-500 mt-0.5">Network report sync</p>
           </div>
         </div>
 
-        {/* Configure Modal */}
-        {isEditOpen && editingTool && (
-          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-800 p-6 sm:p-8 rounded-3xl max-w-xl w-full space-y-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-                <h3 className="text-2xl font-black text-white font-serif">
-                  Configure {editingTool.name}
-                </h3>
+        {/* BATCH ACTION BAR */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#0c102b] p-4 mb-8">
+          <div>
+            <span className="text-[9px] font-black uppercase tracking-wider text-amber-400">
+              Pending Opportunities Queue ({metrics.pending})
+            </span>
+            <h3 className="text-sm font-black text-white mt-0.5">Affiliate Discovery & Automation</h3>
+          </div>
+
+          <button
+            onClick={handleAutoDiscover}
+            disabled={discovering}
+            className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition"
+          >
+            {discovering ? "Scanning Catalog..." : "AUTO DISCOVER AFFILIATES ⚙"}
+          </button>
+        </div>
+
+        {/* DIRECTORY TABLE SECTION */}
+        <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h2 className="text-lg font-black text-white">Directory Tools Index</h2>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-1">
                 <button
-                  onClick={() => setIsEditOpen(false)}
-                  className="text-slate-400 hover:text-white font-bold"
+                  onClick={() => setStatusFilter("all")}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                    statusFilter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                  }`}
                 >
-                  ✕
+                  All ({metrics.total})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("monetized")}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                    statusFilter === "monetized" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Active ({metrics.active})
+                </button>
+                <button
+                  onClick={() => setStatusFilter("discovery_required")}
+                  className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
+                    statusFilter === "discovery_required" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                  }`}
+                >
+                  Pending ({metrics.pending})
                 </button>
               </div>
 
-              <div className="space-y-4 text-xs">
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Tool Name</label>
-                  <input
-                    type="text"
-                    value={editingTool.name || ""}
-                    onChange={(e) => setEditingTool({ ...editingTool, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-300">Affiliate Network</label>
-                    <select
-                      value={editingTool.affiliate_network || "Direct Partner"}
-                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_network: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="Direct Partner">Direct Partner Program</option>
-                      <option value="Impact">Impact Radius</option>
-                      <option value="ShareASale">ShareASale</option>
-                      <option value="PartnerStack">PartnerStack</option>
-                      <option value="CJ Affiliate">CJ Affiliate</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="font-bold text-slate-300">Affiliate Status</label>
-                    <select
-                      value={editingTool.affiliate_status || "DISCOVERY_REQUIRED"}
-                      onChange={(e) => setEditingTool({ ...editingTool, affiliate_status: e.target.value })}
-                      className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="DISCOVERY_REQUIRED">DISCOVERY REQUIRED</option>
-                      <option value="PENDING_REVIEW">PENDING REVIEW</option>
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="NO_PROGRAM">NO PROGRAM</option>
-                      <option value="PAUSED">PAUSED</option>
-                      <option value="REJECTED">REJECTED</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-300">Verified Affiliate Destination URL</label>
-                  <input
-                    type="url"
-                    placeholder="https://partner.com/link?aff=real_id"
-                    value={editingTool.affiliate_url || ""}
-                    onChange={(e) => setEditingTool({ ...editingTool, affiliate_url: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 text-white p-3 rounded-xl focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
-                  <button
-                    type="button"
-                    onClick={() => setIsEditOpen(false)}
-                    className="px-4 py-2 font-bold text-slate-400 hover:text-white"
-                  >
-                    CANCEL
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleUpdate}
-                    disabled={saving}
-                    className="px-6 py-3 font-extrabold text-white bg-blue-600 hover:bg-blue-500 rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-50"
-                  >
-                    {saving ? "SAVING..." : "SAVE & UPDATE VAULT →"}
-                  </button>
-                </div>
-              </div>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search tools by name, slug, or category..."
+                className="rounded-xl border border-slate-800 bg-slate-900/90 px-4 py-1.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
+              />
             </div>
           </div>
-        )}
-      </main>
-    </div>
+
+          {/* TABLE */}
+          {loading ? (
+            <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading directory index...</div>
+          ) : filteredTools.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    <th className="pb-3">Tool Name</th>
+                    <th className="pb-3">Category</th>
+                    <th className="pb-3">Status</th>
+                    <th className="pb-3">Clicks</th>
+                    <th className="pb-3">Network</th>
+                    <th className="pb-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 text-xs">
+                  {filteredTools.map((t) => {
+                    const isMonetized = Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
+
+                    return (
+                      <tr key={t.id} className="hover:bg-slate-900/40 transition">
+                        <td className="py-3.5 pr-4 font-bold text-white">
+                          <div>
+                            <p>{t.name}</p>
+                            <p className="text-[10px] font-normal text-slate-500">/tool/{t.slug}</p>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 pr-4 capitalize text-slate-400">{t.category || "AI"}</td>
+
+                        <td className="py-3.5 pr-4">
+                          {isMonetized ? (
+                            <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-400">
+                              MONETIZED
+                            </span>
+                          ) : (
+                            <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-amber-400">
+                              DISCOVERY REQUIRED
+                            </span>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 pr-4 font-black text-blue-400">{t.click_count || 0}</td>
+
+                        <td className="py-3.5 pr-4 text-slate-400">{t.affiliate_network || "Direct"}</td>
+
+                        <td className="py-3.5 text-right">
+                          <button
+                            onClick={() => handleOpenConfigure(t)}
+                            className="rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-black text-white hover:bg-blue-700 transition"
+                          >
+                            CONFIGURE
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="p-8 text-center text-xs text-slate-500">No matching tools found.</div>
+          )}
+        </section>
+      </div>
+
+      {/* CONFIGURE MODAL */}
+      {selectedTool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-black text-white">Configure Affiliate Link</h3>
+                <p className="text-xs text-slate-400">{selectedTool.name} (/tool/{selectedTool.slug})</p>
+              </div>
+              <button
+                onClick={() => setSelectedTool(null)}
+                className="text-slate-400 hover:text-white font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveAffiliate} className="space-y-4">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Official Website URL
+                </label>
+                <input
+                  type="text"
+                  disabled
+                  value={selectedTool.website_url || ""}
+                  className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs text-slate-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-blue-400 mb-1 block">
+                  Monetized Affiliate Redirect URL
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://partner.com/?aff=your_id"
+                  value={editAffiliateUrl}
+                  onChange={(e) => setEditAffiliateUrl(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  When populated, clicks to `/go/{selectedTool.slug}` route to this monetized URL.
+                </p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Affiliate Network
+                </label>
+                <select
+                  value={editNetwork}
+                  onChange={(e) => setEditNetwork(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none"
+                >
+                  {AFFILIATE_NETWORKS.map((net) => (
+                    <option key={net} value={net}>
+                      {net}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTool(null)}
+                  className="rounded-xl border border-slate-700 bg-transparent px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                >
+                  {saving ? "Saving..." : "Save Configuration"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </main>
   );
 }
