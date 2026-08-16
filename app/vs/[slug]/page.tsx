@@ -7,7 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 
 import ToolLogo from "@/components/ToolLogo";
 import { cleanAiContent } from "@/lib/content-quality";
-import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
+import { getToolScore, formatAIScore } from "@/lib/score";
 
 type ToolRecord = {
   id?: string | number | null;
@@ -150,7 +150,7 @@ export default function ToolComparisonPage({
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Google JSON-LD Schema for Head-to-Head Comparison */}
+      {/* Schema */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -224,22 +224,22 @@ export default function ToolComparisonPage({
           <span className="font-semibold text-slate-700">{nameA} vs {nameB}</span>
         </div>
 
-        {/* Hero Section */}
+        {/* Hero */}
         <section className="bg-[#050714] rounded-3xl px-6 py-12 text-center text-white sm:py-16 shadow-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4">
             ⚡ Automated Decision Matrix
           </div>
           <h1 className="mx-auto max-w-3xl text-3xl font-black tracking-tight sm:text-5xl">
-            {nameA} <span className="text-slate-500">vs</span> {nameB}
+            {nameA} <span className="text-slate-500 font-light">vs</span> {nameB}
           </h1>
           <p className="mx-auto mt-3 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
             In-depth head-to-head comparison evaluating performance, pricing models, features, and workflow compatibility.
           </p>
         </section>
 
-        {/* Dual Cards Comparison Grid */}
+        {/* Cards */}
         <section className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Tool A Card */}
+          {/* Card A */}
           <div className="rounded-3xl border-2 border-blue-600/30 bg-white p-6 sm:p-8 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-4">
@@ -247,7 +247,7 @@ export default function ToolComparisonPage({
                   <ToolLogo src={toolA.logo_url as string} name={nameA} size="lg" />
                   <div>
                     <h2 className="text-2xl font-black text-slate-950">{nameA}</h2>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                    <span className="rounded-full bg-blue-50 text-blue-700 px-2.5 py-0.5 text-[10px] font-bold">
                       {catA}
                     </span>
                   </div>
@@ -269,7 +269,7 @@ export default function ToolComparisonPage({
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-400">Deployment:</span>
-                  <span className="font-black text-slate-900">{String(toolA.deployment || "Cloud Web App")}</span>
+                  <span className="font-black text-slate-900">{String(toolA.deployment || "Cloud / Web App")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-400">Ecosystem Rank:</span>
@@ -284,22 +284,22 @@ export default function ToolComparisonPage({
                 onClick={() => handleTrack(toolA)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center rounded-2xl bg-blue-600 py-3.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/20"
+                className="w-full inline-flex items-center justify-center rounded-2xl bg-blue-600 py-3.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/25 active:scale-[0.98]"
               >
                 Visit {nameA} ↗
               </a>
             </div>
           </div>
 
-          {/* Tool B Card */}
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm flex flex-col justify-between">
+          {/* Card B */}
+          <div className="rounded-3xl border-2 border-indigo-600/30 bg-white p-6 sm:p-8 shadow-sm flex flex-col justify-between">
             <div>
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
                   <ToolLogo src={toolB.logo_url as string} name={nameB} size="lg" />
                   <div>
                     <h2 className="text-2xl font-black text-slate-950">{nameB}</h2>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[10px] font-bold text-slate-600">
+                    <span className="rounded-full bg-indigo-50 text-indigo-700 px-2.5 py-0.5 text-[10px] font-bold">
                       {catB}
                     </span>
                   </div>
@@ -321,7 +321,7 @@ export default function ToolComparisonPage({
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-400">Deployment:</span>
-                  <span className="font-black text-slate-900">{String(toolB.deployment || "Cloud Web App")}</span>
+                  <span className="font-black text-slate-900">{String(toolB.deployment || "Cloud / Web App")}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-bold text-slate-400">Ecosystem Rank:</span>
@@ -336,7 +336,7 @@ export default function ToolComparisonPage({
                 onClick={() => handleTrack(toolB)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full inline-flex items-center justify-center rounded-2xl bg-slate-900 py-3.5 text-xs font-black text-white hover:bg-black transition shadow-md"
+                className="w-full inline-flex items-center justify-center rounded-2xl bg-indigo-600 py-3.5 text-xs font-black text-white hover:bg-indigo-700 transition shadow-md shadow-indigo-500/25 active:scale-[0.98]"
               >
                 Visit {nameB} ↗
               </a>
@@ -344,7 +344,7 @@ export default function ToolComparisonPage({
           </div>
         </section>
 
-        {/* Feature Comparison Matrix Table */}
+        {/* Matrix Table */}
         <section className="mt-10 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm overflow-hidden">
           <h2 className="text-lg font-black text-slate-950 mb-6">
             Detailed Capability Breakdown
@@ -372,44 +372,44 @@ export default function ToolComparisonPage({
                 </tr>
                 <tr>
                   <td className="py-3.5 px-4 font-bold text-slate-900">Pricing Tier</td>
-                  <td className="py-3.5 px-4 font-bold">{priceA}</td>
-                  <td className="py-3.5 px-4 font-bold">{priceB}</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900">{priceA}</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900">{priceB}</td>
                 </tr>
                 <tr>
-                  <td className="py-3.5 px-4 font-bold text-slate-900">API & Integration</td>
+                  <td className="py-3.5 px-4 font-bold text-slate-900">API & Cloud Access</td>
                   <td className="py-3.5 px-4 text-emerald-600 font-bold">✓ Cloud Supported</td>
                   <td className="py-3.5 px-4 text-emerald-600 font-bold">✓ Cloud Supported</td>
                 </tr>
                 <tr>
                   <td className="py-3.5 px-4 font-bold text-slate-900">Ideal User Profile</td>
                   <td className="py-3.5 px-4">Founders & Operators</td>
-                  <td className="py-3.5 px-4">Engineers & Teams</td>
+                  <td className="py-3.5 px-4">Engineers & Power Users</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </section>
 
-        {/* Final Verdict Section */}
+        {/* Verdict */}
         <section className="mt-8 rounded-3xl bg-gradient-to-br from-slate-900 via-[#070913] to-slate-950 p-8 text-white shadow-xl">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-0.5 text-[9px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Editorial Verdict
           </div>
           <h2 className="text-xl font-black sm:text-2xl">Which one should you choose?</h2>
           <p className="mt-3 text-xs leading-relaxed text-slate-300 max-w-3xl">
-            Choose <strong>{nameA}</strong> if your primary objective is fast {catA.toLowerCase()} automation with a {priceA} structure. Alternatively, opt for <strong>{nameB}</strong> if you require specialized capabilities in {catB.toLowerCase()} workflows.
+            Choose <strong>{nameA}</strong> if your primary focus is streamlined {catA.toLowerCase()} tasks under a {priceA} structure. Choose <strong>{nameB}</strong> for specialized capabilities in {catB.toLowerCase()} workflows.
           </p>
 
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
               href={`/tool/${encodeURIComponent(String(toolA.slug || slugA))}`}
-              className="rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+              className="rounded-xl border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
             >
               Explore {nameA} Dossier →
             </Link>
             <Link
               href={`/tool/${encodeURIComponent(String(toolB.slug || slugB))}`}
-              className="rounded-xl border border-slate-700 bg-slate-800/80 px-4 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+              className="rounded-xl border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-bold text-white hover:bg-slate-700 transition"
             >
               Explore {nameB} Dossier →
             </Link>
