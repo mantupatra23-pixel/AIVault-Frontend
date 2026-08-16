@@ -2,68 +2,74 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.aivault.pp.ua</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/about</loc>
+    <loc>https://www.aivault.pp.ua/compare</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/contact</loc>
+    <loc>https://www.aivault.pp.ua/submit</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/privacy</loc>
+    <loc>https://www.aivault.pp.ua/vault</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/terms</loc>
+    <loc>https://www.aivault.pp.ua/?cat=productivity</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/liso</loc>
+    <loc>https://www.aivault.pp.ua/?cat=marketing</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/ghost</loc>
+    <loc>https://www.aivault.pp.ua/?cat=coding</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/freesolo-flash</loc>
+    <loc>https://www.aivault.pp.ua/?cat=chatbot</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/hotspot-meter</loc>
+    <loc>https://www.aivault.pp.ua/?cat=image</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/fedica-2</loc>
+    <loc>https://www.aivault.pp.ua/?cat=writing</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/prosed</loc>
+    <loc>https://www.aivault.pp.ua/?cat=audio</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
   <url>
-    <loc>https://www.aivault.pp.ua/tool/pushary</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/fluree-ai</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/reignat</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/harnessrouter</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/kodhau</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/photobomb</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/bitfield</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/benchmark</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/nylas-cli</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/diffsmith</loc>
-  </url>
-  <url>
-    <loc>https://www.aivault.pp.ua/tool/molmoact-2</loc>
+    <loc>https://www.aivault.pp.ua/?cat=video</loc>
+    <lastmod>2026-08-16</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.85</priority>
   </url>
 </urlset>
