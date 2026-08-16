@@ -41,14 +41,13 @@ export async function POST(req: Request) {
       logo_url,
       category,
       pricing,
-      submitter_email,
       description,
       is_featured,
     } = body;
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Moderation Action (Approve / Reject)
+    // 1. Admin Moderation Actions
     if (action === "approve" && id) {
       const { error } = await supabase
         .from("ai_tools")
@@ -67,15 +66,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // New Tool Submission Insertion
+    // 2. User Tool Submission Validation
     if (!name || !website_url || !description) {
       return NextResponse.json(
-        { error: "Required fields missing (name, website, description)." },
+        { error: "Required fields missing (Name, Website, Description)." },
         { status: 400 }
       );
     }
 
-    const cleanSlug = name
+    const cleanSlug = String(name)
       .toLowerCase()
       .trim()
       .replace(/[^a-z0-9]+/g, "-")
@@ -83,36 +82,40 @@ export async function POST(req: Request) {
 
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
 
+    // Core fields guaranteed in ai_tools schema
+    const payload: Record<string, unknown> = {
+      name: String(name).trim(),
+      slug: slug,
+      website_url: String(website_url).trim(),
+      category: category || "Productivity",
+      pricing: pricing || "Freemium",
+      pricing_type: pricing || "Freemium",
+      description: String(description).trim(),
+      overview: String(description).trim(),
+      affiliate_status: "pending_submission",
+      score: is_featured ? 96 : 92,
+      ai_vault_score: is_featured ? 96 : 92,
+      created_at: new Date().toISOString(),
+    };
+
+    if (logo_url && String(logo_url).trim()) {
+      payload.logo_url = String(logo_url).trim();
+    }
+
     const { data, error } = await supabase
       .from("ai_tools")
-      .insert([
-        {
-          name: name.trim(),
-          slug,
-          website_url: website_url.trim(),
-          logo_url: logo_url && logo_url.trim() ? logo_url.trim() : null,
-          category: category || "Productivity",
-          pricing: pricing || "Freemium",
-          pricing_type: pricing || "Freemium",
-          description: description.trim(),
-          overview: description.trim(),
-          affiliate_status: "pending_submission",
-          is_featured: Boolean(is_featured),
-          featured: Boolean(is_featured),
-          score: is_featured ? 96 : 92,
-          ai_vault_score: is_featured ? 96 : 92,
-          submitter_email: submitter_email ? submitter_email.trim() : null,
-          created_at: new Date().toISOString(),
-        },
-      ])
+      .insert([payload])
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase insert error:", error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ success: true, data });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Internal Submission Error";
+    const msg = err instanceof Error ? err.message : "Submission failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
