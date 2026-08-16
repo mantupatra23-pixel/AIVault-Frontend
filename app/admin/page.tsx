@@ -27,8 +27,25 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const AFFILIATE_NETWORKS = ["Direct", "PartnerStack", "Impact", "Rewardful", "FirstPromoter", "CJ", "ShareASale"];
-const CATEGORIES = ["Marketing", "Productivity", "Coding", "Chatbot", "Image", "Writing", "Audio", "Video"];
+const AFFILIATE_NETWORKS = [
+  "Direct",
+  "PartnerStack",
+  "Impact",
+  "Rewardful",
+  "FirstPromoter",
+  "CJ",
+  "ShareASale",
+];
+const CATEGORIES = [
+  "Marketing",
+  "Productivity",
+  "Coding",
+  "Chatbot",
+  "Image",
+  "Writing",
+  "Audio",
+  "Video",
+];
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<"affiliate" | "catalog">("affiliate");
@@ -37,15 +54,16 @@ export default function AdminPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [discovering, setDiscovering] = useState(false);
 
-  // Configure Modal
+  // Configure Modal State
   const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
   const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
   const [editAffiliateUrl, setEditAffiliateUrl] = useState("");
   const [editNetwork, setEditNetwork] = useState("Direct");
   const [saving, setSaving] = useState(false);
 
-  // Add/Edit Tool Modal
+  // Add/Edit Tool Modal State
   const [editingToolRecord, setEditingToolRecord] = useState<ToolRecord | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formName, setFormName] = useState("");
@@ -57,7 +75,7 @@ export default function AdminPage() {
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
+    setTimeout(() => setToastMessage(null), 3500);
   };
 
   async function loadAdminData() {
@@ -106,6 +124,31 @@ export default function AdminPage() {
 
     return { total, active, pending, clicks, revenue };
   }, [tools]);
+
+  // 1-Click Auto Discover & Monetize 750 Tools Handler
+  const handleAutoDiscover = async () => {
+    try {
+      setDiscovering(true);
+      showToast("⚡ Scanning and resolving official domains for all 750 tools...");
+
+      const res = await fetch("/api/admin/auto-discover", {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Batch auto-discover failed");
+      }
+
+      await loadAdminData();
+      showToast(`✓ All ${data.total_updated || 750} tools converted to Direct Official & Monetized links!`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Auto-discover failed";
+      alert(msg);
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   const handleOpenConfigure = (t: ToolRecord) => {
     setSelectedTool(t);
@@ -206,13 +249,14 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
+      {/* Dynamic Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black text-white shadow-2xl animate-bounce">
           {toastMessage}
         </div>
       )}
 
-      {/* Header */}
+      {/* Header Bar */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070a1e]/90 backdrop-blur-xl px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -294,7 +338,25 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* TABLE */}
+            {/* BATCH AUTO DISCOVERY ACTION BAR */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#0c102b] p-4 mb-8">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400">
+                  Pending Opportunities Queue ({metrics.pending})
+                </span>
+                <h3 className="text-sm font-black text-white mt-0.5">Affiliate Discovery & Automation Engine</h3>
+              </div>
+
+              <button
+                onClick={handleAutoDiscover}
+                disabled={discovering}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition"
+              >
+                {discovering ? "Scanning & Monetizing 750 Tools..." : "AUTO DISCOVER AFFILIATES ⚙"}
+              </button>
+            </div>
+
+            {/* DIRECTORY TABLE SECTION */}
             <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <h2 className="text-lg font-black text-white">Affiliate Links Index</h2>
@@ -500,7 +562,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL (WITH EDITABLE OFFICIAL & MONETIZED URLS) */}
+      {/* CONFIGURE MODAL */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
