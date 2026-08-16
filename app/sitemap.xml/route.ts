@@ -24,7 +24,7 @@ const CATEGORIES = [
 ];
 
 function escapeXml(unsafe: string): string {
-  return unsafe
+  return (unsafe || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -33,22 +33,22 @@ function escapeXml(unsafe: string): string {
 }
 
 export async function GET() {
-  const currentDate = new Date().toISOString();
+  const today = new Date().toISOString().split("T")[0];
 
-  const staticPages = [
+  const staticUrls = [
     { loc: `${SITE_URL}`, priority: "1.0", changefreq: "daily" },
     { loc: `${SITE_URL}/compare`, priority: "0.9", changefreq: "daily" },
     { loc: `${SITE_URL}/submit`, priority: "0.8", changefreq: "weekly" },
     { loc: `${SITE_URL}/vault`, priority: "0.7", changefreq: "weekly" },
   ];
 
-  const categoryPages = CATEGORIES.map((cat) => ({
-    loc: `${SITE_URL}/?cat=${encodeURIComponent(cat)}`,
+  const categoryUrls = CATEGORIES.map((cat) => ({
+    loc: `${SITE_URL}/?cat=${cat}`,
     priority: "0.85",
     changefreq: "daily",
   }));
 
-  let toolPages: { loc: string; lastmod: string; priority: string; changefreq: string }[] = [];
+  let toolUrls: { loc: string; lastmod: string; priority: string; changefreq: string }[] = [];
 
   if (SUPABASE_URL && SUPABASE_KEY) {
     try {
@@ -57,41 +57,34 @@ export async function GET() {
         .from("ai_tools")
         .select("slug, updated_at")
         .not("slug", "is", null)
-        .order("name", { ascending: true })
         .limit(1000);
 
       if (tools && tools.length > 0) {
-        toolPages = tools.map((t) => ({
+        toolUrls = tools.map((t) => ({
           loc: `${SITE_URL}/tool/${encodeURIComponent(String(t.slug))}`,
-          lastmod: t.updated_at ? new Date(t.updated_at).toISOString() : currentDate,
+          lastmod: t.updated_at ? String(t.updated_at).split("T")[0] : today,
           priority: "0.80",
           changefreq: "weekly",
         }));
       }
-    } catch (e) {
-      console.error("Sitemap fetch error:", e);
+    } catch {
+      // Fallback: Continue without failing
     }
   }
 
-  const allEntries = [
-    ...staticPages.map(
-      (p) => `<url><loc>${escapeXml(p.loc)}</loc><lastmod>${currentDate}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`
-    ),
-    ...categoryPages.map(
-      (c) => `<url><loc>${escapeXml(c.loc)}</loc><lastmod>${currentDate}</lastmod><changefreq>${c.changefreq}</changefreq><priority>${c.priority}</priority></url>`
-    ),
-    ...toolPages.map(
-      (t) => `<url><loc>${escapeXml(t.loc)}</loc><lastmod>${t.lastmod}</lastmod><changefreq>${t.changefreq}</changefreq><priority>${t.priority}</priority></url>`
-    ),
-  ].join("");
+  const allUrls = [
+    ...staticUrls.map((u) => `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`),
+    ...categoryUrls.map((u) => `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`),
+    ...toolUrls.map((u) => `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`),
+  ].join("\n");
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${allEntries}</urlset>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${allUrls}\n</urlset>`;
 
   return new NextResponse(xml, {
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "Cache-Control": "public, max-age=0, s-maxage=3600, must-revalidate",
+      "Cache-Control": "public, max-age=86400, s-maxage=86400",
     },
   });
 }
