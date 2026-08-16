@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
+import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,8 +26,11 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
       </head>
-      <body className="min-h-screen bg-[#fafbfc] text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
-        {children}
+      <body className="flex min-h-screen flex-col justify-between bg-[#fafbfc] text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
+        <div className="flex-grow">
+          {children}
+        </div>
+        <Footer />
       </body>
     </html>
   );
