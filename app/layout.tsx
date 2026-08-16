@@ -1,6 +1,5 @@
 // app/layout.tsx
 import type { Metadata } from "next";
-import Script from "next/script";
 import Footer from "@/components/Footer";
 import "./globals.css";
 
