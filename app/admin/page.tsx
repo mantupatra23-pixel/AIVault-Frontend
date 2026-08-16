@@ -23,6 +23,19 @@ type ToolRecord = {
   [key: string]: unknown;
 };
 
+type SubmissionRecord = {
+  id: string | number;
+  name: string;
+  slug?: string;
+  category?: string;
+  pricing?: string;
+  website_url: string;
+  description?: string;
+  overview?: string;
+  submitter_email?: string;
+  created_at: string;
+};
+
 type SubscriberRecord = {
   id: string | number;
   email: string;
@@ -68,21 +81,19 @@ const CATEGORIES = [
 ];
 
 export default function AdminPage() {
-  // Passcode Security State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  // PIN Reset & Change State
   const [showResetModal, setShowResetModal] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState("");
   const [newPinInput, setNewPinInput] = useState("");
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
 
-  // Tabs & Directory State
-  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "reviews" | "subscribers">("affiliate");
+  const [activeTab, setActiveTab] = useState<"affiliate" | "submissions" | "catalog" | "reviews" | "subscribers">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
+  const [submissions, setSubmissions] = useState<SubmissionRecord[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -139,12 +150,17 @@ export default function AdminPage() {
         .order("name", { ascending: true });
       setTools((toolsData as ToolRecord[]) || []);
 
-      // 2. Fetch Subscribers via Server API Route
-      const res = await fetch("/api/admin/subscribers");
-      const data = await res.json();
-      setSubscribers(data.subscribers || []);
+      // 2. Fetch Pending Submissions
+      const subRes = await fetch("/api/admin/submissions");
+      const subData = await subRes.json();
+      setSubmissions(subData.submissions || []);
 
-      // 3. Fetch All User Reviews
+      // 3. Fetch Subscribers
+      const leadRes = await fetch("/api/admin/subscribers");
+      const leadData = await leadRes.json();
+      setSubscribers(leadData.subscribers || []);
+
+      // 4. Fetch Reviews
       const revRes = await fetch("/api/reviews?all=true");
       const revData = await revRes.json();
       setReviews(revData.reviews || []);
@@ -215,6 +231,24 @@ export default function AdminPage() {
     showToast("✓ Admin PIN reset successfully!");
   };
 
+  const handleModerateSubmission = async (id: string | number, action: "approve" | "reject") => {
+    try {
+      const res = await fetch("/api/admin/submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Action failed");
+
+      setSubmissions((prev) => prev.filter((s) => s.id !== id));
+      await loadAdminData();
+      showToast(action === "approve" ? "✓ Tool approved and published live!" : "Submission dismissed.");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Moderation failed");
+    }
+  };
+
   const filteredTools = useMemo(() => {
     return tools.filter((t) => {
       const q = search.toLowerCase();
@@ -245,22 +279,16 @@ export default function AdminPage() {
   const handleAutoDiscover = async () => {
     try {
       setDiscovering(true);
-      showToast("⚡ Scanning and resolving verified links for all 750 tools...");
+      showToast("⚡ Scanning and resolving verified links for all tools...");
 
-      const res = await fetch("/api/admin/auto-discover", {
-        method: "POST",
-      });
-
+      const res = await fetch("/api/admin/auto-discover", { method: "POST" });
       const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Batch auto-discover failed");
-      }
+      if (!res.ok || data.error) throw new Error(data.error || "Batch auto-discover failed");
 
       await loadAdminData();
       showToast(`✓ All tools synchronized with verified working links!`);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Auto-discover failed";
-      alert(msg);
+      alert(err instanceof Error ? err.message : "Auto-discover failed");
     } finally {
       setDiscovering(false);
     }
@@ -279,32 +307,26 @@ export default function AdminPage() {
 
     try {
       setSaving(true);
-      const affUrl = editAffiliateUrl.trim();
-      const webUrl = editWebsiteUrl.trim();
-
       const res = await fetch("/api/admin/update-tool", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: selectedTool.id,
           slug: selectedTool.slug,
-          website_url: webUrl,
-          affiliate_url: affUrl,
+          website_url: editWebsiteUrl.trim(),
+          affiliate_url: editAffiliateUrl.trim(),
           affiliate_network: editNetwork,
         }),
       });
 
       const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to update tool");
-      }
+      if (!res.ok || data.error) throw new Error(data.error || "Failed to update tool");
 
       await loadAdminData();
       setSelectedTool(null);
       showToast(`✓ Link settings saved for ${selectedTool.name}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error saving affiliate settings";
-      alert(message);
+      alert(err instanceof Error ? err.message : "Error saving affiliate settings");
     } finally {
       setSaving(false);
     }
@@ -327,16 +349,13 @@ export default function AdminPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || data.error) {
-        throw new Error(data.error || "Failed to remove affiliate link");
-      }
+      if (!res.ok || data.error) throw new Error(data.error || "Failed to remove affiliate link");
 
       await loadAdminData();
       setSelectedTool(null);
       showToast(`✓ Removed affiliate link for ${selectedTool.name}`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Error removing link";
-      alert(message);
+      alert(err instanceof Error ? err.message : "Error removing link");
     } finally {
       setSaving(false);
     }
@@ -359,10 +378,12 @@ export default function AdminPage() {
         slug,
         category: formCategory,
         pricing: formPricing,
+        pricing_type: formPricing,
         website_url: formWebsite.trim(),
         description: formOverview.trim(),
         overview: formOverview.trim(),
         score: Number(formScore) || 90,
+        ai_vault_score: Number(formScore) || 90,
         updated_at: new Date().toISOString(),
       };
 
@@ -441,10 +462,7 @@ export default function AdminPage() {
     }
     const headers = "Email,Source,Subscribed Date\n";
     const rows = subscribers
-      .map(
-        (s) =>
-          `"${s.email}","${s.source || "global_footer"}","${new Date(s.created_at).toISOString()}"`
-      )
+      .map((s) => `"${s.email}","${s.source || "global_footer"}","${new Date(s.created_at).toISOString()}"`)
       .join("\n");
     const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -501,7 +519,6 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* RESET PIN MODAL */}
         {showResetModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
             <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -649,57 +666,57 @@ export default function AdminPage() {
           <button
             onClick={() => setActiveTab("affiliate")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "affiliate"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-400 hover:text-white"
+              activeTab === "affiliate" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
             }`}
           >
-            📊 Affiliate & Monetization Hub
+            📊 Affiliate Hub
+          </button>
+
+          <button
+            onClick={() => setActiveTab("submissions")}
+            className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+              activeTab === "submissions" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+            }`}
+          >
+            📥 Pending Submissions ({submissions.length})
           </button>
 
           <button
             onClick={() => setActiveTab("catalog")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "catalog"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-400 hover:text-white"
+              activeTab === "catalog" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
             }`}
           >
-            🛠️ Catalog & Tool Manager ({tools.length})
+            🛠️ Catalog Manager ({tools.length})
           </button>
 
           <button
             onClick={() => setActiveTab("reviews")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "reviews"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-400 hover:text-white"
+              activeTab === "reviews" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
             }`}
           >
-            ⭐ User Reviews & Ratings ({reviews.length})
+            ⭐ Reviews ({reviews.length})
           </button>
 
           <button
             onClick={() => setActiveTab("subscribers")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "subscribers"
-                ? "bg-blue-600 text-white shadow-md"
-                : "text-slate-400 hover:text-white"
+              activeTab === "subscribers" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
             }`}
           >
             📧 Email Leads ({subscribers.length})
           </button>
         </div>
 
-        {/* TAB 1: AFFILIATE COMMAND CENTER */}
+        {/* TAB 1: AFFILIATE HUB */}
         {activeTab === "affiliate" && (
           <div>
-            {/* METRICS ROW */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Directory</p>
                 <p className="mt-1 text-2xl font-black text-white">{metrics.total}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Indexed tools in database</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Indexed tools</p>
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
@@ -711,7 +728,7 @@ export default function AdminPage() {
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Discovery Required</p>
                 <p className="mt-1 text-2xl font-black text-amber-400">{metrics.pending}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Pending scan or review</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">Pending scan</p>
               </div>
 
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
@@ -727,7 +744,6 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* BATCH AUTO DISCOVERY ACTION BAR */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-[#0c102b] p-4 mb-8">
               <div>
                 <span className="text-[9px] font-black uppercase tracking-wider text-amber-400">
@@ -741,11 +757,10 @@ export default function AdminPage() {
                 disabled={discovering}
                 className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                {discovering ? "Synchronizing 750 Tools..." : "AUTO DISCOVER AFFILIATES ⚙"}
+                {discovering ? "Synchronizing Tools..." : "AUTO DISCOVER AFFILIATES ⚙"}
               </button>
             </div>
 
-            {/* DIRECTORY TABLE SECTION */}
             <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <h2 className="text-lg font-black text-white">Affiliate Links Index</h2>
@@ -755,9 +770,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("all")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "all"
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-400 hover:text-white"
+                        statusFilter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                       }`}
                     >
                       All ({metrics.total})
@@ -765,9 +778,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("monetized")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "monetized"
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-400 hover:text-white"
+                        statusFilter === "monetized" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                       }`}
                     >
                       Active ({metrics.active})
@@ -775,9 +786,7 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("discovery_required")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "discovery_required"
-                          ? "bg-blue-600 text-white"
-                          : "text-slate-400 hover:text-white"
+                        statusFilter === "discovery_required" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
                       }`}
                     >
                       Pending ({metrics.pending})
@@ -822,9 +831,7 @@ export default function AdminPage() {
                                 <p className="text-[10px] font-normal text-slate-500">/tool/{slug}</p>
                               </div>
                             </td>
-
                             <td className="py-3.5 pr-4 capitalize text-slate-400">{t.category || "AI"}</td>
-
                             <td className="py-3.5 pr-4">
                               {isMonetized ? (
                                 <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-400">
@@ -836,11 +843,8 @@ export default function AdminPage() {
                                 </span>
                               )}
                             </td>
-
                             <td className="py-3.5 pr-4 font-black text-blue-400">{t.click_count || 0}</td>
-
                             <td className="py-3.5 pr-4 text-slate-400">{t.affiliate_network || "Direct"}</td>
-
                             <td className="py-3.5 text-right space-x-1.5">
                               <a
                                 href={`/go/${encodeURIComponent(slug)}`}
@@ -850,7 +854,6 @@ export default function AdminPage() {
                               >
                                 Test /go ↗
                               </a>
-
                               <button
                                 onClick={() => handleOpenConfigure(t)}
                                 className="rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-black text-white hover:bg-blue-700 transition"
@@ -871,7 +874,83 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* TAB 2: TOOL CATALOG MANAGER */}
+        {/* TAB 2: PENDING SUBMISSIONS MODERATION */}
+        {activeTab === "submissions" && (
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white">Pending Founder Submissions ({submissions.length})</h2>
+                <p className="text-xs text-slate-400">Review incoming tools submitted via /submit page</p>
+              </div>
+              <button
+                onClick={loadAdminData}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
+              >
+                🔄 Refresh Queue
+              </button>
+            </div>
+
+            {submissions.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
+                No pending submissions in queue.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {submissions.map((s) => (
+                  <div
+                    key={s.id}
+                    className="rounded-2xl border border-slate-800 bg-[#0c102b] p-5 flex flex-col md:flex-row md:items-center justify-between gap-4"
+                  >
+                    <div className="space-y-2 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-base font-black text-white">{s.name}</span>
+                        <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 capitalize">
+                          {s.category || "AI Tool"}
+                        </span>
+                        <span className="rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 text-[10px] font-bold text-slate-300 uppercase">
+                          {s.pricing || "Freemium"}
+                        </span>
+                        {s.submitter_email && (
+                          <span className="text-[10px] text-slate-400">by {s.submitter_email}</span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-slate-300 leading-relaxed max-w-2xl">
+                        {s.description || s.overview}
+                      </p>
+
+                      <a
+                        href={s.website_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-[11px] font-bold text-blue-400 hover:underline"
+                      >
+                        Visit Website ({s.website_url}) ↗
+                      </a>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => handleModerateSubmission(s.id, "approve")}
+                        className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
+                      >
+                        ✓ Approve & Publish Live
+                      </button>
+                      <button
+                        onClick={() => handleModerateSubmission(s.id, "reject")}
+                        className="rounded-xl bg-rose-600/20 border border-rose-600/30 px-3.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-600 hover:text-white transition"
+                      >
+                        ✕ Reject
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* TAB 3: TOOL CATALOG MANAGER */}
         {activeTab === "catalog" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -956,28 +1035,27 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* TAB 3: USER REVIEWS & RATINGS */}
+        {/* TAB 4: USER REVIEWS */}
         {activeTab === "reviews" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-black text-white">Community Reviews & Sentiment ({reviews.length})</h2>
-                <p className="text-xs text-slate-400">Live submissions submitted by verified users on tool pages</p>
+                <p className="text-xs text-slate-400">Live submissions on tool pages</p>
               </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={loadAdminData}
-                  className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
-                >
-                  🔄 Refresh Reviews
-                </button>
-              </div>
+              <button
+                onClick={loadAdminData}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
+              >
+                🔄 Refresh Reviews
+              </button>
             </div>
 
-            {loading ? (
-              <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading reviews...</div>
-            ) : reviews.length > 0 ? (
+            {reviews.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
+                No user reviews submitted yet.
+              </div>
+            ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
@@ -993,9 +1071,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-slate-800/60 text-xs">
                     {reviews.map((r) => (
                       <tr key={r.id} className="hover:bg-slate-900/40 transition">
-                        <td className="py-3.5 pr-4 font-bold text-white whitespace-nowrap">
-                          {r.author_name}
-                        </td>
+                        <td className="py-3.5 pr-4 font-bold text-white whitespace-nowrap">{r.author_name}</td>
                         <td className="py-3.5 pr-4">
                           <Link
                             href={`/tool/${encodeURIComponent(r.tool_slug)}`}
@@ -1012,9 +1088,7 @@ export default function AdminPage() {
                           </span>
                           <span className="text-[10px] text-slate-400 ml-1">({r.rating}/5)</span>
                         </td>
-                        <td className="py-3.5 pr-4 text-slate-300 max-w-xs truncate">
-                          &ldquo;{r.comment}&rdquo;
-                        </td>
+                        <td className="py-3.5 pr-4 text-slate-300 max-w-xs truncate">&ldquo;{r.comment}&rdquo;</td>
                         <td className="py-3.5 pr-4 text-slate-400 text-[10px] whitespace-nowrap">
                           {r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}
                         </td>
@@ -1031,15 +1105,11 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
-            ) : (
-              <div className="p-12 text-center text-xs text-slate-500">
-                No user reviews submitted yet.
-              </div>
             )}
           </section>
         )}
 
-        {/* TAB 4: EMAIL LEADS & SUBSCRIBERS */}
+        {/* TAB 5: EMAIL LEADS */}
         {activeTab === "subscribers" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -1056,9 +1126,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {loading ? (
-              <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading subscriber list...</div>
-            ) : subscribers.length > 0 ? (
+            {subscribers.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[650px]">
                   <thead>
@@ -1072,9 +1140,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-slate-800/60 text-xs">
                     {subscribers.map((sub) => (
                       <tr key={sub.id} className="hover:bg-slate-900/40 transition">
-                        <td className="py-3.5 pr-4 font-bold text-white">
-                          {sub.email}
-                        </td>
+                        <td className="py-3.5 pr-4 font-bold text-white">{sub.email}</td>
                         <td className="py-3.5 pr-4">
                           <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-blue-400">
                             {sub.source || "global_footer"}
@@ -1085,8 +1151,6 @@ export default function AdminPage() {
                             year: "numeric",
                             month: "short",
                             day: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
                           })}
                         </td>
                         <td className="py-3.5 text-right">
@@ -1153,9 +1217,6 @@ export default function AdminPage() {
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
                   className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  Leave blank or remove to route directly to official website.
-                </p>
               </div>
 
               <div>

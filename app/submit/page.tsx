@@ -54,7 +54,7 @@ export default function SubmitToolPage() {
 
       setSubmitted(true);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Submission error occurred.";
+      const msg = err instanceof Error ? err.message : "Submission failed.";
       setErrorMsg(msg);
     } finally {
       setSubmitting(false);
@@ -62,7 +62,7 @@ export default function SubmitToolPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
       {/* Top Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
@@ -71,7 +71,7 @@ export default function SubmitToolPage() {
           </Link>
           <Link
             href="/"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:text-blue-600"
+            className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
           >
             ← Back to Directory
           </Link>
@@ -81,201 +81,203 @@ export default function SubmitToolPage() {
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
         {/* Title Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 rounded-full border border-blue-500/20 bg-blue-500/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-700 mb-3">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">
             Founder Direct Placement
           </div>
-          <h1 className="text-3xl font-black text-slate-950 sm:text-5xl tracking-tight">
+          <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
             Submit Your AI Tool
           </h1>
-          <p className="mx-auto mt-3 max-w-lg text-xs sm:text-sm text-slate-500">
-            Get your AI product discovered by thousands of developers, founders, and automation professionals.
+          <p className="mx-auto mt-3 max-w-lg text-xs sm:text-sm text-slate-500 leading-relaxed">
+            Get your AI product discovered by thousands of active founders, operators, and developers looking for workflow automation.
           </p>
         </div>
 
         {submitted ? (
-          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-10 text-center shadow-lg">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-2xl text-white">
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50/50 p-8 text-center sm:p-12 shadow-sm">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-600 text-2xl font-black text-white shadow-md shadow-emerald-600/30">
               ✓
             </div>
-            <h2 className="mt-4 text-2xl font-black text-emerald-950">
+            <h2 className="mt-4 text-2xl font-black text-slate-950">
               Tool Submitted Successfully!
             </h2>
-            <p className="mt-2 text-xs text-emerald-800 max-w-md mx-auto">
+            <p className="mt-2 text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
               {selectedPlan === "featured"
-                ? "Your product has been granted priority indexation and featured badges."
-                : "Your tool is now queued and indexed in the AI Vault software directory."}
+                ? "Your product has been granted priority fast-track placement. Our editorial desk will verify it within 12-24 hours."
+                : "Your tool is now queued in our catalog moderation pipeline for review."}
             </p>
             <div className="mt-6 flex justify-center gap-3">
               <Link
                 href="/"
-                className="rounded-xl bg-emerald-700 px-6 py-2.5 text-xs font-black text-white hover:bg-emerald-800 transition"
+                className="rounded-xl bg-slate-900 px-5 py-2.5 text-xs font-bold text-white hover:bg-black transition shadow-md"
               >
                 View Live Directory →
               </Link>
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {errorMsg && (
-              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-700">
+              <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs font-bold text-rose-600">
                 {errorMsg}
               </div>
             )}
 
             {/* Plan Selector */}
             <div>
-              <label className="text-xs font-black uppercase tracking-wider text-slate-500 mb-3 block">
+              <label className="text-xs font-black uppercase tracking-wider text-slate-400 mb-2 block">
                 Select Listing Tier
               </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div
                   onClick={() => setSelectedPlan("free")}
-                  className={`cursor-pointer rounded-2xl border-2 p-5 transition ${
+                  className={`cursor-pointer rounded-2xl border p-4 transition ${
                     selectedPlan === "free"
-                      ? "border-blue-600 bg-blue-50/50 shadow-sm"
-                      : "border-slate-200 hover:border-slate-300"
+                      ? "border-blue-600 bg-blue-50/40 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-black text-slate-900">Standard Listing</span>
-                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-black text-slate-700">
+                    <span className="text-sm font-black text-slate-950">Standard Listing</span>
+                    <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                       $0 Free
                     </span>
                   </div>
-                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-500">
-                    <li>• Standard Catalog Indexation</li>
-                    <li>• Permanent Dossier Page</li>
-                    <li>• Basic Comparison Engine</li>
+                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-500 font-medium">
+                    <li>✓ Standard Catalog Indexation</li>
+                    <li>✓ Permanent Dossier Page</li>
+                    <li>✓ Basic Comparison Engine</li>
                   </ul>
                 </div>
 
                 <div
                   onClick={() => setSelectedPlan("featured")}
-                  className={`cursor-pointer rounded-2xl border-2 p-5 transition ${
+                  className={`cursor-pointer rounded-2xl border p-4 transition ${
                     selectedPlan === "featured"
-                      ? "border-blue-600 bg-blue-50/50 shadow-sm ring-1 ring-blue-600"
-                      : "border-slate-200 hover:border-slate-300"
+                      ? "border-blue-600 bg-blue-50/40 shadow-sm"
+                      : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-black text-slate-900">Featured Boost</span>
-                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black uppercase text-amber-700">
+                      <span className="text-sm font-black text-slate-950">Featured Boost</span>
+                      <span className="rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-[9px] font-black uppercase">
                         ⚡ Popular
                       </span>
                     </div>
-                    <span className="rounded-md bg-blue-600 px-2 py-0.5 text-xs font-black text-white">
-                      Priority
+                    <span className="rounded-md bg-blue-600 px-2 py-0.5 text-[10px] font-black text-white">
+                      Priority Queue
                     </span>
                   </div>
-                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-600 font-medium">
-                    <li>• Top Search & Category Ranking</li>
-                    <li>• Verified Catalog Entry Badge</li>
-                    <li>• Instant 24h Queue Fast-Track</li>
+                  <ul className="mt-3 space-y-1.5 text-[11px] text-slate-500 font-medium">
+                    <li>✓ Top Search & Category Rank</li>
+                    <li>✓ Verified Catalog Entry Badge</li>
+                    <li>✓ Instant 24h Queue Fast-Track</li>
                   </ul>
                 </div>
               </div>
             </div>
 
             {/* Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 space-y-4 shadow-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                    Tool Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. ChatEngine AI"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                    Official Website URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    placeholder="https://yourproduct.com"
+                    value={websiteUrl}
+                    onChange={(e) => setWebsiteUrl(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                    Primary Category *
+                  </label>
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 focus:bg-white"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                    Pricing Model *
+                  </label>
+                  <select
+                    value={pricing}
+                    onChange={(e) => setPricing(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-3.5 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 focus:bg-white"
+                  >
+                    <option value="Free">Free</option>
+                    <option value="Freemium">Freemium</option>
+                    <option value="Paid">Paid</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                  Tool Name *
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                  Founder Contact Email
                 </label>
                 <input
-                  type="text"
-                  required
-                  placeholder="e.g. ChatEngine AI"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
+                  type="email"
+                  placeholder="founder@company.com"
+                  value={founderEmail}
+                  onChange={(e) => setFounderEmail(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                  Official Website URL *
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                  Product Description & Capabilities *
                 </label>
-                <input
-                  type="url"
+                <textarea
+                  rows={4}
                   required
-                  placeholder="https://yourproduct.com"
-                  value={websiteUrl}
-                  onChange={(e) => setWebsiteUrl(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
+                  placeholder="Explain the problem your tool solves, target audience, and key operational advantages..."
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white resize-none"
                 />
               </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-2xl bg-blue-600 py-3.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/25 disabled:opacity-50"
+              >
+                {submitting ? "Publishing Tool..." : "Submit Tool to Editorial Queue 🚀"}
+              </button>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                  Primary Category *
-                </label>
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                  Pricing Model
-                </label>
-                <select
-                  value={pricing}
-                  onChange={(e) => setPricing(e.target.value)}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
-                >
-                  <option value="Free">Free</option>
-                  <option value="Freemium">Freemium</option>
-                  <option value="Paid">Paid</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                Founder Contact Email
-              </label>
-              <input
-                type="email"
-                placeholder="founder@company.com"
-                value={founderEmail}
-                onChange={(e) => setFounderEmail(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
-              />
-            </div>
-
-            <div>
-              <label className="text-[10px] font-black uppercase text-slate-500 mb-1.5 block">
-                Product Description & Capabilities
-              </label>
-              <textarea
-                rows={4}
-                required
-                placeholder="Explain the problem your tool solves, target audience, and key capabilities..."
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white resize-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-2xl bg-blue-600 py-3.5 text-xs font-black uppercase tracking-wider text-white shadow-md shadow-blue-500/25 transition hover:bg-blue-700 disabled:opacity-50"
-            >
-              {submitting ? "Publishing Tool..." : "Submit Tool to AI Vault →"}
-            </button>
           </form>
         )}
       </div>

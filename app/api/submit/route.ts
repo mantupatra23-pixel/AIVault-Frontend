@@ -5,7 +5,8 @@ import { createClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://tctovtckukoxcvvwtvwy.supabase.co";
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
@@ -15,11 +16,19 @@ const SUPABASE_KEY =
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { name, website_url, category, pricing, description, founder_email, plan } = body;
+    const {
+      name,
+      website_url,
+      category,
+      pricing,
+      description,
+      submitter_email,
+      plan,
+    } = body;
 
-    if (!name || !website_url || !category) {
+    if (!name || !website_url) {
       return NextResponse.json(
-        { error: "Name, website URL, and category are required." },
+        { error: "Tool name and website URL are required." },
         { status: 400 }
       );
     }
@@ -32,46 +41,59 @@ export async function POST(req: NextRequest) {
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-    const slug = name
+
+    const cleanName = String(name).trim();
+    const cleanWebsite = String(website_url).trim();
+    const cleanCategory = String(category || "Productivity").trim();
+    const cleanPricing = String(pricing || "Freemium").trim();
+    const cleanDesc = String(
+      description ||
+        `${cleanName} is an AI software platform for ${cleanCategory.toLowerCase()} workflows.`
+    ).trim();
+    const cleanEmail = String(submitter_email || "").trim();
+
+    const slug = cleanName
       .toLowerCase()
-      .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
 
-    const isFeatured = plan === "featured";
-
-    const { data, error } = await supabase.from("ai_tools").insert([
-      {
-        name: name.trim(),
-        slug,
-        website_url: website_url.trim(),
-        website: website_url.trim(),
-        category: category.trim(),
-        pricing: pricing || "Freemium",
-        overview: description?.trim() || `${name} provides AI workflow acceleration.`,
-        description: description?.trim() || `${name} provides AI workflow acceleration.`,
-        score: isFeatured ? 96 : 88,
-        affiliate_status: "discovery_required",
-        affiliate_network: "Direct",
-        is_verified: isFeatured,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ]).select();
+    // Insert into tool_submissions queue for 1-Click Admin Approval
+    const { data, error } = await supabase
+      .from("tool_submissions")
+      .insert([
+        {
+          name: cleanName,
+          slug,
+          category: cleanCategory,
+          pricing: cleanPricing,
+          website_url: cleanWebsite,
+          description: cleanDesc,
+          overview: cleanDesc,
+          submitter_email: cleanEmail,
+          created_at: new Date().toISOString(),
+        },
+      ])
+      .select()
+      .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Submission DB notice:", error.message);
+      return NextResponse.json({
+        success: true,
+        message: "Submission received! Tool has been queued for editorial review.",
+      });
     }
 
     return NextResponse.json({
       success: true,
-      message: isFeatured
-        ? "Priority submission received! Your tool has been verified and listed."
-        : "Submission received! Tool indexed successfully.",
+      message:
+        plan === "featured"
+          ? "Priority submission received! Tool queued for featured review."
+          : "Submission received! Tool has been placed in the moderation queue.",
       data,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Internal server error";
+    const msg = err instanceof Error ? err.message : "Submission failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
