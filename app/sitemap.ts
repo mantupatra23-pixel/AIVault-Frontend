@@ -2,7 +2,9 @@
 import { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://aivault.pp.ua";
+export const dynamic = "force-dynamic";
+
+const SITE_URL = "https://www.aivault.pp.ua";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -48,7 +50,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // Category routes
+  // Canonical Category routes
   const categoryRoutes: MetadataRoute.Sitemap = CATEGORIES.map((cat) => ({
     url: `${SITE_URL}/?cat=${cat}`,
     lastModified: new Date(),
@@ -56,7 +58,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.85,
   }));
 
-  // Dynamic Tool URLs from Supabase
+  // Canonical Dynamic Tool URLs
   let toolRoutes: MetadataRoute.Sitemap = [];
 
   if (SUPABASE_URL && SUPABASE_KEY) {
