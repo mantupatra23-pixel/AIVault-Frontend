@@ -60,25 +60,22 @@ export async function POST(req: NextRequest) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
 
-    // Safe DB insert schema
+    // Exact matching database schema
     const insertPayload: Record<string, unknown> = {
       name: cleanName,
       slug,
       category: cleanCategory,
       pricing: cleanPricing,
       website_url: cleanWebsite,
-      website: cleanWebsite,
       description: cleanDesc,
       overview: cleanDesc,
       score: plan === "featured" ? 96 : 90,
       affiliate_status: "pending_submission",
       affiliate_network: email ? `Email: ${email}` : "Direct",
-      created_at: new Date().toISOString(),
     };
 
     if (cleanLogo) {
       insertPayload.logo_url = cleanLogo;
-      insertPayload.logo = cleanLogo;
     }
 
     const { data, error } = await supabase
