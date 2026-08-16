@@ -16,11 +16,6 @@ export const metadata: Metadata = {
     shortcut: "/logo.png",
     apple: "/logo.png",
   },
-  openGraph: {
-    title: "AI Vault — AI Intelligence Directory",
-    description: "Search, compare, and explore 750+ verified AI software platforms.",
-    images: [{ url: "/logo.png", width: 1200, height: 1200, alt: "AI Vault Official Logo" }],
-  },
 };
 
 export default function RootLayout({
@@ -31,10 +26,10 @@ export default function RootLayout({
   return (
     <html lang="en" className="scroll-smooth">
       <head>
-        {/* Google AdSense Script */}
+        {/* Google AdSense Verification Script */}
         <Script
           async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX"
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5180387791450326"
           crossOrigin="anonymous"
           strategy="afterInteractive"
         />
