@@ -2,73 +2,83 @@
 import { MetadataRoute } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://aivault.pp.ua";
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_KEY =
+  process.env.SUPABASE_SERVICE_ROLE_KEY ||
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "";
 
-export const dynamic = "force-dynamic";
+const CATEGORIES = [
+  "productivity",
+  "marketing",
+  "coding",
+  "chatbot",
+  "image",
+  "writing",
+  "audio",
+  "video",
+];
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://aivault.pp.ua";
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  const { data: tools } = await supabase
-    .from("ai_tools")
-    .select("slug, name, updated_at, created_at");
-
   const staticRoutes: MetadataRoute.Sitemap = [
     {
-      url: baseUrl,
+      url: `${SITE_URL}`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
-      url: `${baseUrl}/compare`,
+      url: `${SITE_URL}/compare`,
       lastModified: new Date(),
-      changeFrequency: "weekly",
-      priority: 0.85,
+      changeFrequency: "daily",
+      priority: 0.9,
     },
     {
-      url: `${baseUrl}/find`,
+      url: `${SITE_URL}/submit`,
       lastModified: new Date(),
       changeFrequency: "weekly",
-      priority: 0.85,
+      priority: 0.8,
     },
     {
-      url: `${baseUrl}/vault`,
+      url: `${SITE_URL}/vault`,
       lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.7,
     },
   ];
 
-  const categories = [
-    "marketing",
-    "productivity",
-    "chatbot",
-    "coding",
-    "image",
-    "writing",
-    "audio",
-    "video",
-  ];
-
-  const categoryRoutes: MetadataRoute.Sitemap = categories.map((cat) => ({
-    url: `${baseUrl}/category/${cat}`,
+  // Category routes
+  const categoryRoutes: MetadataRoute.Sitemap = CATEGORIES.map((cat) => ({
+    url: `${SITE_URL}/?cat=${cat}`,
     lastModified: new Date(),
     changeFrequency: "daily",
-    priority: 0.8,
+    priority: 0.85,
   }));
 
-  const toolRoutes: MetadataRoute.Sitemap = (tools || []).map((t) => {
-    const slug = t.slug || t.name || "";
-    return {
-      url: `${baseUrl}/tool/${encodeURIComponent(slug)}`,
-      lastModified: t.updated_at ? new Date(t.updated_at) : new Date(),
-      changeFrequency: "weekly",
-      priority: 0.9,
-    };
-  });
+  // Dynamic Tool URLs from Supabase
+  let toolRoutes: MetadataRoute.Sitemap = [];
+
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+      const { data: tools } = await supabase
+        .from("ai_tools")
+        .select("slug, updated_at")
+        .not("slug", "is", null);
+
+      if (tools && tools.length > 0) {
+        toolRoutes = tools.map((tool) => ({
+          url: `${SITE_URL}/tool/${encodeURIComponent(tool.slug)}`,
+          lastModified: tool.updated_at ? new Date(tool.updated_at) : new Date(),
+          changeFrequency: "weekly",
+          priority: 0.8,
+        }));
+      }
+    } catch (err) {
+      console.error("Sitemap generation error:", err);
+    }
+  }
 
   return [...staticRoutes, ...categoryRoutes, ...toolRoutes];
 }

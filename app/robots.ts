@@ -1,6 +1,7 @@
-import type { MetadataRoute } from "next";
+// app/robots.ts
+import { MetadataRoute } from "next";
 
-const SITE_URL = "https://aivault.pp.ua";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://aivault.pp.ua";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -8,15 +9,9 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: [
-          "/api/",
-          "/admin/",
-          "/private/",
-        ],
+        disallow: ["/admin", "/api/"],
       },
     ],
-
     sitemap: `${SITE_URL}/sitemap.xml`,
-    host: SITE_URL,
   };
 }

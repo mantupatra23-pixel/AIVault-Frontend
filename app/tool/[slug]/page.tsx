@@ -52,6 +52,11 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
 
+  // Price Alert Lead State
+  const [alertEmail, setAlertEmail] = useState("");
+  const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [alertMsg, setAlertMsg] = useState("");
+
   useEffect(() => {
     if (typeof window !== "undefined" && rawSlug) {
       try {
@@ -123,7 +128,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
-  // DIRECT DESTINATION URL
   const destinationUrl = useMemo(() => {
     let raw = tool?.affiliate_url?.trim() || tool?.website_url?.trim() || tool?.website?.trim() || "";
     if (!raw) return `/go/${encodeURIComponent(rawSlug)}`;
@@ -133,7 +137,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     return raw;
   }, [tool, rawSlug]);
 
-  // Background Click Tracker
   const handleOutboundClick = () => {
     if (!tool) return;
     try {
@@ -144,6 +147,34 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       }).catch(() => {});
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handlePriceAlertSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!alertEmail || !alertEmail.includes("@")) return;
+
+    try {
+      setAlertStatus("loading");
+      const res = await fetch("/api/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: alertEmail,
+          source: `tool_price_alert`,
+          tool_slug: rawSlug,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Subscription failed");
+
+      setAlertStatus("success");
+      setAlertMsg(`✓ Tracking enabled! We will notify you of discounts & major updates for ${toolName}.`);
+      setAlertEmail("");
+    } catch (err: unknown) {
+      setAlertStatus("error");
+      setAlertMsg(err instanceof Error ? err.message : "Failed to subscribe.");
     }
   };
 
@@ -306,7 +337,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
 
-            {/* DIRECT OUTBOUND BUTTON */}
             <a
               href={destinationUrl}
               onClick={handleOutboundClick}
@@ -430,6 +460,46 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               </div>
             )}
           </div>
+        </section>
+
+        {/* INLINE PRICE DROP & UPDATE ALERT WIDGET */}
+        <section className="mt-6 rounded-3xl border border-blue-200/80 bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white shadow-md">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white mb-2">
+                🔔 Price & Feature Tracker
+              </span>
+              <h2 className="text-lg font-black sm:text-xl">
+                Get Deal Alerts & Version Updates for {toolName}
+              </h2>
+              <p className="mt-1 text-xs text-blue-100 max-w-lg leading-relaxed">
+                Receive instant email alerts whenever {toolName} updates its pricing model, releases new capabilities, or offers promotional discounts.
+              </p>
+            </div>
+
+            <form onSubmit={handlePriceAlertSubmit} className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+              <input
+                type="email"
+                required
+                placeholder="Enter your email..."
+                value={alertEmail}
+                onChange={(e) => setAlertEmail(e.target.value)}
+                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs text-white placeholder:text-blue-200 outline-none focus:bg-white/20 min-w-[240px]"
+              />
+              <button
+                type="submit"
+                disabled={alertStatus === "loading"}
+                className="rounded-xl bg-white px-5 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-50 transition shadow-sm disabled:opacity-50"
+              >
+                {alertStatus === "loading" ? "Setting Alert..." : "Enable Alert 🔔"}
+              </button>
+            </form>
+          </div>
+          {alertMsg && (
+            <p className={`mt-3 text-xs font-bold ${alertStatus === "success" ? "text-emerald-200" : "text-rose-200"}`}>
+              {alertMsg}
+            </p>
+          )}
         </section>
 
         {/* PROMPT PLAYBOOK */}
@@ -778,7 +848,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </section>
         )}
 
-        {/* BOTTOM CTA BANNER (DIRECT OUTBOUND) */}
+        {/* BOTTOM CTA BANNER */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
@@ -805,13 +875,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             </Link>
           </div>
         </section>
-
-        <footer className="mt-12 border-t border-slate-200 pt-6 text-center text-[10px] text-slate-400">
-          © 2026 AI Vault. Discover, compare, and scale with verified artificial intelligence software.
-        </footer>
       </div>
 
-      {/* STICKY BOTTOM DOCK (DIRECT OUTBOUND) */}
+      {/* STICKY BOTTOM DOCK */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
