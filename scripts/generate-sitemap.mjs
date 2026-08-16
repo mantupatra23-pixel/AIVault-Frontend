@@ -49,10 +49,9 @@ const CATEGORIES = [
   "video",
 ];
 
-// Clean control characters and escape XML
 function cleanXml(str) {
   return String(str || "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove hidden control characters
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -61,21 +60,16 @@ function cleanXml(str) {
 }
 
 async function run() {
-  console.log("Generating strict XML sitemap...");
   const today = new Date().toISOString().split("T")[0];
 
   const staticUrls = [
-    { loc: `${SITE_URL}`, priority: "1.0", changefreq: "daily" },
-    { loc: `${SITE_URL}/compare`, priority: "0.9", changefreq: "daily" },
-    { loc: `${SITE_URL}/submit`, priority: "0.8", changefreq: "weekly" },
-    { loc: `${SITE_URL}/vault`, priority: "0.7", changefreq: "weekly" },
+    `${SITE_URL}/`,
+    `${SITE_URL}/compare`,
+    `${SITE_URL}/submit`,
+    `${SITE_URL}/vault`,
   ];
 
-  const categoryUrls = CATEGORIES.map((cat) => ({
-    loc: `${SITE_URL}/?cat=${encodeURIComponent(cat)}`,
-    priority: "0.85",
-    changefreq: "daily",
-  }));
+  const categoryUrls = CATEGORIES.map((cat) => `${SITE_URL}/?cat=${cat}`);
 
   let toolUrls = [];
 
@@ -94,46 +88,37 @@ async function run() {
             const cleanSlug = encodeURIComponent(
               String(t.slug).trim().toLowerCase().replace(/[^a-z0-9-_]/g, "")
             );
-            return {
-              loc: `${SITE_URL}/tool/${cleanSlug}`,
-              lastmod: t.updated_at ? String(t.updated_at).split("T")[0] : today,
-              priority: "0.80",
-              changefreq: "weekly",
-            };
+            return `${SITE_URL}/tool/${cleanSlug}`;
           });
       }
     } catch (err) {
-      console.warn("Supabase fetch warning:", err);
+      console.warn("Supabase fetch error:", err);
     }
   }
 
-  const xmlEntries = [
-    ...staticUrls.map(
-      (u) =>
-        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
-    ),
-    ...categoryUrls.map(
-      (u) =>
-        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
-    ),
-    ...toolUrls.map(
-      (u) =>
-        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
-    ),
-  ].join("\n");
-
-  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlEntries}\n</urlset>\n`;
+  const allUrlsList = [...staticUrls, ...categoryUrls, ...toolUrls];
 
   const publicDir = path.join(process.cwd(), "public");
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  const outputPath = path.join(publicDir, "sitemap.xml");
-  fs.writeFileSync(outputPath, xmlContent, { encoding: "utf8" });
+  // 1. Generate Plain Text Sitemap (sitemap.txt)
+  const txtContent = allUrlsList.join("\n");
+  fs.writeFileSync(path.join(publicDir, "sitemap.txt"), txtContent, "utf8");
 
-  const total = staticUrls.length + categoryUrls.length + toolUrls.length;
-  console.log(`✓ Clean sanitized sitemap created with ${total} valid URLs at public/sitemap.xml`);
+  // 2. Generate XML Sitemap (sitemap.xml)
+  const xmlEntries = allUrlsList
+    .map(
+      (url) =>
+        `  <url>\n    <loc>${cleanXml(url)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`
+    )
+    .join("\n");
+
+  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlEntries}\n</urlset>\n`;
+  fs.writeFileSync(path.join(publicDir, "sitemap.xml"), xmlContent, "utf8");
+
+  console.log(`✓ Created public/sitemap.txt and public/sitemap.xml with ${allUrlsList.length} URLs`);
 }
 
 run();
