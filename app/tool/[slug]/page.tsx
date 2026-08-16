@@ -60,6 +60,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [alertMsg, setAlertMsg] = useState("");
 
+  // FAQ Accordion State
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
+
   useEffect(() => {
     if (typeof window !== "undefined" && rawSlug) {
       try {
@@ -219,6 +222,28 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     ];
   }, [category, toolName]);
 
+  // Frequently Asked Questions & Answers
+  const faqList = useMemo(() => {
+    return [
+      {
+        q: `Is ${toolName} free to use or does it require a subscription?`,
+        a: `${toolName} operates under a ${pricing} pricing structure. Users can explore foundational features at zero cost or test available tier options before upgrading to premium commercial access.`,
+      },
+      {
+        q: `What is the primary use case of ${toolName}?`,
+        a: `${toolName} is built specifically for ${category.toLowerCase()} workflows. It enables solo founders, developers, and enterprise operators to automate tasks, minimize latency, and scale content or operational throughput.`,
+      },
+      {
+        q: `How is the AI Vault Score of ${formattedScore} calculated?`,
+        a: `The AI Vault Score (${formattedScore}) is determined using our multi-vector neural index, assessing response speed, integration availability, output accuracy, and user sentiment across production deployments.`,
+      },
+      {
+        q: `Can I integrate ${toolName} into my existing team stack?`,
+        a: `Yes, ${toolName} is deployable via ${deployment} and supports standardized modern API handoffs, browser workspaces, and multi-user collaboration.`,
+      },
+    ];
+  }, [toolName, category, pricing, formattedScore, deployment]);
+
   const handleUpvote = () => {
     if (upvoted) {
       setUpvoteCount((prev) => prev - 1);
@@ -320,6 +345,13 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
             <Link
+              href="/matcher"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>⚡ Matcher</span>
+            </Link>
+
+            <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
@@ -333,9 +365,16 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               <span>★ Vault</span>
             </Link>
 
+            <Link
+              href="/submit"
+              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition"
+            >
+              <span>+ Submit</span>
+            </Link>
+
             <button
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
             >
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
@@ -615,8 +654,50 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           )}
         </section>
 
-        {/* REVIEWS & COMMUNITY FEEDBACK */}
+        {/* REVIEWS & COMMUNITY SENTIMENT */}
         <ToolReviews toolSlug={rawSlug} toolName={toolName} />
+
+        {/* Q&A / FREQUENTLY ASKED QUESTIONS SECTION */}
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
+              💡 Intelligence Q&A
+            </span>
+          </div>
+          <h2 className="text-lg font-black text-slate-950">
+            Frequently Asked Questions & Answers about {toolName}
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Common questions regarding pricing, API connectivity, and workflow integration.
+          </p>
+
+          <div className="mt-6 space-y-3">
+            {faqList.map((item, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden transition"
+                >
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : idx)}
+                    className="w-full p-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600"
+                  >
+                    <span>{item.q}</span>
+                    <span className="text-base text-slate-400 font-black shrink-0">
+                      {isOpen ? "−" : "+"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 text-xs text-slate-600 leading-relaxed border-t border-slate-200/60 pt-3 bg-white">
+                      {item.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
 
         {/* ABOUT SECTION */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
