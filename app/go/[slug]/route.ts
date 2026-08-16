@@ -12,50 +12,16 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-// Curated Top-Tier AI Platforms Mapping
-const TOP_KNOWN_PLATFORMS: Record<string, string> = {
-  investorfinder: "https://www.producthunt.com/products/investorfinder",
-  "tailgrids-3-0": "https://tailgrids.com",
-  "claude-share": "https://claude.ai",
-  buggyverse: "https://www.producthunt.com/products/buggyverse",
-  "ntsc-rs": "https://github.com/ntsc-rs",
-  "angel-match-4-0": "https://angelmatch.io",
-  folio: "https://www.producthunt.com/products/folio",
-  dropmatico: "https://www.producthunt.com/products/dropmatico",
-  termique: "https://www.producthunt.com/products/termique",
-  brainflow: "https://brainflow.org",
-  clade: "https://www.producthunt.com/products/clade",
-  metal: "https://getmetal.io",
-  auriko: "https://www.producthunt.com/products/auriko",
-  eqk: "https://www.producthunt.com/products/eqk",
-  acebuilder: "https://www.producthunt.com/products/acebuilder",
-  "docusynth-ai": "https://docusynth.ai",
-  "promptengine-pro": "https://promptengine.pro",
-  audiencepulse: "https://audiencepulse.io",
-  "visiongrid-3d": "https://visiongrid3d.com",
-  "voicecraft-studio": "https://voicecraft.studio",
-  "scriptflow-ai": "https://scriptflow.ai",
-  "codepulse-radar": "https://codepulse.dev",
-  "castframe-ai": "https://castframe.ai",
-  "botscribe-live": "https://botscribe.live",
-  "leadnova-ai": "https://leadnova.ai",
-  chatgpt: "https://chatgpt.com",
-  midjourney: "https://www.midjourney.com",
-  cursor: "https://www.cursor.com",
-  v0: "https://v0.dev",
-  perplexity: "https://www.perplexity.ai",
-};
+function sanitizeDestination(rawUrl?: string | null, fallbackSlug: string = ""): string {
+  let target = (rawUrl || "").trim();
 
-function formatAndSanitizeUrl(rawTarget: string, fallbackSlug: string): string {
-  let target = (rawTarget || "").trim();
-
-  // If empty or obvious fake guessed domain, fallback to clean producthunt launch entry
+  // If empty or broken synthetic placeholder, fallback safely
   if (!target || target.includes(".ai/?ref=") || target.includes(".co/?ref=")) {
-    const clean = fallbackSlug.replace(/[^a-z0-9-]/g, "");
-    return `https://www.producthunt.com/products/${clean}`;
+    const cleanSlug = fallbackSlug.replace(/[^a-z0-9-]/g, "");
+    return `https://www.producthunt.com/products/${cleanSlug}`;
   }
 
-  // Ensure protocol is present
+  // Ensure valid HTTP/HTTPS protocol prefix
   if (!target.startsWith("http://") && !target.startsWith("https://")) {
     target = `https://${target}`;
   }
@@ -74,15 +40,8 @@ export async function GET(
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Instant redirect for high-priority curated entries
-  if (TOP_KNOWN_PLATFORMS[rawSlug]) {
-    return NextResponse.redirect(TOP_KNOWN_PLATFORMS[rawSlug], { status: 307 });
-  }
-
   if (!SUPABASE_URL || !SUPABASE_KEY) {
-    return NextResponse.redirect(
-      new URL(`https://www.producthunt.com/products/${rawSlug}`, request.url)
-    );
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -101,7 +60,7 @@ export async function GET(
       );
     }
 
-    // Increment click counter in background
+    // Increment click telemetry in background
     const currentClicks = Number(tool.click_count || 0);
     supabase
       .from("ai_tools")
@@ -112,17 +71,16 @@ export async function GET(
       .eq("id", tool.id)
       .then(() => {});
 
-    // Determine target URL: 1. Affiliate -> 2. Website -> 3. Fallback
+    // Priority: 1. Manual Affiliate URL -> 2. Official Website URL -> 3. Fallback
     const candidateUrl =
-      tool.affiliate_url?.trim() ||
-      tool.website_url?.trim() ||
-      tool.website?.trim() ||
-      "";
+      tool.affiliate_url && tool.affiliate_url.trim().length > 0
+        ? tool.affiliate_url
+        : tool.website_url || tool.website || "";
 
-    const destination = formatAndSanitizeUrl(candidateUrl, tool.slug || rawSlug);
+    const destination = sanitizeDestination(candidateUrl, tool.slug || rawSlug);
     return NextResponse.redirect(destination, { status: 307 });
   } catch (err) {
-    console.error("Redirect Error:", err);
+    console.error("Outbound Redirect Error:", err);
     return NextResponse.redirect(
       new URL(`https://www.producthunt.com/products/${rawSlug}`, request.url)
     );
