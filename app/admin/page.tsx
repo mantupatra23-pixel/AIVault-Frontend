@@ -23,6 +23,14 @@ type ToolRecord = {
   [key: string]: unknown;
 };
 
+type SubscriberRecord = {
+  id: string | number;
+  email: string;
+  source?: string | null;
+  tool_slug?: string | null;
+  created_at: string;
+};
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -56,16 +64,17 @@ export default function AdminPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  // PIN Reset & Change State
+  // PIN Reset State
   const [showResetModal, setShowResetModal] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState("");
   const [newPinInput, setNewPinInput] = useState("");
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
 
-  // Tab & Directory State
-  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog">("affiliate");
+  // Tabs & Data State
+  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "subscribers">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
+  const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -94,7 +103,6 @@ export default function AdminPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Helper to get active PIN
   const getCurrentPin = () => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("aivault_admin_pin") || "2026";
@@ -102,7 +110,6 @@ export default function AdminPage() {
     return "2026";
   };
 
-  // Check saved session login
   useEffect(() => {
     if (typeof window !== "undefined") {
       const auth = sessionStorage.getItem("aivault_admin_auth");
@@ -115,12 +122,21 @@ export default function AdminPage() {
   async function loadAdminData() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // 1. Fetch Tools
+      const { data: toolsData, error: toolsErr } = await supabase
         .from("ai_tools")
         .select("*")
         .order("name", { ascending: true });
-      if (error) throw error;
-      setTools((data as ToolRecord[]) || []);
+      if (toolsErr) console.error("Tools fetch error:", toolsErr);
+      setTools((toolsData as ToolRecord[]) || []);
+
+      // 2. Fetch Email Subscribers
+      const { data: subsData, error: subsErr } = await supabase
+        .from("subscribers")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (subsErr) console.error("Subscribers fetch error:", subsErr);
+      setSubscribers((subsData as SubscriberRecord[]) || []);
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -161,7 +177,7 @@ export default function AdminPage() {
     setResetErrorMsg(null);
 
     if (recoveryInput.trim() !== MASTER_RECOVERY_KEY && recoveryInput.trim() !== getCurrentPin()) {
-      setResetErrorMsg("Invalid Recovery Key. Default Master Key is: RESET2026");
+      setResetErrorMsg("Invalid Recovery Key. Master Key is: RESET2026");
       return;
     }
 
@@ -375,6 +391,43 @@ export default function AdminPage() {
     }
   };
 
+  // Delete Subscriber Handler
+  const handleDeleteSubscriber = async (id: string | number) => {
+    if (!confirm("Are you sure you want to delete this subscriber?")) return;
+    try {
+      const { error } = await supabase.from("subscribers").delete().eq("id", id);
+      if (error) throw error;
+      setSubscribers((prev) => prev.filter((s) => s.id !== id));
+      showToast("Subscriber removed.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete subscriber.");
+    }
+  };
+
+  // CSV Export Handler
+  const handleExportCSV = () => {
+    if (subscribers.length === 0) {
+      alert("No subscribers to export.");
+      return;
+    }
+    const headers = "Email,Source,Subscribed Date\n";
+    const rows = subscribers
+      .map(
+        (s) =>
+          `"${s.email}","${s.source || "global_footer"}","${new Date(s.created_at).toISOString()}"`
+      )
+      .join("\n");
+    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `aivault_subscribers_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   // PASSCODE LOCK SCREEN
   if (!isAuthenticated) {
     return (
@@ -564,7 +617,7 @@ export default function AdminPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Navigation Tabs */}
-        <div className="flex items-center gap-2 border-b border-slate-800 pb-4 mb-8">
+        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-4 mb-8">
           <button
             onClick={() => setActiveTab("affiliate")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
@@ -585,6 +638,17 @@ export default function AdminPage() {
             }`}
           >
             🛠️ Catalog & Tool Manager ({tools.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab("subscribers")}
+            className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+              activeTab === "subscribers"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            📧 Email Leads ({subscribers.length})
           </button>
         </div>
 
@@ -852,9 +916,80 @@ export default function AdminPage() {
             </div>
           </section>
         )}
+
+        {/* TAB 3: EMAIL LEADS & SUBSCRIBERS */}
+        {activeTab === "subscribers" && (
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-lg font-black text-white">Email Leads & Subscribers ({subscribers.length})</h2>
+                <p className="text-xs text-slate-400">Captured through global footer and price alert forms</p>
+              </div>
+
+              <button
+                onClick={handleExportCSV}
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-600/20"
+              >
+                📥 Export to CSV
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading subscriber list...</div>
+            ) : subscribers.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[650px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      <th className="pb-3">Subscriber Email</th>
+                      <th className="pb-3">Source Channel</th>
+                      <th className="pb-3">Subscribed Date</th>
+                      <th className="pb-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-xs">
+                    {subscribers.map((sub) => (
+                      <tr key={sub.id} className="hover:bg-slate-900/40 transition">
+                        <td className="py-3.5 pr-4 font-bold text-white">
+                          {sub.email}
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-blue-400">
+                            {sub.source || "global_footer"}
+                          </span>
+                        </td>
+                        <td className="py-3.5 pr-4 text-slate-400">
+                          {new Date(sub.created_at).toLocaleDateString("en-US", {
+                            year: "numeric",
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </td>
+                        <td className="py-3.5 text-right">
+                          <button
+                            onClick={() => handleDeleteSubscriber(sub.id)}
+                            className="rounded-lg bg-rose-600/20 border border-rose-600/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center text-xs text-slate-500">
+                No email subscribers collected yet.
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
-      {/* CONFIGURE MODAL WITH REMOVE AFFILIATE BUTTON */}
+      {/* CONFIGURE MODAL */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -1063,7 +1198,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* CHANGE PIN MODAL (INSIDE DASHBOARD) */}
+      {/* CHANGE PIN MODAL */}
       {showResetModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
