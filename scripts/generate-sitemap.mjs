@@ -65,6 +65,18 @@ async function generate() {
     xml += `  </url>\n`;
   });
 
+  // Programmatic Top Comparison SEO Routes
+  for (let i = 0; i < Math.min(toolSlugs.length - 1, 60); i += 2) {
+    const s1 = encodeURIComponent(String(toolSlugs[i].slug));
+    const s2 = encodeURIComponent(String(toolSlugs[i + 1].slug));
+    xml += `  <url>\n`;
+    xml += `    <loc>${DOMAIN}/vs/${s1}-vs-${s2}</loc>\n`;
+    xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
+    xml += `    <changefreq>weekly</changefreq>\n`;
+    xml += `    <priority>0.85</priority>\n`;
+    xml += `  </url>\n`;
+  }
+
   xml += `</urlset>`;
 
   const publicDir = path.join(process.cwd(), "public");
