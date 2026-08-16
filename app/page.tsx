@@ -23,6 +23,8 @@ type ToolRecord = {
   ai_vault_score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
+  website_url?: string | null;
+  website?: string | null;
   is_featured?: boolean | null;
   featured?: boolean | null;
   affiliate_status?: string | null;
@@ -67,6 +69,7 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   const category = String(tool.category || "AI Tool");
   const pricing = String(tool.pricing_type || tool.pricing || "Freemium");
   const featured = isToolFeatured(tool);
+  const website = String(tool.website_url || tool.website || "");
 
   const rawDesc = String(tool.description || tool.overview || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
@@ -102,7 +105,13 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
       <div>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <ToolLogo src={logo} name={name} size="md" />
+            <ToolLogo
+              src={logo}
+              name={name}
+              website={website}
+              slug={slug}
+              size="md"
+            />
             <div className="min-w-0">
               <h3 className="truncate text-sm font-black text-slate-950 group-hover:text-blue-600 transition-colors">
                 {name}
@@ -378,7 +387,7 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Featured Spotlight */}
+      {/* Featured AI Spotlight Shelf */}
       {spotlightTools.length > 0 && !search && selectedCat === "All" && (
         <section className="border-b border-slate-200/80 bg-gradient-to-r from-slate-950 via-[#070b1e] to-slate-950 py-8 px-4 sm:px-8 text-white">
           <div className="mx-auto max-w-7xl">
@@ -409,6 +418,8 @@ function HomeContent() {
                       <ToolLogo
                         src={tool.logo_url as string}
                         name={String(tool.name)}
+                        website={String(tool.website_url || tool.website || "")}
+                        slug={String(tool.slug || "")}
                         size="sm"
                       />
                       <div className="min-w-0">
@@ -434,7 +445,7 @@ function HomeContent() {
         </section>
       )}
 
-      {/* Comparisons Shelf */}
+      {/* Programmatic Head-to-Head Comparisons */}
       {popularComparisons.length > 0 && !search && selectedCat === "All" && (
         <section className="border-b border-slate-200/80 bg-white py-8 px-4 sm:px-8">
           <div className="mx-auto max-w-7xl">
@@ -474,6 +485,8 @@ function HomeContent() {
                         <ToolLogo
                           src={toolA.logo_url as string}
                           name={nameA}
+                          website={String(toolA.website_url || toolA.website || "")}
+                          slug={String(toolA.slug || "")}
                           size="sm"
                         />
                         <span className="truncate text-xs font-black text-slate-900">
@@ -490,6 +503,8 @@ function HomeContent() {
                         <ToolLogo
                           src={toolB.logo_url as string}
                           name={nameB}
+                          website={String(toolB.website_url || toolB.website || "")}
+                          slug={String(toolB.slug || "")}
                           size="sm"
                         />
                       </div>
