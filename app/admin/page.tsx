@@ -106,20 +106,36 @@ export default function AdminPage() {
     return { total, active, pending, clicks, revenue };
   }, [tools]);
 
+  // Open Configure Modal with Auto-Filled Value
+  const handleOpenConfigure = (t: ToolRecord) => {
+    setSelectedTool(t);
+    // If affiliate_url exists, use it. Otherwise auto-suggest with ?ref=aivault
+    if (t.affiliate_url && t.affiliate_url.trim().length > 0) {
+      setEditAffiliateUrl(t.affiliate_url.trim());
+    } else {
+      const base = t.website_url || `https://${t.slug || "tool"}.com`;
+      const separator = base.includes("?") ? "&" : "?";
+      setEditAffiliateUrl(`${base}${separator}ref=aivault`);
+    }
+    setEditNetwork(t.affiliate_network || "Direct");
+  };
+
   const handleSaveAffiliate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTool) return;
 
     try {
       setSaving(true);
-      
+      const urlToSave = editAffiliateUrl.trim();
+
       const res = await fetch("/api/admin/update-tool", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: selectedTool.id,
           slug: selectedTool.slug,
-          affiliate_url: editAffiliateUrl.trim(),
+          name: selectedTool.name,
+          affiliate_url: urlToSave,
           affiliate_network: editNetwork,
         }),
       });
@@ -131,7 +147,7 @@ export default function AdminPage() {
 
       await loadAdminData();
       setSelectedTool(null);
-      showToast(`✓ Affiliate URL saved for ${selectedTool.name}`);
+      showToast(`✓ Monetized URL saved for ${selectedTool.name}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error saving affiliate settings";
       alert(message);
@@ -226,7 +242,7 @@ export default function AdminPage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Navigation Tabs */}
+        {/* Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-800 pb-4 mb-8">
           <button
             onClick={() => setActiveTab("affiliate")}
@@ -250,7 +266,7 @@ export default function AdminPage() {
         {/* TAB 1: AFFILIATE COMMAND CENTER */}
         {activeTab === "affiliate" && (
           <div>
-            {/* METRICS ROW */}
+            {/* METRICS */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Directory</p>
@@ -384,11 +400,7 @@ export default function AdminPage() {
                               </a>
 
                               <button
-                                onClick={() => {
-                                  setSelectedTool(t);
-                                  setEditAffiliateUrl(t.affiliate_url || "");
-                                  setEditNetwork(t.affiliate_network || "Direct");
-                                }}
+                                onClick={() => handleOpenConfigure(t)}
                                 className="rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-black text-white hover:bg-blue-700 transition"
                               >
                                 CONFIGURE
@@ -493,7 +505,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL */}
+      {/* CONFIGURE MODAL (WITH LIVE ACTIVE PREFILL) */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -519,15 +531,18 @@ export default function AdminPage() {
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase text-blue-400 mb-1 block">Monetized Affiliate Redirect URL</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[10px] font-black uppercase text-blue-400">Monetized Affiliate Redirect URL</label>
+                  <span className="text-[9px] font-bold text-emerald-400">✓ Editable Active Value</span>
+                </div>
                 <input
                   type="text"
-                  placeholder="Paste URL (e.g. https://investorfinder.com/?ref=aivault)"
+                  required
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
+                <p className="text-[10px] text-slate-400 mt-1">
                   Clicks to `/go/{selectedTool.slug}` route automatically to this destination.
                 </p>
               </div>
@@ -632,7 +647,7 @@ export default function AdminPage() {
                     placeholder="https://example.ai"
                     value={formWebsite}
                     onChange={(e) => setFormWebsite(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
                   />
                 </div>
 
@@ -644,7 +659,7 @@ export default function AdminPage() {
                     max="99"
                     value={formScore}
                     onChange={(e) => setFormScore(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
                   />
                 </div>
               </div>
