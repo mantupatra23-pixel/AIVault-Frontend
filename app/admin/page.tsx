@@ -64,14 +64,14 @@ export default function AdminPage() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  // PIN Reset State
+  // PIN Reset & Change State
   const [showResetModal, setShowResetModal] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState("");
   const [newPinInput, setNewPinInput] = useState("");
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
 
-  // Tabs & Data State
+  // Tabs & Directory State
   const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "subscribers">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
@@ -122,21 +122,17 @@ export default function AdminPage() {
   async function loadAdminData() {
     try {
       setLoading(true);
-      // 1. Fetch Tools
-      const { data: toolsData, error: toolsErr } = await supabase
+      // Fetch Tools
+      const { data: toolsData } = await supabase
         .from("ai_tools")
         .select("*")
         .order("name", { ascending: true });
-      if (toolsErr) console.error("Tools fetch error:", toolsErr);
       setTools((toolsData as ToolRecord[]) || []);
 
-      // 2. Fetch Email Subscribers
-      const { data: subsData, error: subsErr } = await supabase
-        .from("subscribers")
-        .select("*")
-        .order("created_at", { ascending: false });
-      if (subsErr) console.error("Subscribers fetch error:", subsErr);
-      setSubscribers((subsData as SubscriberRecord[]) || []);
+      // Fetch Subscribers via Server API Route (Bypasses RLS blocks)
+      const res = await fetch("/api/admin/subscribers");
+      const data = await res.json();
+      setSubscribers(data.subscribers || []);
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -391,21 +387,23 @@ export default function AdminPage() {
     }
   };
 
-  // Delete Subscriber Handler
   const handleDeleteSubscriber = async (id: string | number) => {
     if (!confirm("Are you sure you want to delete this subscriber?")) return;
     try {
-      const { error } = await supabase.from("subscribers").delete().eq("id", id);
-      if (error) throw error;
+      const res = await fetch("/api/admin/subscribers", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("Delete failed");
       setSubscribers((prev) => prev.filter((s) => s.id !== id));
-      showToast("Subscriber removed.");
+      showToast("Subscriber deleted.");
     } catch (err) {
       console.error(err);
       alert("Failed to delete subscriber.");
     }
   };
 
-  // CSV Export Handler
   const handleExportCSV = () => {
     if (subscribers.length === 0) {
       alert("No subscribers to export.");
