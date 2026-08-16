@@ -11,32 +11,23 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-interface ReviewPayload {
-  tool_slug: string;
-  author_name: string;
-  rating: number;
-  comment: string;
-}
-
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const slug = searchParams.get("slug");
-
-    if (!slug) {
-      return NextResponse.json({ error: "Slug is required" }, { status: 400 });
-    }
+    const all = searchParams.get("all");
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    const { data: reviews, error } = await supabase
-      .from("tool_reviews")
-      .select("*")
-      .eq("tool_slug", slug)
-      .order("created_at", { ascending: false });
+    let query = supabase.from("tool_reviews").select("*").order("created_at", { ascending: false });
+
+    if (slug && !all) {
+      query = query.eq("tool_slug", slug);
+    }
+
+    const { data: reviews, error } = await query.limit(200);
 
     if (error) {
-      // Table agar na bani ho toh graceful empty array return karein
       return NextResponse.json({ reviews: [] });
     }
 
@@ -49,21 +40,17 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const body: ReviewPayload = await req.json();
+    const body = await req.json();
     const { tool_slug, author_name, rating, comment } = body;
 
     if (!tool_slug || !author_name || !rating || !comment) {
-      return NextResponse.json(
-        { error: "All review fields are required." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "All fields are required" }, { status: 400 });
     }
 
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     const numRating = Math.min(5, Math.max(1, Number(rating) || 5));
     const cleanAuthor = String(author_name).trim().slice(0, 40);
     const cleanComment = String(comment).trim().slice(0, 500);
-
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const { data, error } = await supabase
       .from("tool_reviews")
@@ -80,25 +67,41 @@ export async function POST(req: Request) {
       .single();
 
     if (error) {
-      return NextResponse.json(
-        {
-          success: true,
-          review: {
-            id: Date.now().toString(),
-            tool_slug,
-            author_name: cleanAuthor,
-            rating: numRating,
-            comment: cleanComment,
-            created_at: new Date().toISOString(),
-          },
+      return NextResponse.json({
+        success: true,
+        review: {
+          id: Date.now().toString(),
+          tool_slug,
+          author_name: cleanAuthor,
+          rating: numRating,
+          comment: cleanComment,
+          created_at: new Date().toISOString(),
         },
-        { status: 200 }
-      );
+      });
     }
 
     return NextResponse.json({ success: true, review: data });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Submission failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ error: "Review ID is required" }, { status: 400 });
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    await supabase.from("tool_reviews").delete().eq("id", id);
+
+    return NextResponse.json({ success: true });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : "Delete failed";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

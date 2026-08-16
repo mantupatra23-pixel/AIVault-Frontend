@@ -31,6 +31,15 @@ type SubscriberRecord = {
   created_at: string;
 };
 
+type ReviewRecord = {
+  id: string | number;
+  tool_slug: string;
+  author_name: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+};
+
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -72,9 +81,10 @@ export default function AdminPage() {
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
 
   // Tabs & Directory State
-  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "subscribers">("affiliate");
+  const [activeTab, setActiveTab] = useState<"affiliate" | "catalog" | "reviews" | "subscribers">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [subscribers, setSubscribers] = useState<SubscriberRecord[]>([]);
+  const [reviews, setReviews] = useState<ReviewRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -122,17 +132,22 @@ export default function AdminPage() {
   async function loadAdminData() {
     try {
       setLoading(true);
-      // Fetch Tools
+      // 1. Fetch Tools
       const { data: toolsData } = await supabase
         .from("ai_tools")
         .select("*")
         .order("name", { ascending: true });
       setTools((toolsData as ToolRecord[]) || []);
 
-      // Fetch Subscribers via Server API Route (Bypasses RLS blocks)
+      // 2. Fetch Subscribers via Server API Route
       const res = await fetch("/api/admin/subscribers");
       const data = await res.json();
       setSubscribers(data.subscribers || []);
+
+      // 3. Fetch All User Reviews
+      const revRes = await fetch("/api/reviews?all=true");
+      const revData = await revRes.json();
+      setReviews(revData.reviews || []);
     } catch (err) {
       console.error("Admin fetch error:", err);
     } finally {
@@ -404,6 +419,21 @@ export default function AdminPage() {
     }
   };
 
+  const handleDeleteReview = async (id: string | number) => {
+    if (!confirm("Are you sure you want to delete this review?")) return;
+    try {
+      const res = await fetch(`/api/reviews?id=${encodeURIComponent(String(id))}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setReviews((prev) => prev.filter((r) => r.id !== id));
+      showToast("Review deleted successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete review.");
+    }
+  };
+
   const handleExportCSV = () => {
     if (subscribers.length === 0) {
       alert("No subscribers to export.");
@@ -636,6 +666,17 @@ export default function AdminPage() {
             }`}
           >
             🛠️ Catalog & Tool Manager ({tools.length})
+          </button>
+
+          <button
+            onClick={() => setActiveTab("reviews")}
+            className={`rounded-xl px-4 py-2 text-xs font-black transition ${
+              activeTab === "reviews"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            ⭐ User Reviews & Ratings ({reviews.length})
           </button>
 
           <button
@@ -915,7 +956,90 @@ export default function AdminPage() {
           </section>
         )}
 
-        {/* TAB 3: EMAIL LEADS & SUBSCRIBERS */}
+        {/* TAB 3: USER REVIEWS & RATINGS */}
+        {activeTab === "reviews" && (
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black text-white">Community Reviews & Sentiment ({reviews.length})</h2>
+                <p className="text-xs text-slate-400">Live submissions submitted by verified users on tool pages</p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={loadAdminData}
+                  className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
+                >
+                  🔄 Refresh Reviews
+                </button>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading reviews...</div>
+            ) : reviews.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-[700px]">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      <th className="pb-3">User / Author</th>
+                      <th className="pb-3">Tool Target</th>
+                      <th className="pb-3">Rating</th>
+                      <th className="pb-3">User Comment / Feedback</th>
+                      <th className="pb-3">Date</th>
+                      <th className="pb-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60 text-xs">
+                    {reviews.map((r) => (
+                      <tr key={r.id} className="hover:bg-slate-900/40 transition">
+                        <td className="py-3.5 pr-4 font-bold text-white whitespace-nowrap">
+                          {r.author_name}
+                        </td>
+                        <td className="py-3.5 pr-4">
+                          <Link
+                            href={`/tool/${encodeURIComponent(r.tool_slug)}`}
+                            target="_blank"
+                            className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 hover:underline"
+                          >
+                            /tool/{r.tool_slug} ↗
+                          </Link>
+                        </td>
+                        <td className="py-3.5 pr-4 whitespace-nowrap">
+                          <span className="text-amber-400 font-bold">
+                            {"★".repeat(r.rating)}
+                            {"☆".repeat(5 - r.rating)}
+                          </span>
+                          <span className="text-[10px] text-slate-400 ml-1">({r.rating}/5)</span>
+                        </td>
+                        <td className="py-3.5 pr-4 text-slate-300 max-w-xs truncate">
+                          &ldquo;{r.comment}&rdquo;
+                        </td>
+                        <td className="py-3.5 pr-4 text-slate-400 text-[10px] whitespace-nowrap">
+                          {r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}
+                        </td>
+                        <td className="py-3.5 text-right">
+                          <button
+                            onClick={() => handleDeleteReview(r.id)}
+                            className="rounded-lg bg-rose-600/20 border border-rose-600/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white transition"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="p-12 text-center text-xs text-slate-500">
+                No user reviews submitted yet.
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* TAB 4: EMAIL LEADS & SUBSCRIBERS */}
         {activeTab === "subscribers" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
