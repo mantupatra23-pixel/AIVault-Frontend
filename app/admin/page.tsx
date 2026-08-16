@@ -38,13 +38,13 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  // Configure Affiliate Modal
+  // Configure Modal
   const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
   const [editAffiliateUrl, setEditAffiliateUrl] = useState("");
   const [editNetwork, setEditNetwork] = useState("Direct");
   const [saving, setSaving] = useState(false);
 
-  // Add / Edit Full Tool Modal
+  // Add/Edit Tool Modal
   const [editingToolRecord, setEditingToolRecord] = useState<ToolRecord | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [formName, setFormName] = useState("");
@@ -89,12 +89,9 @@ export default function AdminPage() {
 
       if (!matchesSearch) return false;
 
-      if (statusFilter === "monetized") {
-        return Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
-      }
-      if (statusFilter === "discovery_required") {
-        return !t.affiliate_url || t.affiliate_url.trim().length === 0;
-      }
+      const isMonetized = Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
+      if (statusFilter === "monetized") return isMonetized;
+      if (statusFilter === "discovery_required") return !isMonetized;
       return true;
     });
   }, [tools, search, statusFilter]);
@@ -115,42 +112,28 @@ export default function AdminPage() {
 
     try {
       setSaving(true);
-      const isMonetized = editAffiliateUrl.trim().length > 0;
-
-      const { error } = await supabase
-        .from("ai_tools")
-        .update({
-          affiliate_url: editAffiliateUrl.trim() || null,
+      
+      const res = await fetch("/api/admin/update-tool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedTool.id,
+          affiliate_url: editAffiliateUrl.trim(),
           affiliate_network: editNetwork,
-          affiliate_status: isMonetized ? "active_monetized" : "discovery_required",
-        })
-        .eq("id", selectedTool.id);
+        }),
+      });
 
-      if (error) throw error;
-
-      setTools((prev) =>
-        prev.map((item) =>
-          item.id === selectedTool.id
-            ? {
-                ...item,
-                affiliate_url: editAffiliateUrl.trim() || null,
-                affiliate_network: editNetwork,
-                affiliate_status: isMonetized ? "active_monetized" : "discovery_required",
-              }
-            : item
-        )
-      );
-
-      // Clear public cache so updates reflect immediately
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("aivault_catalog_cache");
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to update tool");
       }
 
+      await loadAdminData();
       setSelectedTool(null);
       showToast(`✓ Affiliate URL saved for ${selectedTool.name}`);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save affiliate settings.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error saving affiliate settings";
+      alert(message);
     } finally {
       setSaving(false);
     }
@@ -186,10 +169,6 @@ export default function AdminPage() {
         showToast(`✓ Added new tool: ${formName}`);
       }
 
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("aivault_catalog_cache");
-      }
-
       await loadAdminData();
       setIsAddModalOpen(false);
     } catch (err) {
@@ -206,9 +185,6 @@ export default function AdminPage() {
       const { error } = await supabase.from("ai_tools").delete().eq("id", tool.id);
       if (error) throw error;
       setTools((prev) => prev.filter((t) => t.id !== tool.id));
-      if (typeof window !== "undefined") {
-        sessionStorage.removeItem("aivault_catalog_cache");
-      }
       showToast(`Deleted ${tool.name}`);
     } catch (err) {
       console.error(err);
@@ -224,7 +200,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Header Bar */}
+      {/* Header */}
       <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070a1e]/90 backdrop-blur-xl px-4 py-4 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <div className="flex items-center gap-3">
@@ -306,7 +282,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* TABLE SECTION */}
+            {/* TABLE */}
             <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
                 <h2 className="text-lg font-black text-white">Affiliate Links Index</h2>
@@ -397,13 +373,11 @@ export default function AdminPage() {
                             <td className="py-3.5 pr-4 text-slate-400">{t.affiliate_network || "Direct"}</td>
 
                             <td className="py-3.5 text-right space-x-1.5">
-                              {/* DIRECT TEST BUTTON */}
                               <a
                                 href={`/go/${encodeURIComponent(slug)}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-block rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-blue-600 hover:text-white transition"
-                                title="Test redirect directly"
                               >
                                 Test /go ↗
                               </a>
@@ -518,7 +492,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE AFFILIATE MODAL */}
+      {/* CONFIGURE MODAL */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -547,14 +521,12 @@ export default function AdminPage() {
                 <label className="text-[10px] font-black uppercase text-blue-400 mb-1 block">Monetized Affiliate Redirect URL</label>
                 <input
                   type="url"
-                  placeholder="https://partner.com/?aff=your_id"
+                  required
+                  placeholder="https://investorfinder.com/?ref=aivault"
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Clicks to `/go/{selectedTool.slug}` route automatically to this destination.
-                </p>
               </div>
 
               <div>
@@ -593,7 +565,7 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* ADD / EDIT TOOL RECORD MODAL */}
+      {/* ADD / EDIT TOOL MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
