@@ -3,6 +3,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import Script from "next/script";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -302,6 +303,15 @@ function HomeContent() {
 
   return (
     <div className="text-slate-900">
+      {/* Google AdSense Crawler Initialization Script */}
+      <Script
+        id="adsense-init"
+        async
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5180387791450326"
+        crossOrigin="anonymous"
+        strategy="afterInteractive"
+      />
+
       {/* Top Navbar with Official AI Vault 3D Logo */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
