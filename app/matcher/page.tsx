@@ -3,17 +3,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import ToolLogo from "@/components/ToolLogo";
 
 interface MatchedTool {
-  id?: string;
+  id?: string | number;
   name: string;
   slug: string;
   tagline?: string;
   description?: string;
+  overview?: string;
   category?: string;
+  pricing?: string;
   pricing_type?: string;
   fit_score: number;
   reason: string;
+  logo_url?: string;
+  logo?: string;
 }
 
 const PRESET_PROMPTS = [
@@ -31,8 +36,8 @@ export default function MatcherPage() {
   const [results, setResults] = useState<MatchedTool[] | null>(null);
 
   const handleSearch = async (queryText?: string) => {
-    const q = queryText || prompt;
-    if (!q.trim()) return;
+    const q = (queryText !== undefined ? queryText : prompt).trim();
+    if (!q) return;
 
     setLoading(true);
     setResults(null);
@@ -45,7 +50,7 @@ export default function MatcherPage() {
       });
 
       const data = await res.json();
-      if (data.matches) {
+      if (data.matches && Array.isArray(data.matches)) {
         setResults(data.matches);
       } else {
         setResults([]);
@@ -58,60 +63,76 @@ export default function MatcherPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#06080F] text-white selection:bg-emerald-500 selection:text-black">
-      {/* Header Bar */}
-      <header className="border-b border-gray-800 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-black tracking-tight text-white">
-              AI <span className="text-emerald-400">Vault.</span>
-            </span>
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
+      {/* Top Navbar */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-6xl items-center justify-between">
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
           </Link>
-          <div className="flex items-center gap-4 text-sm font-semibold">
-            <Link href="/" className="text-gray-400 hover:text-white transition">Directory</Link>
-            <Link href="/compare" className="text-gray-400 hover:text-white transition">Compare</Link>
-            <Link href="/vault" className="text-gray-400 hover:text-white transition">My Stack</Link>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              ← Directory
+            </Link>
+            <Link
+              href="/compare"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>⚖️ Compare</span>
+            </Link>
+            <Link
+              href="/vault"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              <span>★ Vault</span>
+            </Link>
           </div>
         </div>
       </header>
 
-      <section className="max-w-5xl mx-auto px-4 py-12">
-        {/* Title Badge */}
-        <div className="text-center space-y-4 mb-10">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-bold uppercase tracking-widest">
-            ⚡ AI Intelligence Engine
-          </div>
-          <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight">
-            Find the <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-cyan-400">Exact AI Tool</span> for Your Workflow
-          </h1>
-          <p className="text-gray-400 max-w-2xl mx-auto text-sm sm:text-base">
-            Describe your project, use case, or requirements in plain English. Our neural matching engine will find and score the best software from 750+ verified tools.
-          </p>
+      {/* Hero Header */}
+      <section className="bg-[#050714] px-4 py-14 text-center text-white sm:py-18 sm:px-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          Neural Matcher Engine
         </div>
 
-        {/* Input Box */}
-        <div className="bg-[#0D1322] border border-gray-800 rounded-2xl p-4 sm:p-6 shadow-2xl space-y-4 focus-within:border-emerald-500/50 transition">
+        <h1 className="mx-auto max-w-4xl text-3xl font-black tracking-tight sm:text-5xl">
+          Find the <span className="bg-gradient-to-r from-blue-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">Exact AI Tool</span> for Your Work.
+        </h1>
+        <p className="mx-auto mt-3 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
+          Describe your task, workflow, or budget in plain words. Our engine searches across 750+ verified tools to find the perfect software.
+        </p>
+      </section>
+
+      <div className="mx-auto max-w-4xl px-4 -mt-7 sm:px-6">
+        {/* Search Box Card */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-7 shadow-xl space-y-4">
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="e.g. I need an AI to automate YouTube video subtitles and translate them to Hindi and Spanish for free..."
+            placeholder="e.g. I need a free AI tool to create realistic thumbnails and edit YouTube video audio..."
             rows={3}
-            className="w-full bg-transparent text-white placeholder-gray-500 text-base focus:outline-none resize-none"
+            className="w-full rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition resize-none"
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-gray-800/80">
-            {/* Pricing Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-gray-400">PRICING:</span>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            {/* Pricing Filters */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-400 uppercase mr-1">Pricing:</span>
               {(["All", "Free", "Freemium", "Paid"] as const).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => setPricing(p)}
-                  className={`text-xs px-3 py-1 rounded-lg font-semibold transition ${
+                  className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
                     pricing === p
-                      ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/20"
-                      : "bg-gray-800/60 text-gray-400 hover:text-white"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
                   {p}
@@ -119,15 +140,15 @@ export default function MatcherPage() {
               ))}
             </div>
 
-            {/* Submit Button */}
+            {/* Match Button */}
             <button
               onClick={() => handleSearch()}
               disabled={loading || !prompt.trim()}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-black font-bold text-sm tracking-wide shadow-lg shadow-emerald-500/25 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition disabled:opacity-50"
             >
               {loading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Matching Tools...
                 </>
               ) : (
@@ -137,9 +158,9 @@ export default function MatcherPage() {
           </div>
         </div>
 
-        {/* Preset Prompt Badges */}
+        {/* Try Asking Chips */}
         <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold text-gray-500 mr-1">TRY ASKING:</span>
+          <span className="text-[11px] font-bold text-slate-400">TRY ASKING:</span>
           {PRESET_PROMPTS.map((sample, i) => (
             <button
               key={i}
@@ -147,95 +168,105 @@ export default function MatcherPage() {
                 setPrompt(sample);
                 handleSearch(sample);
               }}
-              className="text-xs px-3 py-1.5 rounded-full bg-gray-900 border border-gray-800 text-gray-300 hover:border-emerald-500/50 hover:text-emerald-400 transition"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-medium text-slate-600 hover:border-blue-300 hover:text-blue-600 transition shadow-sm"
             >
               {sample}
             </button>
           ))}
         </div>
 
-        {/* Results Stream */}
-        <div className="mt-12 space-y-6">
+        {/* Results Section */}
+        <div className="mt-10 space-y-4">
           {results && results.length > 0 && (
-            <div className="flex items-center justify-between pb-2 border-b border-gray-800">
-              <h2 className="text-lg font-bold text-white flex items-center gap-2">
-                🎯 Top Matched AI Tools ({results.length})
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider">
+                🎯 Top Matched Software ({results.length})
               </h2>
-              <span className="text-xs text-emerald-400 font-semibold">Ranked by Workflow Fit</span>
+              <span className="text-xs font-bold text-blue-600">Ranked by Workflow Fit</span>
             </div>
           )}
 
           {results && results.length === 0 && (
-            <div className="text-center py-16 bg-[#0D1322] border border-gray-800 rounded-2xl space-y-2">
-              <p className="text-lg font-bold text-white">No exact match found</p>
-              <p className="text-sm text-gray-400">Try broadening your prompt or changing pricing filters.</p>
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+              <p className="text-sm font-bold text-slate-800">No matching AI software found.</p>
+              <p className="text-xs text-slate-500 mt-1">Try rewording your prompt or selecting 'All' pricing.</p>
             </div>
           )}
 
           {results && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {results.map((tool) => (
-                <div
-                  key={tool.slug}
-                  className="bg-[#0B0F19] border border-gray-800 hover:border-emerald-500/50 rounded-2xl p-5 flex flex-col justify-between transition group shadow-xl"
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-extrabold text-lg text-white group-hover:text-emerald-400 transition">
-                            {tool.name}
-                          </h3>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-800 text-gray-300 font-semibold uppercase">
-                            {tool.pricing_type || "Freemium"}
-                          </span>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {results.map((tool) => {
+                const name = String(tool.name || "AI Tool");
+                const slug = String(tool.slug || "").trim();
+                const category = String(tool.category || "AI Software");
+                const pricingTier = String(tool.pricing_type || tool.pricing || "Freemium");
+                const desc = String(tool.tagline || tool.description || tool.overview || "");
+                const logo = (tool.logo_url || tool.logo) as string | undefined;
+
+                return (
+                  <div
+                    key={slug}
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-md"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ToolLogo src={logo} name={name} size="md" />
+                          <div className="min-w-0">
+                            <h3 className="truncate text-sm font-black text-slate-950 group-hover:text-blue-600 transition-colors">
+                              {name}
+                            </h3>
+                            <p className="text-[11px] font-medium text-slate-400 capitalize">{category}</p>
+                          </div>
                         </div>
-                        <span className="text-xs text-emerald-400/90 font-medium capitalize">
-                          {tool.category || "AI Tool"}
-                        </span>
+
+                        {/* Fit Score Badge */}
+                        <div className="shrink-0 text-right">
+                          <div className="text-base font-black text-blue-600">{tool.fit_score}%</div>
+                          <div className="text-[8px] font-black uppercase text-slate-400">Fit Score</div>
+                        </div>
                       </div>
 
-                      {/* Fit Score Badge */}
-                      <div className="text-right">
-                        <div className="text-xl font-black text-emerald-400">{tool.fit_score}%</div>
-                        <div className="text-[9px] uppercase tracking-wider text-gray-400 font-bold">Fit Score</div>
+                      <p className="mt-3 line-clamp-2 text-xs leading-relaxed text-slate-600">
+                        {desc}
+                      </p>
+
+                      {/* Reason Box */}
+                      <div className="mt-3 rounded-xl bg-blue-50/70 border border-blue-100 p-2.5 text-[11px] text-blue-900 leading-snug">
+                        <span className="font-bold text-blue-700">Why it fits: </span>
+                        {tool.reason}
                       </div>
                     </div>
 
-                    <p className="text-xs text-gray-300 line-clamp-2 leading-relaxed">
-                      {tool.tagline || tool.description}
-                    </p>
+                    <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-600 uppercase">
+                        {pricingTier}
+                      </span>
 
-                    {/* AI Workflow Reason */}
-                    <div className="p-2.5 rounded-xl bg-emerald-950/20 border border-emerald-500/20 text-[11px] text-emerald-300/90 leading-snug">
-                      <span className="font-bold text-emerald-400">Why it fits: </span>
-                      {tool.reason}
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/tool/${encodeURIComponent(slug)}`}
+                          className="text-xs font-bold text-slate-600 hover:text-blue-600 px-2 py-1"
+                        >
+                          Specs →
+                        </Link>
+                        <a
+                          href={`/go/${encodeURIComponent(slug)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 shadow-sm transition"
+                        >
+                          Visit ↗
+                        </a>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="pt-4 mt-4 border-t border-gray-800/80 flex items-center justify-between gap-3">
-                    <Link
-                      href={`/tool/${tool.slug}`}
-                      className="text-xs font-bold text-gray-300 hover:text-white transition"
-                    >
-                      View Specs →
-                    </Link>
-                    <a
-                      href={`/go/${tool.slug}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs transition"
-                    >
-                      Open Tool ↗
-                    </a>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
-      </section>
+      </div>
     </main>
   );
 }

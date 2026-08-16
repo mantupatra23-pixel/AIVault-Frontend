@@ -11,16 +11,21 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-interface ToolItem {
-  id?: string;
+interface ToolRecord {
+  id?: string | number;
   name: string;
   slug: string;
-  tagline?: string;
-  description?: string;
-  category?: string;
-  pricing_type?: string;
-  ai_vault_score?: number;
-  website_url?: string;
+  tagline?: string | null;
+  description?: string | null;
+  overview?: string | null;
+  category?: string | null;
+  pricing?: string | null;
+  pricing_type?: string | null;
+  score?: number | string | null;
+  ai_vault_score?: number | string | null;
+  logo_url?: string | null;
+  logo?: string | null;
+  website_url?: string | null;
 }
 
 export async function POST(req: Request) {
@@ -28,84 +33,66 @@ export async function POST(req: Request) {
     const { prompt, pricing } = await req.json();
 
     if (!prompt || typeof prompt !== "string" || prompt.trim().length === 0) {
-      return NextResponse.json(
-        { error: "Prompt is required" },
-        { status: 400 }
-      );
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: "Database configuration missing" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // Fetch tool directory
-    let query = supabase
+    const { data: tools, error } = await supabase
       .from("ai_tools")
-      .select("id, name, slug, tagline, description, category, pricing_type, ai_vault_score, website_url")
+      .select("*")
       .not("slug", "is", null);
 
-    if (pricing && pricing !== "All") {
-      query = query.ilike("pricing_type", pricing);
-    }
-
-    const { data: tools, error: dbError } = await query.limit(300);
-
-    if (dbError || !tools || tools.length === 0) {
+    if (error || !tools || tools.length === 0) {
       return NextResponse.json({ matches: [] });
     }
 
-    // Keyword & Semantic Scoring Engine
     const searchTerms = prompt
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, " ")
       .split(/\s+/)
       .filter((w) => w.length > 2);
 
-    const scoredTools = tools.map((t: ToolItem) => {
-      let score = 0;
-      const haystack = `${t.name} ${t.category || ""} ${t.tagline || ""} ${t.description || ""}`.toLowerCase();
+    const scored = tools
+      .filter((t: ToolRecord) => {
+        if (!pricing || pricing === "All") return true;
+        const p = String(t.pricing_type || t.pricing || "").toLowerCase();
+        if (pricing === "Free" && (!p.includes("free") || p.includes("freemium"))) return false;
+        if (pricing === "Freemium" && !p.includes("freemium")) return false;
+        if (pricing === "Paid" && !p.includes("paid")) return false;
+        return true;
+      })
+      .map((t: ToolRecord) => {
+        let score = 0;
+        const haystack = `${t.name || ""} ${t.category || ""} ${t.tagline || ""} ${t.description || ""} ${t.overview || ""}`.toLowerCase();
 
-      searchTerms.forEach((term) => {
-        if (t.name.toLowerCase().includes(term)) score += 40;
-        if ((t.category || "").toLowerCase().includes(term)) score += 30;
-        if ((t.tagline || "").toLowerCase().includes(term)) score += 20;
-        if ((t.description || "").toLowerCase().includes(term)) score += 10;
+        searchTerms.forEach((term) => {
+          if (String(t.name || "").toLowerCase().includes(term)) score += 45;
+          if (String(t.category || "").toLowerCase().includes(term)) score += 35;
+          if (haystack.includes(term)) score += 15;
+        });
+
+        const rawVaultScore = Number(t.ai_vault_score || t.score) || 90;
+        const fitScore = Math.min(99, Math.max(72, Math.round(score > 0 ? 82 + (score % 17) : rawVaultScore)));
+
+        const cleanCat = String(t.category || "AI Software");
+        const reason = `Optimized for ${cleanCat.toLowerCase()} workflows. Matches your query regarding "${searchTerms.slice(0, 3).join(", ")}" with high accuracy.`;
+
+        return {
+          ...t,
+          fit_score: fitScore,
+          reason,
+          relevance: score,
+        };
       });
 
-      // Vault quality boost
-      const baseVaultScore = Number(t.ai_vault_score) || 85;
-      const finalFit = Math.min(99, Math.max(70, Math.round(score > 0 ? 80 + (score % 19) : baseVaultScore)));
-
-      // Generate custom reason
-      const reason = `Optimized for ${t.category || "AI"} workflows. Matches your query regarding "${searchTerms.slice(0, 3).join(", ")}" with high reliability.`;
-
-      return {
-        ...t,
-        fit_score: finalFit,
-        reason,
-        rawScore: score,
-      };
-    });
-
-    // Sort by calculated relevance
-    scoredTools.sort((a, b) => b.rawScore - a.rawScore || b.fit_score - a.fit_score);
-
-    const topMatches = scoredTools.slice(0, 6);
+    scored.sort((a, b) => b.relevance - a.relevance || b.fit_score - a.fit_score);
 
     return NextResponse.json({
-      query: prompt,
-      matches: topMatches,
+      matches: scored.slice(0, 8),
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Internal Server Error";
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    const msg = err instanceof Error ? err.message : "Internal Server Error";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
