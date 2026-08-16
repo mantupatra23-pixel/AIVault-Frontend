@@ -1,107 +1,61 @@
-import type { Metadata } from "next";
+// app/terms/page.tsx
 import Link from "next/link";
-import { SITE_URL } from "@/lib/site-url";
 
-export const metadata: Metadata = {
-  title: "Terms of Service | AI Vault",
-  description: "Terms of service and usage conditions for the AI Vault directory.",
-  alternates: {
-    canonical: `${SITE_URL}/terms`,
-  },
-  openGraph: {
-    title: "Terms of Service | AI Vault",
-    description: "Terms of service and usage conditions for the AI Vault directory.",
-    url: `${SITE_URL}/terms`,
-    siteName: "AI Vault",
-    type: "website",
-  },
+export const metadata = {
+  title: "Terms of Service — AI Vault",
+  description: "Terms and conditions governing the use of AI Vault intelligence directory.",
 };
 
-export default function Terms() {
+export default function TermsPage() {
   return (
-    <div className="bg-white min-h-screen selection:bg-blue-100 selection:text-blue-900 text-slate-900">
-      <div className="max-w-4xl mx-auto px-6 py-20 font-sans">
-        {/* Header */}
-        <header className="mb-12">
-          <h1 className="text-4xl md:text-6xl font-black italic uppercase tracking-tight font-serif text-slate-950">
-            Terms of Service<span className="text-blue-600">.</span>
-          </h1>
-          <p className="mb-6 text-gray-500 font-bold uppercase tracking-widest text-xs mt-2">
-            Last Updated: August 2026 • AI Vault Network
-          </p>
-        </header>
-
-        {/* Terms Content Sections */}
-        <section className="space-y-8">
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h2 className="text-xl font-bold uppercase text-slate-950 mb-2">
-              1. Acceptance of Terms
-            </h2>
-            <p className="text-gray-600 leading-relaxed text-sm">
-              By accessing and using <strong>AI Vault</strong> (accessible at{" "}
-              <a href={SITE_URL} className="text-blue-600 underline font-semibold">
-                {SITE_URL}
-              </a>
-              ), you agree to comply with and be bound by these Terms of Service. If you do not agree, please discontinue use of the site immediately.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h2 className="text-xl font-bold uppercase text-slate-950 mb-2">
-              2. Directory & Information Disclaimer
-            </h2>
-            <p className="text-gray-600 leading-relaxed text-sm">
-              AI Vault is an independent artificial intelligence software directory and discovery engine. We curate, verify, and index AI tools for informational purposes. Tool specifications, pricing tiers, and operational features are subject to change by third-party vendors without prior notice.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h2 className="text-xl font-bold uppercase text-slate-950 mb-2">
-              3. External Outbound Links
-            </h2>
-            <p className="text-gray-600 leading-relaxed text-sm">
-              Our website contains links to external official software portals. AI Vault does not endorse, guarantee, or assume responsibility for any third-party products, transactions, or content encountered after clicking external outbound links.
-            </p>
-          </div>
-
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-            <h2 className="text-xl font-bold uppercase text-slate-950 mb-2">
-              4. Intellectual Property
-            </h2>
-            <p className="text-gray-600 leading-relaxed text-sm">
-              All registered trademarks, company names, logos, and product titles displayed on AI Vault belong to their respective brand owners and rights holders.
-            </p>
-          </div>
-
-          <div className="bg-blue-50/50 p-6 rounded-2xl border border-blue-100">
-            <h2 className="text-xl font-bold uppercase text-slate-950 mb-2">
-              5. Legal Inquiries & Governance
-            </h2>
-            <p className="text-gray-600 leading-relaxed text-sm">
-              For legal inquiries, copyright takedown requests, or directory updates, contact our governance team directly at:
-            </p>
-            <div className="mt-3 font-bold text-slate-900 text-sm">
-              Email:{" "}
-              <a
-                href="mailto:support@aivault.pp.ua"
-                className="text-blue-600 hover:underline"
-              >
-                support@aivault.pp.ua
-              </a>
-            </div>
-          </div>
-        </section>
-
-        {/* Return Footer Link */}
-        <footer className="mt-16 pt-8 border-t border-slate-100">
-          <Link
-            href="/"
-            className="text-sm font-bold uppercase tracking-wider text-blue-600 hover:text-blue-700 transition-colors"
-          >
-            ← Return to Vault
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-5xl items-center justify-between">
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
           </Link>
-        </footer>
+          <Link href="/" className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition">
+            ← Directory
+          </Link>
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-4xl px-4 py-12 sm:px-8">
+        <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm space-y-6 text-xs sm:text-sm leading-relaxed text-slate-700">
+          <div>
+            <h1 className="text-2xl font-black text-slate-950 sm:text-3xl">Terms of Service</h1>
+            <p className="text-[11px] text-slate-400 mt-1">Last Updated: August 2026</p>
+          </div>
+
+          <section className="space-y-2">
+            <h2 className="text-base font-black text-slate-900">1. Acceptance of Terms</h2>
+            <p>
+              By accessing and using AI Vault (aivault.pp.ua), you agree to comply with and be bound by these Terms of Service. If you do not agree, please discontinue using the platform.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-base font-black text-slate-900">2. Directory Information & Disclaimers</h2>
+            <p>
+              AI Vault indexes third-party software products for discovery and comparison purposes. Pricing models, capability tiers, and promotional details are subject to change by respective tool owners at any time without notice.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-base font-black text-slate-900">3. Outbound Links & External Sites</h2>
+            <p>
+              Our platform contains links to external websites. We do not control, endorse, or accept liability for third-party software performance, security practices, or content.
+            </p>
+          </section>
+
+          <section className="space-y-2">
+            <h2 className="text-base font-black text-slate-900">4. Intellectual Property</h2>
+            <p>
+              Third-party logos, company trademarks, and product names belong to their respective copyright holders. AI Vault's scoring framework and custom software matrix are protected under copyright laws.
+            </p>
+          </section>
+        </div>
       </div>
-    </div>
+    </main>
   );
 }
