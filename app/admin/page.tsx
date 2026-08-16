@@ -40,6 +40,7 @@ export default function AdminPage() {
 
   // Configure Modal
   const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
+  const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
   const [editAffiliateUrl, setEditAffiliateUrl] = useState("");
   const [editNetwork, setEditNetwork] = useState("Direct");
   const [saving, setSaving] = useState(false);
@@ -106,17 +107,10 @@ export default function AdminPage() {
     return { total, active, pending, clicks, revenue };
   }, [tools]);
 
-  // Open Configure Modal with Auto-Filled Value
   const handleOpenConfigure = (t: ToolRecord) => {
     setSelectedTool(t);
-    // If affiliate_url exists, use it. Otherwise auto-suggest with ?ref=aivault
-    if (t.affiliate_url && t.affiliate_url.trim().length > 0) {
-      setEditAffiliateUrl(t.affiliate_url.trim());
-    } else {
-      const base = t.website_url || `https://${t.slug || "tool"}.com`;
-      const separator = base.includes("?") ? "&" : "?";
-      setEditAffiliateUrl(`${base}${separator}ref=aivault`);
-    }
+    setEditWebsiteUrl(t.website_url || "");
+    setEditAffiliateUrl(t.affiliate_url || "");
     setEditNetwork(t.affiliate_network || "Direct");
   };
 
@@ -126,7 +120,8 @@ export default function AdminPage() {
 
     try {
       setSaving(true);
-      const urlToSave = editAffiliateUrl.trim();
+      const affUrl = editAffiliateUrl.trim();
+      const webUrl = editWebsiteUrl.trim();
 
       const res = await fetch("/api/admin/update-tool", {
         method: "POST",
@@ -134,8 +129,8 @@ export default function AdminPage() {
         body: JSON.stringify({
           id: selectedTool.id,
           slug: selectedTool.slug,
-          name: selectedTool.name,
-          affiliate_url: urlToSave,
+          website_url: webUrl,
+          affiliate_url: affUrl,
           affiliate_network: editNetwork,
         }),
       });
@@ -147,7 +142,7 @@ export default function AdminPage() {
 
       await loadAdminData();
       setSelectedTool(null);
-      showToast(`✓ Monetized URL saved for ${selectedTool.name}`);
+      showToast(`✓ Official & Monetized URLs saved for ${selectedTool.name}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error saving affiliate settings";
       alert(message);
@@ -242,7 +237,7 @@ export default function AdminPage() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Tabs */}
+        {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-slate-800 pb-4 mb-8">
           <button
             onClick={() => setActiveTab("affiliate")}
@@ -266,7 +261,7 @@ export default function AdminPage() {
         {/* TAB 1: AFFILIATE COMMAND CENTER */}
         {activeTab === "affiliate" && (
           <div>
-            {/* METRICS */}
+            {/* METRICS ROW */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
               <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Directory</p>
@@ -505,13 +500,13 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL (WITH LIVE ACTIVE PREFILL) */}
+      {/* CONFIGURE MODAL (WITH EDITABLE OFFICIAL & MONETIZED URLS) */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
               <div>
-                <h3 className="text-sm font-black text-white">Configure Affiliate Link</h3>
+                <h3 className="text-sm font-black text-white">Configure Links & Tracking</h3>
                 <p className="text-xs text-slate-400">{selectedTool.name} (/tool/{selectedTool.slug})</p>
               </div>
               <button onClick={() => setSelectedTool(null)} className="text-slate-400 hover:text-white font-bold text-sm">
@@ -521,34 +516,41 @@ export default function AdminPage() {
 
             <form onSubmit={handleSaveAffiliate} className="space-y-4">
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Official Website URL</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Official Website URL
+                </label>
                 <input
                   type="text"
-                  disabled
-                  value={selectedTool.website_url || ""}
-                  className="w-full rounded-xl border border-slate-800 bg-slate-900 px-3.5 py-2 text-xs text-slate-400"
+                  placeholder="https://investorfinder.co"
+                  value={editWebsiteUrl}
+                  onChange={(e) => setEditWebsiteUrl(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-black uppercase text-blue-400">Monetized Affiliate Redirect URL</label>
-                  <span className="text-[9px] font-bold text-emerald-400">✓ Editable Active Value</span>
+                  <label className="text-[10px] font-black uppercase text-blue-400">
+                    Monetized Affiliate Redirect URL
+                  </label>
+                  <span className="text-[9px] font-bold text-emerald-400">Primary Redirect</span>
                 </div>
                 <input
                   type="text"
-                  required
+                  placeholder="https://investorfinder.co/?ref=aivault"
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
                   className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Clicks to `/go/{selectedTool.slug}` route automatically to this destination.
+                  Users visiting `/go/{selectedTool.slug}` will be routed directly to this URL.
                 </p>
               </div>
 
               <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Affiliate Network</label>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Affiliate Network
+                </label>
                 <select
                   value={editNetwork}
                   onChange={(e) => setEditNetwork(e.target.value)}

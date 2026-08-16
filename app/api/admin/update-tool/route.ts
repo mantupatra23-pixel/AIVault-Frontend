@@ -15,22 +15,27 @@ const SUPABASE_KEY =
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, slug, affiliate_url, affiliate_network } = body;
+    const { id, slug, website_url, affiliate_url, affiliate_network } = body;
 
     if (!id && !slug) {
       return NextResponse.json({ error: "Missing tool ID or slug" }, { status: 400 });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-    const cleanUrl = affiliate_url ? affiliate_url.trim() : null;
-    const isMonetized = Boolean(cleanUrl && cleanUrl.length > 0);
+    const cleanAffiliate = affiliate_url ? affiliate_url.trim() : null;
+    const cleanWebsite = website_url ? website_url.trim() : null;
+    const isMonetized = Boolean(cleanAffiliate && cleanAffiliate.length > 0);
 
-    const updatePayload = {
-      affiliate_url: cleanUrl,
+    const updatePayload: Record<string, unknown> = {
+      affiliate_url: cleanAffiliate,
       affiliate_network: affiliate_network || "Direct",
       affiliate_status: isMonetized ? "active_monetized" : "discovery_required",
       updated_at: new Date().toISOString(),
     };
+
+    if (cleanWebsite) {
+      updatePayload.website_url = cleanWebsite;
+    }
 
     let query = supabase.from("ai_tools").update(updatePayload);
 
@@ -44,20 +49,6 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    if (!data || data.length === 0) {
-      // Fallback update by slug if ID failed
-      if (slug) {
-        const { data: retryData, error: retryErr } = await supabase
-          .from("ai_tools")
-          .update(updatePayload)
-          .ilike("slug", slug)
-          .select();
-        
-        if (retryErr) return NextResponse.json({ error: retryErr.message }, { status: 500 });
-        return NextResponse.json({ success: true, updated_count: retryData?.length || 1, data: retryData });
-      }
     }
 
     return NextResponse.json({ success: true, updated_count: data?.length || 1, data });
