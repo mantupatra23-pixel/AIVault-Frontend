@@ -23,6 +23,7 @@ type ToolRecord = {
   ai_vault_score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
+  affiliate_status?: string | null;
   [key: string]: unknown;
 };
 
@@ -155,6 +156,9 @@ function HomeContent() {
   const filteredTools = useMemo(() => {
     return tools
       .filter((t) => {
+        // Hide unapproved submissions from the public directory
+        if (t.affiliate_status === "pending_submission") return false;
+
         if (selectedCat !== "All") {
           const toolCat = (t.category || "").toLowerCase();
           const targetCat = selectedCat.toLowerCase();

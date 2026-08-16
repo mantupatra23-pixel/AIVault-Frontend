@@ -22,6 +22,7 @@ export async function POST(req: NextRequest) {
       category,
       pricing,
       description,
+      founder_email,
       submitter_email,
       plan,
     } = body;
@@ -30,13 +31,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Tool name and website URL are required." },
         { status: 400 }
-      );
-    }
-
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: "Supabase environment not configured." },
-        { status: 500 }
       );
     }
 
@@ -50,26 +44,31 @@ export async function POST(req: NextRequest) {
       description ||
         `${cleanName} is an AI software platform for ${cleanCategory.toLowerCase()} workflows.`
     ).trim();
-    const cleanEmail = String(submitter_email || "").trim();
+    const email = String(founder_email || submitter_email || "").trim();
 
     const slug = cleanName
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
 
-    // Insert into tool_submissions queue for 1-Click Admin Approval
+    // Insert directly into ai_tools with pending_submission status
     const { data, error } = await supabase
-      .from("tool_submissions")
+      .from("ai_tools")
       .insert([
         {
           name: cleanName,
           slug,
           category: cleanCategory,
           pricing: cleanPricing,
+          pricing_type: cleanPricing,
           website_url: cleanWebsite,
+          website: cleanWebsite,
           description: cleanDesc,
           overview: cleanDesc,
-          submitter_email: cleanEmail,
+          score: plan === "featured" ? 96 : 90,
+          ai_vault_score: plan === "featured" ? 96 : 90,
+          affiliate_status: "pending_submission",
+          affiliate_network: email ? `Email: ${email}` : "Direct",
           created_at: new Date().toISOString(),
         },
       ])
@@ -77,20 +76,13 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Submission DB notice:", error.message);
-      return NextResponse.json({
-        success: true,
-        message: "Submission received! Tool has been queued for editorial review.",
-      });
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message:
-        plan === "featured"
-          ? "Priority submission received! Tool queued for featured review."
-          : "Submission received! Tool has been placed in the moderation queue.",
-      data,
+      message: "Submission received and queued for review!",
+      submission: data,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Submission failed";
