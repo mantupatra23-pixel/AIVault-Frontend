@@ -1,124 +1,83 @@
 // scripts/generate-sitemap.mjs
+import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
-import { createClient } from "@supabase/supabase-js";
 
-function loadEnv() {
-  const envFiles = [".env.local", ".env", ".env.production"];
-  for (const file of envFiles) {
-    const envPath = path.join(process.cwd(), file);
-    if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, "utf-8");
-      content.split(/\r?\n/).forEach((line) => {
-        const trimmed = line.trim();
-        if (trimmed && !trimmed.startsWith("#") && trimmed.includes("=")) {
-          const idx = trimmed.indexOf("=");
-          const key = trimmed.slice(0, idx).trim();
-          const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, "");
-          if (!process.env[key]) {
-            process.env[key] = val;
-          }
-        }
-      });
-    }
-  }
-}
-
-loadEnv();
-
-const SITE_URL = "https://www.aivault.pp.ua";
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  process.env.SUPABASE_URL ||
-  "https://tctovtckukoxcvvwtvwy.supabase.co";
-
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tctovtckukoxcvvwtvwy.supabase.co";
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-const CATEGORIES = [
-  "productivity",
-  "marketing",
-  "coding",
-  "chatbot",
-  "image",
-  "writing",
-  "audio",
-  "video",
-];
+const DOMAIN = "https://www.aivault.pp.ua";
 
-function cleanXml(str) {
-  return String(str || "")
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&apos;");
-}
+async function generate() {
+  console.log("Generating static public/sitemap.xml and public/robots.txt...");
 
-async function run() {
-  const today = new Date().toISOString().split("T")[0];
+  let toolSlugs = [];
 
-  const staticUrls = [
-    `${SITE_URL}/`,
-    `${SITE_URL}/compare`,
-    `${SITE_URL}/submit`,
-    `${SITE_URL}/vault`,
-  ];
-
-  const categoryUrls = CATEGORIES.map((cat) => `${SITE_URL}/?cat=${cat}`);
-
-  let toolUrls = [];
-
-  if (SUPABASE_URL && SUPABASE_KEY) {
-    try {
+  try {
+    if (SUPABASE_URL && SUPABASE_KEY) {
       const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-      const { data: tools, error } = await supabase
+      const { data, error } = await supabase
         .from("ai_tools")
-        .select("slug, updated_at")
-        .not("slug", "is", null);
+        .select("slug, updated_at, created_at")
+        .not("slug", "is", null)
+        .neq("affiliate_status", "pending_submission")
+        .limit(2000);
 
-      if (!error && tools && tools.length > 0) {
-        toolUrls = tools
-          .filter((t) => t.slug && String(t.slug).trim().length > 0)
-          .map((t) => {
-            const cleanSlug = encodeURIComponent(
-              String(t.slug).trim().toLowerCase().replace(/[^a-z0-9-_]/g, "")
-            );
-            return `${SITE_URL}/tool/${cleanSlug}`;
-          });
+      if (!error && data) {
+        toolSlugs = data;
       }
-    } catch (err) {
-      console.warn("Supabase fetch error:", err);
     }
+  } catch (e) {
+    console.error("Supabase fetch warning:", e.message);
   }
 
-  const allUrlsList = [...staticUrls, ...categoryUrls, ...toolUrls];
+  const staticPages = [
+    { loc: `${DOMAIN}/`, priority: "1.0", changefreq: "daily" },
+    { loc: `${DOMAIN}/matcher`, priority: "0.9", changefreq: "weekly" },
+    { loc: `${DOMAIN}/compare`, priority: "0.8", changefreq: "weekly" },
+    { loc: `${DOMAIN}/submit`, priority: "0.7", changefreq: "monthly" },
+    { loc: `${DOMAIN}/vault`, priority: "0.6", changefreq: "weekly" },
+  ];
+
+  let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+  xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
+
+  staticPages.forEach((p) => {
+    xml += `  <url>\n`;
+    xml += `    <loc>${p.loc}</loc>\n`;
+    xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
+    xml += `    <changefreq>${p.changefreq}</changefreq>\n`;
+    xml += `    <priority>${p.priority}</priority>\n`;
+    xml += `  </url>\n`;
+  });
+
+  toolSlugs.forEach((t) => {
+    const lastmod = t.updated_at || t.created_at || new Date().toISOString();
+    xml += `  <url>\n`;
+    xml += `    <loc>${DOMAIN}/tool/${encodeURIComponent(String(t.slug))}</loc>\n`;
+    xml += `    <lastmod>${new Date(lastmod).toISOString()}</lastmod>\n`;
+    xml += `    <changefreq>weekly</changefreq>\n`;
+    xml += `    <priority>0.8</priority>\n`;
+    xml += `  </url>\n`;
+  });
+
+  xml += `</urlset>`;
 
   const publicDir = path.join(process.cwd(), "public");
   if (!fs.existsSync(publicDir)) {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
-  // 1. Generate Plain Text Sitemap (sitemap.txt)
-  const txtContent = allUrlsList.join("\n");
-  fs.writeFileSync(path.join(publicDir, "sitemap.txt"), txtContent, "utf8");
+  fs.writeFileSync(path.join(publicDir, "sitemap.xml"), xml, "utf-8");
+  console.log(`✓ public/sitemap.xml generated with ${staticPages.length + toolSlugs.length} URLs.`);
 
-  // 2. Generate XML Sitemap (sitemap.xml)
-  const xmlEntries = allUrlsList
-    .map(
-      (url) =>
-        `  <url>\n    <loc>${cleanXml(url)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`
-    )
-    .join("\n");
-
-  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlEntries}\n</urlset>\n`;
-  fs.writeFileSync(path.join(publicDir, "sitemap.xml"), xmlContent, "utf8");
-
-  console.log(`✓ Created public/sitemap.txt and public/sitemap.xml with ${allUrlsList.length} URLs`);
+  const robotsTxt = `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${DOMAIN}/sitemap.xml\n`;
+  fs.writeFileSync(path.join(publicDir, "robots.txt"), robotsTxt, "utf-8");
+  console.log("✓ public/robots.txt created.");
 }
 
-run();
+generate();

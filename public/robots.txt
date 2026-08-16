@@ -1,7 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /admin
 Disallow: /api/
-Disallow: /admin/
-Disallow: /_admin/
 
 Sitemap: https://www.aivault.pp.ua/sitemap.xml
