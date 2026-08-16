@@ -129,7 +129,7 @@ export default function AdminPage() {
   const handleAutoDiscover = async () => {
     try {
       setDiscovering(true);
-      showToast("⚡ Scanning and resolving official domains for all 750 tools...");
+      showToast("⚡ Scanning and resolving verified links for all 750 tools...");
 
       const res = await fetch("/api/admin/auto-discover", {
         method: "POST",
@@ -141,7 +141,7 @@ export default function AdminPage() {
       }
 
       await loadAdminData();
-      showToast(`✓ All ${data.total_updated || 750} tools converted to Direct Official & Monetized links!`);
+      showToast(`✓ All tools synchronized with verified working links!`);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Auto-discover failed";
       alert(msg);
@@ -185,9 +185,42 @@ export default function AdminPage() {
 
       await loadAdminData();
       setSelectedTool(null);
-      showToast(`✓ Official & Monetized URLs saved for ${selectedTool.name}`);
+      showToast(`✓ Link settings saved for ${selectedTool.name}`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Error saving affiliate settings";
+      alert(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Remove Affiliate Link Handler
+  const handleRemoveAffiliate = async () => {
+    if (!selectedTool) return;
+
+    try {
+      setSaving(true);
+      const res = await fetch("/api/admin/update-tool", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: selectedTool.id,
+          slug: selectedTool.slug,
+          affiliate_url: "",
+          affiliate_network: "Direct",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Failed to remove affiliate link");
+      }
+
+      await loadAdminData();
+      setSelectedTool(null);
+      showToast(`✓ Removed affiliate link for ${selectedTool.name}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Error removing link";
       alert(message);
     } finally {
       setSaving(false);
@@ -249,7 +282,7 @@ export default function AdminPage() {
 
   return (
     <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
-      {/* Dynamic Toast Notification */}
+      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black text-white shadow-2xl animate-bounce">
           {toastMessage}
@@ -352,7 +385,7 @@ export default function AdminPage() {
                 disabled={discovering}
                 className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md shadow-blue-600/20 hover:bg-blue-700 disabled:opacity-50 transition"
               >
-                {discovering ? "Scanning & Monetizing 750 Tools..." : "AUTO DISCOVER AFFILIATES ⚙"}
+                {discovering ? "Synchronizing 750 Tools..." : "AUTO DISCOVER AFFILIATES ⚙"}
               </button>
             </div>
 
@@ -562,7 +595,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL */}
+      {/* CONFIGURE MODAL WITH REMOVE AFFILIATE BUTTON */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -583,7 +616,7 @@ export default function AdminPage() {
                 </label>
                 <input
                   type="text"
-                  placeholder="https://investorfinder.co"
+                  placeholder="https://example.com"
                   value={editWebsiteUrl}
                   onChange={(e) => setEditWebsiteUrl(e.target.value)}
                   className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-blue-500"
@@ -599,13 +632,13 @@ export default function AdminPage() {
                 </div>
                 <input
                   type="text"
-                  placeholder="https://investorfinder.co/?ref=aivault"
+                  placeholder="https://example.com/?ref=aivault"
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
                   className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
-                  Users visiting `/go/{selectedTool.slug}` will be routed directly to this URL.
+                  Leave blank or remove to route directly to official website.
                 </p>
               </div>
 
@@ -626,21 +659,32 @@ export default function AdminPage() {
                 </select>
               </div>
 
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+              <div className="flex items-center justify-between gap-2.5 pt-4 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => setSelectedTool(null)}
-                  className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
+                  onClick={handleRemoveAffiliate}
                   disabled={saving}
-                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                  className="rounded-xl bg-rose-600/20 border border-rose-600/30 px-3.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-600 hover:text-white transition disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save Configuration"}
+                  Remove Affiliate
                 </button>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTool(null)}
+                    className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                  >
+                    {saving ? "Saving..." : "Save Configuration"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -723,7 +767,7 @@ export default function AdminPage() {
                     max="99"
                     value={formScore}
                     onChange={(e) => setFormScore(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
                   />
                 </div>
               </div>
