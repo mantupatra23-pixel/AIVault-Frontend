@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   title: "AI Vault — AI Intelligence Directory & Decision Engine",
   description:
     "Search, compare, and explore 750+ verified AI software platforms across productivity, coding, marketing, and creative industries.",
-  metadataBase: new URL("https://www.aivault.pp.ua"),
+  metadataBase: new URL("https://aivault.pp.ua"),
   other: {
     "google-adsense-account": "ca-pub-5180387791450326",
   },
