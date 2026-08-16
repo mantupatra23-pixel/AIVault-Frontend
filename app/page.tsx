@@ -302,14 +302,18 @@ function HomeContent() {
 
   return (
     <div className="text-slate-900">
-      {/* Top Navbar */}
+      {/* Top Navbar with Official AI Vault 3D Logo */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link
-            href="/"
-            className="text-lg font-black tracking-tight text-slate-950"
-          >
-            AI Vault<span className="text-blue-600">.</span>
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <img
+              src="/logo.png"
+              alt="AI Vault"
+              className="h-9 w-9 rounded-xl object-contain drop-shadow-sm transition-transform group-hover:scale-105"
+            />
+            <span className="text-lg font-black tracking-tight text-slate-950">
+              AI Vault<span className="text-blue-600">.</span>
+            </span>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-3">

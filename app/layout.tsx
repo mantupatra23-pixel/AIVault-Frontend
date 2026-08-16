@@ -8,6 +8,19 @@ export const metadata: Metadata = {
   title: "AI Vault — AI Intelligence Directory & Decision Engine",
   description: "Search, compare, and explore 750+ verified AI software platforms across productivity, coding, marketing, and creative industries.",
   metadataBase: new URL("https://www.aivault.pp.ua"),
+  icons: {
+    icon: [
+      { url: "/logo.png" },
+      { url: "/favicon.ico" },
+    ],
+    shortcut: "/logo.png",
+    apple: "/logo.png",
+  },
+  openGraph: {
+    title: "AI Vault — AI Intelligence Directory",
+    description: "Search, compare, and explore 750+ verified AI software platforms.",
+    images: [{ url: "/logo.png", width: 1200, height: 1200, alt: "AI Vault Official Logo" }],
+  },
 };
 
 export default function RootLayout({
