@@ -10,7 +10,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "public, max-age=86400",
+      "Cache-Control": "public, max-age=0, must-revalidate",
     },
   });
 }
