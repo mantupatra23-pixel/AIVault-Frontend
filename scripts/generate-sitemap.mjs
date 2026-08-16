@@ -3,9 +3,8 @@ import fs from "fs";
 import path from "path";
 import { createClient } from "@supabase/supabase-js";
 
-// Robust multi-path env loader
 function loadEnv() {
-  const envFiles = [".env.local", ".env", ".env.production", "../.env.local", "../.env"];
+  const envFiles = [".env.local", ".env", ".env.production"];
   for (const file of envFiles) {
     const envPath = path.join(process.cwd(), file);
     if (fs.existsSync(envPath)) {
@@ -21,7 +20,6 @@ function loadEnv() {
           }
         }
       });
-      console.log(`Loaded environment from ${file}`);
     }
   }
 }
@@ -51,8 +49,10 @@ const CATEGORIES = [
   "video",
 ];
 
-function escapeXml(unsafe) {
-  return String(unsafe || "")
+// Clean control characters and escape XML
+function cleanXml(str) {
+  return String(str || "")
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "") // Remove hidden control characters
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -61,7 +61,7 @@ function escapeXml(unsafe) {
 }
 
 async function run() {
-  console.log("Generating static public/sitemap.xml from Supabase...");
+  console.log("Generating strict XML sitemap...");
   const today = new Date().toISOString().split("T")[0];
 
   const staticUrls = [
@@ -72,7 +72,7 @@ async function run() {
   ];
 
   const categoryUrls = CATEGORIES.map((cat) => ({
-    loc: `${SITE_URL}/?cat=${cat}`,
+    loc: `${SITE_URL}/?cat=${encodeURIComponent(cat)}`,
     priority: "0.85",
     changefreq: "daily",
   }));
@@ -85,42 +85,44 @@ async function run() {
       const { data: tools, error } = await supabase
         .from("ai_tools")
         .select("slug, updated_at")
-        .not("slug", "is", null)
-        .limit(2000);
+        .not("slug", "is", null);
 
-      if (error) {
-        console.error("Supabase query error:", error.message);
-      } else if (tools && tools.length > 0) {
-        toolUrls = tools.map((t) => ({
-          loc: `${SITE_URL}/tool/${encodeURIComponent(String(t.slug).trim())}`,
-          lastmod: t.updated_at ? String(t.updated_at).split("T")[0] : today,
-          priority: "0.80",
-          changefreq: "weekly",
-        }));
+      if (!error && tools && tools.length > 0) {
+        toolUrls = tools
+          .filter((t) => t.slug && String(t.slug).trim().length > 0)
+          .map((t) => {
+            const cleanSlug = encodeURIComponent(
+              String(t.slug).trim().toLowerCase().replace(/[^a-z0-9-_]/g, "")
+            );
+            return {
+              loc: `${SITE_URL}/tool/${cleanSlug}`,
+              lastmod: t.updated_at ? String(t.updated_at).split("T")[0] : today,
+              priority: "0.80",
+              changefreq: "weekly",
+            };
+          });
       }
     } catch (err) {
       console.warn("Supabase fetch warning:", err);
     }
-  } else {
-    console.warn("WARNING: Supabase credentials not found in env. Make sure NEXT_PUBLIC_SUPABASE_ANON_KEY exists in .env.local");
   }
 
-  const allUrls = [
+  const xmlEntries = [
     ...staticUrls.map(
       (u) =>
-        `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ),
     ...categoryUrls.map(
       (u) =>
-        `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ),
     ...toolUrls.map(
       (u) =>
-        `  <url>\n    <loc>${escapeXml(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+        `  <url>\n    <loc>${cleanXml(u.loc)}</loc>\n    <lastmod>${u.lastmod}</lastmod>\n    <changefreq>${u.changefreq}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
     ),
   ].join("\n");
 
-  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${allUrls}\n</urlset>`;
+  const xmlContent = `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${xmlEntries}\n</urlset>\n`;
 
   const publicDir = path.join(process.cwd(), "public");
   if (!fs.existsSync(publicDir)) {
@@ -128,10 +130,10 @@ async function run() {
   }
 
   const outputPath = path.join(publicDir, "sitemap.xml");
-  fs.writeFileSync(outputPath, xmlContent.trim(), "utf-8");
+  fs.writeFileSync(outputPath, xmlContent, { encoding: "utf8" });
 
   const total = staticUrls.length + categoryUrls.length + toolUrls.length;
-  console.log(`✓ Generated static sitemap with ${total} URLs (${toolUrls.length} AI Tools) at public/sitemap.xml`);
+  console.log(`✓ Clean sanitized sitemap created with ${total} valid URLs at public/sitemap.xml`);
 }
 
 run();
