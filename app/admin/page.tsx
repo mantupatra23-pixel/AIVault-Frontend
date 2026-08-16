@@ -36,6 +36,7 @@ const AFFILIATE_NETWORKS = [
   "CJ",
   "ShareASale",
 ];
+
 const CATEGORIES = [
   "Marketing",
   "Productivity",
@@ -48,6 +49,12 @@ const CATEGORIES = [
 ];
 
 export default function AdminPage() {
+  // Passcode Gate State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState(false);
+
+  // Tab & Data State
   const [activeTab, setActiveTab] = useState<"affiliate" | "catalog">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,6 +85,16 @@ export default function AdminPage() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
+  // Check saved session login
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const auth = sessionStorage.getItem("aivault_admin_auth");
+      if (auth === "true") {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
   async function loadAdminData() {
     try {
       setLoading(true);
@@ -95,8 +112,30 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    loadAdminData();
-  }, []);
+    if (isAuthenticated) {
+      loadAdminData();
+    }
+  }, [isAuthenticated]);
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === "2026") {
+      setIsAuthenticated(true);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("aivault_admin_auth", "true");
+      }
+      setPinError(false);
+    } else {
+      setPinError(true);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("aivault_admin_auth");
+    }
+  };
 
   const filteredTools = useMemo(() => {
     return tools.filter((t) => {
@@ -125,7 +164,6 @@ export default function AdminPage() {
     return { total, active, pending, clicks, revenue };
   }, [tools]);
 
-  // 1-Click Auto Discover & Monetize 750 Tools Handler
   const handleAutoDiscover = async () => {
     try {
       setDiscovering(true);
@@ -194,7 +232,6 @@ export default function AdminPage() {
     }
   };
 
-  // Remove Affiliate Link Handler
   const handleRemoveAffiliate = async () => {
     if (!selectedTool) return;
 
@@ -233,7 +270,11 @@ export default function AdminPage() {
 
     try {
       setSaving(true);
-      const slug = formName.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)+/g, "");
+      const slug = formName
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/(^-|-$)+/g, "");
 
       const payload = {
         name: formName.trim(),
@@ -248,7 +289,10 @@ export default function AdminPage() {
       };
 
       if (editingToolRecord) {
-        const { error } = await supabase.from("ai_tools").update(payload).eq("id", editingToolRecord.id);
+        const { error } = await supabase
+          .from("ai_tools")
+          .update(payload)
+          .eq("id", editingToolRecord.id);
         if (error) throw error;
         showToast(`✓ Updated ${formName}`);
       } else {
@@ -280,6 +324,38 @@ export default function AdminPage() {
     }
   };
 
+  // PASSCODE LOCK SCREEN
+  if (!isAuthenticated) {
+    return (
+      <main className="min-h-screen bg-[#050714] flex items-center justify-center p-4">
+        <div className="w-full max-w-sm rounded-3xl border border-slate-800 bg-[#0c102b] p-8 text-center shadow-2xl">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 text-xl font-black mb-4">
+            🔒
+          </div>
+          <h1 className="text-xl font-black text-white">Admin Command Gate</h1>
+          <p className="mt-1 text-xs text-slate-400">Enter your secure passcode to access controls.</p>
+          <form onSubmit={handlePinSubmit} className="mt-6 space-y-3">
+            <input
+              type="password"
+              autoFocus
+              placeholder="Enter PIN..."
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value)}
+              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-center text-sm tracking-widest text-white outline-none focus:border-blue-500"
+            />
+            {pinError && <p className="text-[11px] font-bold text-rose-400">Incorrect Passcode</p>}
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/25"
+            >
+              Unlock Dashboard →
+            </button>
+          </form>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
       {/* Toast Notification */}
@@ -301,7 +377,7 @@ export default function AdminPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Link
               href="/"
               target="_blank"
@@ -309,6 +385,13 @@ export default function AdminPage() {
             >
               Public Site ↗
             </Link>
+            <button
+              onClick={handleLogout}
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white"
+              title="Lock Admin"
+            >
+              🔒 Lock
+            </button>
           </div>
         </div>
       </header>
@@ -319,7 +402,9 @@ export default function AdminPage() {
           <button
             onClick={() => setActiveTab("affiliate")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "affiliate" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "affiliate"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-400 hover:text-white"
             }`}
           >
             📊 Affiliate & Monetization Hub
@@ -328,7 +413,9 @@ export default function AdminPage() {
           <button
             onClick={() => setActiveTab("catalog")}
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "catalog" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "catalog"
+                ? "bg-blue-600 text-white shadow-md"
+                : "text-slate-400 hover:text-white"
             }`}
           >
             🛠️ Catalog & Tool Manager ({tools.length})
@@ -399,7 +486,9 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("all")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                        statusFilter === "all"
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-400 hover:text-white"
                       }`}
                     >
                       All ({metrics.total})
@@ -407,7 +496,9 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("monetized")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "monetized" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                        statusFilter === "monetized"
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-400 hover:text-white"
                       }`}
                     >
                       Active ({metrics.active})
@@ -415,7 +506,9 @@ export default function AdminPage() {
                     <button
                       onClick={() => setStatusFilter("discovery_required")}
                       className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "discovery_required" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
+                        statusFilter === "discovery_required"
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-400 hover:text-white"
                       }`}
                     >
                       Pending ({metrics.pending})
