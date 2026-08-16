@@ -1,161 +1,190 @@
 // app/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import Link from "next/link";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tctovtckukoxcvvwtvwy.supabase.co";
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+import ToolLogo from "@/components/ToolLogo";
+import { cleanAiContent } from "@/lib/content-quality";
+import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
 
-interface ToolItem {
+type ToolRecord = {
   id?: string | number | null;
-  name: string;
-  slug: string;
-  tagline?: string | null;
+  slug?: string | null;
+  name?: string | null;
   description?: string | null;
   overview?: string | null;
   category?: string | null;
-  pricing_type?: string | null;
   pricing?: string | null;
-  ai_vault_score?: number | string | null;
+  pricing_type?: string | null;
   score?: number | string | null;
+  ai_vault_score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
-  website_url?: string | null;
   [key: string]: unknown;
-}
+};
 
 const ITEMS_PER_PAGE = 24;
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
 const CATEGORIES = [
-  { id: "all", label: "⚡ All Tools" },
-  { id: "productivity", label: "⚡ Productivity" },
-  { id: "marketing", label: "📈 Marketing" },
-  { id: "coding", label: "💻 Coding" },
-  { id: "chatbot", label: "🤖 Chatbot" },
-  { id: "image", label: "🎨 Image" },
-  { id: "writing", label: "✍️ Writing" },
-  { id: "audio", label: "🎙️ Audio" },
-  { id: "video", label: "🎥 Video" },
+  { name: "All", icon: "⚡" },
+  { name: "Marketing", icon: "📈" },
+  { name: "Productivity", icon: "🚀" },
+  { name: "Chatbot", icon: "🤖" },
+  { name: "Coding", icon: "💻" },
+  { name: "Image", icon: "🎨" },
+  { name: "Writing", icon: "✍️" },
+  { name: "Audio", icon: "🎵" },
+  { name: "Video", icon: "🎬" },
 ];
 
 const PRICING_OPTIONS = ["All", "Free", "Freemium", "Paid"];
+const SORT_OPTIONS = [
+  { label: "Top Rated", value: "score" },
+  { label: "Name (A-Z)", value: "name" },
+];
 
-function cleanDescription(text: string, name: string, category: string): string {
-  if (!text) return `${name} provides automated AI workflow solutions for ${category.toLowerCase()}.`;
-  return text
+function ToolCard({ tool }: { tool: ToolRecord }) {
+  const name = String(tool.name || "AI Tool");
+  const slug = String(tool.slug || "").trim();
+  const category = String(tool.category || "AI Tool");
+  const pricing = String(tool.pricing_type || tool.pricing || "Freemium");
+
+  const rawDesc = String(tool.description || tool.overview || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
     .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
     .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
-    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "")
-    .trim();
-}
+    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "");
 
-function parseScore(val: unknown): number {
-  if (typeof val === "number" && !isNaN(val)) return Math.min(100, Math.max(70, val));
-  if (typeof val === "string") {
-    const num = parseInt(val, 10);
-    if (!isNaN(num)) return Math.min(100, Math.max(70, num));
-  }
-  return 95;
+  const desc = cleanAiContent(rawDesc) || `${name} provides software solutions for ${category.toLowerCase()}.`;
+  const score = getToolScore(tool);
+  const formattedScore = formatAIScore(score);
+  const barWidth = getScoreBarWidth(score);
+  const logo = (tool.logo_url || tool.logo) as string | undefined;
+
+  const href = slug ? `/tool/${encodeURIComponent(slug)}` : "#";
+
+  return (
+    <Link
+      href={href}
+      className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-md cursor-pointer"
+    >
+      <div>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <ToolLogo src={logo} name={name} size="md" />
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-black text-slate-950 group-hover:text-blue-600 transition-colors">
+                {name}
+              </h3>
+              <p className="text-[11px] font-medium text-slate-400 capitalize">{category}</p>
+            </div>
+          </div>
+          <span className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-600">
+            {pricing}
+          </span>
+        </div>
+
+        <p className="mt-4 line-clamp-3 text-xs leading-relaxed text-slate-600">
+          {desc}
+        </p>
+      </div>
+
+      <div className="mt-5 border-t border-slate-100 pt-3">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">AI Vault Score</span>
+          <span className="text-xs font-black text-blue-600">{formattedScore}</span>
+        </div>
+        {score !== null && (
+          <div className="h-1.5 overflow-hidden rounded-full bg-slate-100 mb-3">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600"
+              style={{ width: barWidth }}
+            />
+          </div>
+        )}
+        <div className="flex items-center justify-between text-[10px] font-bold">
+          <span className="text-slate-400 uppercase tracking-wider">Verified Tool</span>
+          <span className="text-blue-600 group-hover:translate-x-0.5 transition-transform">Explore →</span>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 function HomeContent() {
   const searchParams = useSearchParams();
-  const [tools, setTools] = useState<ToolItem[]>([]);
+  const [tools, setTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [selectedCat, setSelectedCat] = useState("all");
+  const [selectedCat, setSelectedCat] = useState("All");
   const [selectedPricing, setSelectedPricing] = useState("All");
-  const [sortBy, setSortBy] = useState("Top Rated");
+  const [sortBy, setSortBy] = useState("score");
   const [currentPage, setCurrentPage] = useState(1);
-  const [vaultSlugs, setVaultSlugs] = useState<string[]>([]);
 
-  // Sync category from URL query parameters (?cat=xyz)
   useEffect(() => {
     const cat = searchParams.get("cat");
     if (cat) {
-      const match = CATEGORIES.find(
-        (c) => c.id.toLowerCase() === cat.toLowerCase() || c.label.toLowerCase().includes(cat.toLowerCase())
-      );
-      if (match) setSelectedCat(match.id);
+      const match = CATEGORIES.find((c) => c.name.toLowerCase() === cat.toLowerCase());
+      if (match) setSelectedCat(match.name);
     }
   }, [searchParams]);
 
-  // Load tools and saved bookmarks
   useEffect(() => {
     async function loadCatalog() {
       try {
         setLoading(true);
-        const { data, error } = await supabase
-          .from("ai_tools")
-          .select("*")
-          .not("slug", "is", null);
-
-        if (!error && data) {
-          setTools(data as ToolItem[]);
-        }
+        const { data, error } = await supabase.from("ai_tools").select("*");
+        if (error) throw error;
+        setTools((data as ToolRecord[]) || []);
       } catch (err) {
-        console.error("Failed to fetch catalog:", err);
+        console.error("Error loading tools:", err);
       } finally {
         setLoading(false);
       }
     }
-
     loadCatalog();
-
-    try {
-      const saved = JSON.parse(localStorage.getItem("aivault_saved") || "[]");
-      if (Array.isArray(saved)) setVaultSlugs(saved);
-    } catch {}
   }, []);
 
-  const toggleSave = (slug: string) => {
-    const next = vaultSlugs.includes(slug)
-      ? vaultSlugs.filter((s) => s !== slug)
-      : [...vaultSlugs, slug];
-    setVaultSlugs(next);
-    localStorage.setItem("aivault_saved", JSON.stringify(next));
-  };
-
   const filteredTools = useMemo(() => {
-    return tools.filter((t) => {
-      const toolName = String(t.name || "").toLowerCase();
-      const toolDesc = String(t.tagline || t.description || t.overview || "").toLowerCase();
-      const toolCat = String(t.category || "").toLowerCase();
-      const toolPrice = String(t.pricing_type || t.pricing || "freemium").toLowerCase();
+    return tools
+      .filter((t) => {
+        if (selectedCat !== "All") {
+          const toolCat = (t.category || "").toLowerCase();
+          const targetCat = selectedCat.toLowerCase();
+          if (!toolCat.includes(targetCat) && toolCat !== targetCat) {
+            return false;
+          }
+        }
 
-      // Category matching
-      if (selectedCat !== "all") {
-        if (!toolCat.includes(selectedCat.toLowerCase())) return false;
-      }
+        if (selectedPricing !== "All") {
+          const p = (t.pricing_type || t.pricing || "").toLowerCase();
+          if (selectedPricing === "Free" && (!p.includes("free") || p.includes("freemium"))) return false;
+          if (selectedPricing === "Freemium" && !p.includes("freemium")) return false;
+          if (selectedPricing === "Paid" && !p.includes("paid")) return false;
+        }
 
-      // Pricing matching
-      if (selectedPricing !== "All") {
-        const target = selectedPricing.toLowerCase();
-        if (target === "free" && (!toolPrice.includes("free") || toolPrice.includes("freemium"))) return false;
-        if (target === "freemium" && !toolPrice.includes("freemium")) return false;
-        if (target === "paid" && !toolPrice.includes("paid")) return false;
-      }
-
-      // Search query matching
-      if (search.trim()) {
-        const query = search.toLowerCase();
-        return toolName.includes(query) || toolDesc.includes(query) || toolCat.includes(query);
-      }
-
-      return true;
-    }).sort((a, b) => {
-      if (sortBy === "Top Rated") {
-        const scoreA = parseScore(a.ai_vault_score ?? a.score);
-        const scoreB = parseScore(b.ai_vault_score ?? b.score);
-        return scoreB - scoreA;
-      }
-      return String(a.name || "").localeCompare(String(b.name || ""));
-    });
+        if (search.trim()) {
+          const query = search.toLowerCase();
+          const name = (t.name || "").toLowerCase();
+          const desc = (t.description || t.overview || "").toLowerCase();
+          const cat = (t.category || "").toLowerCase();
+          return name.includes(query) || desc.includes(query) || cat.includes(query);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        if (sortBy === "score") {
+          return (getToolScore(b) ?? 0) - (getToolScore(a) ?? 0);
+        }
+        return (a.name || "").localeCompare(b.name || "");
+      });
   }, [tools, selectedCat, selectedPricing, search, sortBy]);
 
   useEffect(() => {
@@ -170,328 +199,223 @@ function HomeContent() {
 
   const handlePageChange = (p: number) => {
     setCurrentPage(p);
-    window.scrollTo({ top: 380, behavior: "smooth" });
+    window.scrollTo({ top: 400, behavior: "smooth" });
   };
 
   return (
-    <main className="min-h-screen bg-[#06080F] text-white selection:bg-emerald-500 selection:text-black">
-      {/* Top Navigation Bar */}
-      <header className="sticky top-0 z-50 border-b border-gray-800/80 bg-[#0B0F19]/90 backdrop-blur-md px-4 sm:px-8">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-2xl font-black tracking-tight text-white">
-              AI <span className="text-emerald-400">Vault.</span>
-            </span>
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900">
+      {/* Top Navbar */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
           </Link>
 
-          <div className="flex items-center gap-2 sm:gap-3 text-xs sm:text-sm font-bold">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/matcher"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-black transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              ⚡ Matcher
+              <span>⚡ Matcher</span>
             </Link>
 
             <Link
               href="/compare"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-800 bg-[#0D1322] text-gray-300 hover:border-emerald-500/40 hover:text-white transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              ⚖️ Compare
+              <span>⚖️ Compare</span>
             </Link>
 
             <Link
               href="/vault"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-gray-800 bg-[#0D1322] text-gray-300 hover:border-emerald-500/40 hover:text-emerald-400 transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              ★ Vault ({vaultSlugs.length})
-            </Link>
-
-            <Link
-              href="/submit"
-              className="hidden sm:inline-flex items-center px-3.5 py-1.5 rounded-xl bg-gray-800 text-gray-200 hover:text-white border border-gray-700 transition"
-            >
-              + Submit
+              <span>★ Vault</span>
             </Link>
           </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="max-w-5xl mx-auto px-4 pt-12 pb-8 text-center space-y-5">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-extrabold uppercase tracking-widest">
-          ⚡ 750+ Verified AI Software Catalog
+      <section className="bg-[#050714] px-4 py-16 text-center text-white sm:py-20 sm:px-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          AI Vault Intelligence Engine
         </div>
 
-        <h1 className="text-4xl sm:text-6xl font-black tracking-tight leading-tight">
-          Discover the <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 via-green-400 to-teal-300">Right AI</span> for Your Workflow.
+        <h1 className="mx-auto max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
+          Discover the <span className="bg-gradient-to-r from-blue-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">Right AI</span> for Your Workflow.
         </h1>
-
-        <p className="text-gray-400 text-xs sm:text-sm max-w-2xl mx-auto leading-relaxed">
-          Search, compare, and deploy production-ready AI tools across productivity, coding, marketing, and creative industries.
+        <p className="mx-auto mt-4 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
+          Search, compare and explore verified AI tools across productivity, coding, marketing, and creative industries.
         </p>
 
         {/* Global Search Bar */}
-        <div className="max-w-2xl mx-auto relative pt-2">
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={`Search ${tools.length > 0 ? tools.length : 750}+ verified AI software...`}
-            className="w-full h-14 pl-12 pr-10 bg-[#0D1322] border border-gray-800 rounded-2xl text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500 shadow-2xl transition text-sm sm:text-base"
-          />
-          <svg className="w-5 h-5 text-gray-500 absolute left-4 top-[26px]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          {search && (
-            <button
-              onClick={() => setSearch("")}
-              className="absolute right-4 top-[24px] text-gray-400 hover:text-white text-sm"
-            >
-              ✕
-            </button>
-          )}
-        </div>
-      </section>
-
-      {/* Category Pills & Filters */}
-      <section className="max-w-7xl mx-auto px-4 py-4 space-y-4">
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCat(cat.id)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition ${
-                selectedCat === cat.id
-                  ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/20 font-black"
-                  : "bg-[#0D1322] text-gray-400 hover:text-white border border-gray-800"
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-gray-800/80">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">PRICING:</span>
-            <div className="flex gap-1.5">
-              {PRICING_OPTIONS.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setSelectedPricing(p)}
-                  className={`text-xs px-3 py-1 rounded-lg font-bold transition ${
-                    selectedPricing === p
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/50"
-                      : "bg-[#0D1322] text-gray-400 border border-gray-800 hover:text-white"
-                  }`}
-                >
-                  {p}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-extrabold text-gray-500 uppercase tracking-wider">SORT:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              className="bg-[#0D1322] text-gray-300 text-xs font-bold border border-gray-800 rounded-lg px-3 py-1.5 focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Top Rated">Top Rated</option>
-              <option value="Name A-Z">Name A-Z</option>
-            </select>
+        <div className="mx-auto mt-8 max-w-2xl">
+          <div className="relative">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={`Search ${tools.length > 0 ? tools.length : 750} verified AI software...`}
+              className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch("")}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
       </section>
 
-      {/* Directory Grid */}
-      <section className="max-w-7xl mx-auto px-4 py-6">
-        <div className="flex items-center justify-between pb-4">
-          <h2 className="text-sm font-bold text-gray-400">
-            Showing {filteredTools.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}–
-            {Math.min(currentPage * ITEMS_PER_PAGE, filteredTools.length)} of {filteredTools.length} AI Tools
-          </h2>
-          {selectedCat !== "all" && (
-            <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-widest">
-              Category: {selectedCat}
-            </span>
-          )}
-        </div>
-
-        {loading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 9 }).map((_, i) => (
-              <div key={i} className="h-48 bg-[#0D1322] border border-gray-800 rounded-2xl animate-pulse" />
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* Category & Pricing Filters */}
+        <section className="mb-8 space-y-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.name}
+                onClick={() => setSelectedCat(cat.name)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                  selectedCat === cat.name
+                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black"
+                    : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300"
+                }`}
+              >
+                <span>{cat.icon}</span>
+                <span>{cat.name}</span>
+              </button>
             ))}
           </div>
-        ) : paginatedTools.length > 0 ? (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {paginatedTools.map((tool) => {
-                const name = String(tool.name || "AI Tool");
-                const slug = String(tool.slug || "").trim();
-                const category = String(tool.category || "AI Software");
-                const pricing = String(tool.pricing_type || tool.pricing || "Freemium");
-                const score = parseScore(tool.ai_vault_score ?? tool.score);
-                const desc = cleanDescription(
-                  String(tool.tagline || tool.description || tool.overview || ""),
-                  name,
-                  category
-                );
-                const isSaved = vaultSlugs.includes(slug);
 
-                return (
-                  <div
-                    key={String(tool.id || slug)}
-                    className="bg-[#0B0F19] border border-gray-800/80 hover:border-emerald-500/50 rounded-2xl p-5 flex flex-col justify-between transition group hover:shadow-2xl hover:shadow-emerald-500/5"
+          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200/80 py-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">Pricing:</span>
+              <div className="flex gap-1.5">
+                {PRICING_OPTIONS.map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setSelectedPricing(p)}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                      selectedPricing === p
+                        ? "bg-blue-600 text-white font-black shadow-sm"
+                        : "text-slate-500 hover:bg-slate-100"
+                    }`}
                   >
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400 text-sm">
-                            {name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="truncate font-extrabold text-base text-white group-hover:text-emerald-400 transition leading-tight">
-                              {name}
-                            </h3>
-                            <span className="text-xs text-gray-400 capitalize">{category}</span>
-                          </div>
-                        </div>
-
-                        <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-md bg-gray-800/90 text-gray-300 font-bold uppercase border border-gray-700">
-                          {pricing}
-                        </span>
-                      </div>
-
-                      <p className="text-xs text-gray-400 line-clamp-2 leading-relaxed">
-                        {desc}
-                      </p>
-
-                      {/* AI Vault Score Bar */}
-                      <div className="space-y-1 pt-1">
-                        <div className="flex items-center justify-between text-[11px] font-bold">
-                          <span className="text-gray-500 uppercase tracking-wider">AI Vault Score</span>
-                          <span className="text-emerald-400">{score}/100</span>
-                        </div>
-                        <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-500"
-                            style={{ width: `${score}%` }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="pt-4 mt-3 border-t border-gray-800/60 flex items-center justify-between">
-                      <button
-                        onClick={() => toggleSave(slug)}
-                        className={`text-xs font-bold flex items-center gap-1 transition ${
-                          isSaved ? "text-emerald-400" : "text-gray-400 hover:text-white"
-                        }`}
-                      >
-                        {isSaved ? "★ Saved" : "☆ Save"}
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <Link
-                          href={`/tool/${slug}`}
-                          className="text-xs font-bold text-gray-300 hover:text-white px-2 py-1 transition"
-                        >
-                          Specs →
-                        </Link>
-                        <a
-                          href={`/go/${slug}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3.5 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs transition shadow-md shadow-emerald-500/20"
-                        >
-                          Visit ↗
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-center gap-2 pt-10 pb-6">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1.5 rounded-xl bg-[#0D1322] border border-gray-800 text-xs font-bold disabled:opacity-40 hover:border-emerald-500/40 hover:text-white transition"
-                >
-                  ← Prev
-                </button>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase">Sort:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 outline-none"
+              >
+                {SORT_OPTIONS.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </section>
 
-                <div className="flex items-center gap-1.5">
-                  {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
-                    let p = idx + 1;
-                    if (currentPage > 3 && totalPages > 5) {
-                      p = currentPage - 2 + idx;
-                      if (p > totalPages) p = totalPages - (4 - idx);
-                    }
-                    const isActive = currentPage === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => handlePageChange(p)}
-                        className={`h-8 w-8 rounded-xl text-xs font-black transition ${
-                          isActive
-                            ? "bg-emerald-500 text-black shadow-lg shadow-emerald-500/25"
-                            : "border border-gray-800 bg-[#0D1322] text-gray-300 hover:border-emerald-500/40"
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    );
-                  })}
-                </div>
+        {/* Main Grid */}
+        <section>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-950">
+              {selectedCat === "All" ? "All AI Tools" : `${selectedCat} Tools`}
+              <span className="ml-2 text-xs font-bold text-slate-400">
+                (Showing {filteredTools.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}–
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredTools.length)} of {filteredTools.length})
+              </span>
+            </h2>
+          </div>
 
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1.5 rounded-xl bg-[#0D1322] border border-gray-800 text-xs font-bold disabled:opacity-40 hover:border-emerald-500/40 hover:text-white transition"
-                >
-                  Next →
-                </button>
+          {loading ? (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100" />
+              ))}
+            </div>
+          ) : paginatedTools.length > 0 ? (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {paginatedTools.map((tool) => (
+                  <ToolCard key={String(tool.id || tool.slug)} tool={tool} />
+                ))}
               </div>
-            )}
-          </>
-        ) : (
-          <div className="bg-[#0D1322] border border-gray-800 rounded-2xl p-12 text-center space-y-3">
-            <p className="text-sm font-bold text-gray-300">No matching AI software found.</p>
-            <button
-              onClick={() => {
-                setSearch("");
-                setSelectedCat("all");
-                setSelectedPricing("All");
-              }}
-              className="text-xs font-bold text-emerald-400 underline hover:text-emerald-300"
-            >
-              Reset all filters
-            </button>
-          </div>
-        )}
-      </section>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-800/80 bg-[#070A11] mt-16 py-12">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-6 text-xs text-gray-500 font-semibold">
-          <div className="flex items-center gap-2">
-            <span className="text-white font-black text-sm">AI Vault.</span>
-            <span>© 2026 Intelligence Engine.</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <Link href="/matcher" className="hover:text-emerald-400 transition">AI Matcher</Link>
-            <Link href="/compare" className="hover:text-emerald-400 transition">Compare Matrix</Link>
-            <Link href="/admin" className="hover:text-emerald-400 transition">Admin Console</Link>
-          </div>
-        </div>
-      </footer>
+              {totalPages > 1 && (
+                <div className="mt-10 flex items-center justify-center gap-2">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    ← Prev
+                  </button>
+
+                  <div className="flex items-center gap-1.5">
+                    {Array.from({ length: Math.min(totalPages, 5) }).map((_, idx) => {
+                      let p = idx + 1;
+                      if (currentPage > 3 && totalPages > 5) {
+                        p = currentPage - 2 + idx;
+                        if (p > totalPages) p = totalPages - (4 - idx);
+                      }
+                      const isActive = currentPage === p;
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => handlePageChange(p)}
+                          className={`h-9 w-9 rounded-xl text-xs font-black transition ${
+                            isActive
+                              ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600 ring-offset-2"
+                              : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+              <p className="text-sm font-bold text-slate-800">No matching AI tools found.</p>
+              <button
+                onClick={() => {
+                  setSearch("");
+                  setSelectedCat("All");
+                  setSelectedPricing("All");
+                }}
+                className="mt-3 text-xs font-bold text-blue-600 underline"
+              >
+                Reset filters
+              </button>
+            </div>
+          )}
+        </section>
+      </div>
     </main>
   );
 }
@@ -500,8 +424,8 @@ export default function HomePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#06080F]">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-800 border-t-emerald-500" />
+        <div className="flex min-h-screen items-center justify-center bg-[#050714]">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/10 border-t-blue-500" />
         </div>
       }
     >
