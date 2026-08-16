@@ -3,12 +3,14 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 3600; // Cache for 1 hour for high performance
+export const revalidate = 86400; // 24 Hours Cache
 
+const SITE_URL = "https://www.aivault.pp.ua";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
   "";
 
 const CATEGORIES = [
@@ -22,21 +24,27 @@ const CATEGORIES = [
   "video",
 ];
 
-export async function GET(req: Request) {
-  // Automatically detect exact host (www or non-www)
-  const host = req.headers.get("host") || "www.aivault.pp.ua";
-  const protocol = host.includes("localhost") ? "http" : "https";
-  const baseUrl = `${protocol}://${host}`;
+function escapeXml(unsafe: string): string {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+export async function GET() {
+  const currentDate = new Date().toISOString();
 
   const staticPages = [
-    { loc: `${baseUrl}`, priority: "1.0", changefreq: "daily" },
-    { loc: `${baseUrl}/compare`, priority: "0.9", changefreq: "daily" },
-    { loc: `${baseUrl}/submit`, priority: "0.8", changefreq: "weekly" },
-    { loc: `${baseUrl}/vault`, priority: "0.7", changefreq: "weekly" },
+    { loc: `${SITE_URL}`, priority: "1.0", changefreq: "daily" },
+    { loc: `${SITE_URL}/compare`, priority: "0.9", changefreq: "daily" },
+    { loc: `${SITE_URL}/submit`, priority: "0.8", changefreq: "weekly" },
+    { loc: `${SITE_URL}/vault`, priority: "0.7", changefreq: "weekly" },
   ];
 
   const categoryPages = CATEGORIES.map((cat) => ({
-    loc: `${baseUrl}/?cat=${cat}`,
+    loc: `${SITE_URL}/?cat=${encodeURIComponent(cat)}`,
     priority: "0.85",
     changefreq: "daily",
   }));
@@ -49,63 +57,43 @@ export async function GET(req: Request) {
       const { data: tools } = await supabase
         .from("ai_tools")
         .select("slug, updated_at")
-        .not("slug", "is", null);
+        .not("slug", "is", null)
+        .order("name", { ascending: true })
+        .limit(1000);
 
       if (tools && tools.length > 0) {
         toolPages = tools.map((t) => ({
-          loc: `${baseUrl}/tool/${encodeURIComponent(t.slug)}`,
-          lastmod: t.updated_at ? new Date(t.updated_at).toISOString() : new Date().toISOString(),
+          loc: `${SITE_URL}/tool/${encodeURIComponent(String(t.slug))}`,
+          lastmod: t.updated_at ? new Date(t.updated_at).toISOString() : currentDate,
           priority: "0.80",
           changefreq: "weekly",
         }));
       }
     } catch (e) {
-      console.error("Sitemap XML generation error:", e);
+      console.error("Sitemap fetch error:", e);
     }
   }
 
-  const currentDate = new Date().toISOString();
+  const allEntries = [
+    ...staticPages.map(
+      (p) => `<url><loc>${escapeXml(p.loc)}</loc><lastmod>${currentDate}</lastmod><changefreq>${p.changefreq}</changefreq><priority>${p.priority}</priority></url>`
+    ),
+    ...categoryPages.map(
+      (c) => `<url><loc>${escapeXml(c.loc)}</loc><lastmod>${currentDate}</lastmod><changefreq>${c.changefreq}</changefreq><priority>${c.priority}</priority></url>`
+    ),
+    ...toolPages.map(
+      (t) => `<url><loc>${escapeXml(t.loc)}</loc><lastmod>${t.lastmod}</lastmod><changefreq>${t.changefreq}</changefreq><priority>${t.priority}</priority></url>`
+    ),
+  ].join("");
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${staticPages
-  .map(
-    (p) => `  <url>
-    <loc>${p.loc}</loc>
-    <lastmod>${currentDate}</lastmod>
-    <changefreq>${p.changefreq}</changefreq>
-    <priority>${p.priority}</priority>
-  </url>`
-  )
-  .join("\n")}
-${categoryPages
-  .map(
-    (c) => `  <url>
-    <loc>${c.loc}</loc>
-    <lastmod>${currentDate}</lastmod>
-    <changefreq>${c.changefreq}</changefreq>
-    <priority>${c.priority}</priority>
-  </url>`
-  )
-  .join("\n")}
-${toolPages
-  .map(
-    (t) => `  <url>
-    <loc>${t.loc}</loc>
-    <lastmod>${t.lastmod}</lastmod>
-    <changefreq>${t.changefreq}</changefreq>
-    <priority>${t.priority}</priority>
-  </url>`
-  )
-  .join("\n")}
-</urlset>`;
+  const xml = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${allEntries}</urlset>`;
 
-  return new NextResponse(xml.trim(), {
+  return new NextResponse(xml, {
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "X-Content-Type-Options": "nosniff",
-      "Cache-Control": "public, max-age=3600, s-maxage=3600, stale-while-revalidate=86400",
+      "X-Robots-Tag": "noindex",
+      "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
     },
   });
 }
