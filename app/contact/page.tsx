@@ -79,26 +79,26 @@ export default function ContactPage() {
 
         <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           {sent ? (
-            <div className="text-center py-10 space-y-3">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-xl font-bold">
+            <div className="text-center py-10 space-y-4">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-2xl font-black">
                 ✓
               </div>
               <h2 className="text-xl font-black text-slate-950">Message Sent to Admin Desk</h2>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
                 Your inquiry has been logged into our admin dashboard. Our editorial team will review and reply via email.
               </p>
-              <div className="pt-4 flex justify-center gap-3">
+              <div className="pt-4 flex flex-wrap justify-center gap-3">
                 <button
                   onClick={() => setSent(false)}
-                  className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition shadow-sm"
                 >
                   Send Another Message
                 </button>
                 <Link
                   href="/"
-                  className="rounded-xl bg-slate-900 px-5 py-2 text-xs font-bold text-white hover:bg-black transition"
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/20"
                 >
-                  Back to Home
+                  Back to Directory →
                 </Link>
               </div>
             </div>
