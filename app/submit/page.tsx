@@ -18,6 +18,7 @@ const CATEGORIES = [
 export default function SubmitToolPage() {
   const [name, setName] = useState("");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [logoUrl, setLogoUrl] = useState("");
   const [category, setCategory] = useState("Productivity");
   const [pricing, setPricing] = useState("Freemium");
   const [description, setDescription] = useState("");
@@ -39,6 +40,7 @@ export default function SubmitToolPage() {
         body: JSON.stringify({
           name,
           website_url: websiteUrl,
+          logo_url: logoUrl,
           category,
           pricing,
           description,
@@ -63,7 +65,7 @@ export default function SubmitToolPage() {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
-      {/* Top Header */}
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -79,7 +81,6 @@ export default function SubmitToolPage() {
       </header>
 
       <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
-        {/* Title Header */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">
             Founder Direct Placement
@@ -187,7 +188,7 @@ export default function SubmitToolPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g. ChatEngine AI"
+                    placeholder="e.g. DocuSynth AI"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
@@ -206,6 +207,35 @@ export default function SubmitToolPage() {
                     onChange={(e) => setWebsiteUrl(e.target.value)}
                     className="w-full rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
                   />
+                </div>
+              </div>
+
+              {/* Logo URL Input & Live Preview */}
+              <div>
+                <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5 block">
+                  Logo Image URL (Optional)
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="url"
+                    placeholder="https://yourproduct.com/logo.png"
+                    value={logoUrl}
+                    onChange={(e) => setLogoUrl(e.target.value)}
+                    className="flex-1 rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500 focus:bg-white transition"
+                  />
+                  {logoUrl && (
+                    <div className="h-10 w-10 shrink-0 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center p-1">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={logoUrl}
+                        alt="Logo preview"
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
 
