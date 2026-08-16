@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 86400; // 24 Hours Cache
 
 const SITE_URL = "https://www.aivault.pp.ua";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -92,8 +91,7 @@ export async function GET() {
     status: 200,
     headers: {
       "Content-Type": "application/xml; charset=utf-8",
-      "X-Robots-Tag": "noindex",
-      "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=43200",
+      "Cache-Control": "public, max-age=0, s-maxage=3600, must-revalidate",
     },
   });
 }
