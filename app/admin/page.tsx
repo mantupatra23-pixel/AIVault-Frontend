@@ -65,7 +65,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("ai_tools")
         .select("*")
-        .order("created_at", { ascending: false, nullsFirst: false });
+        .order("name", { ascending: true });
       if (error) throw error;
       setTools((data as ToolRecord[]) || []);
     } catch (err) {
@@ -118,6 +118,7 @@ export default function AdminPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: selectedTool.id,
+          slug: selectedTool.slug,
           affiliate_url: editAffiliateUrl.trim(),
           affiliate_network: editNetwork,
         }),
@@ -492,7 +493,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL (REMOVED REQUIRED CONSTRAINT) */}
+      {/* CONFIGURE MODAL */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -520,14 +521,14 @@ export default function AdminPage() {
               <div>
                 <label className="text-[10px] font-black uppercase text-blue-400 mb-1 block">Monetized Affiliate Redirect URL</label>
                 <input
-                  type="url"
-                  placeholder="Paste your affiliate URL here (e.g. https://.../?ref=id)"
+                  type="text"
+                  placeholder="Paste URL (e.g. https://investorfinder.com/?ref=aivault)"
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-blue-500"
                 />
                 <p className="text-[10px] text-slate-500 mt-1">
-                  Leave blank to route clicks directly to the official website.
+                  Clicks to `/go/{selectedTool.slug}` route automatically to this destination.
                 </p>
               </div>
 
@@ -631,7 +632,7 @@ export default function AdminPage() {
                     placeholder="https://example.ai"
                     value={formWebsite}
                     onChange={(e) => setFormWebsite(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
                   />
                 </div>
 
@@ -643,7 +644,7 @@ export default function AdminPage() {
                     max="99"
                     value={formScore}
                     onChange={(e) => setFormScore(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
                   />
                 </div>
               </div>
