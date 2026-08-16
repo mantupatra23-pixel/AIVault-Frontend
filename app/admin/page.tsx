@@ -180,14 +180,16 @@ export default function AdminPage() {
         setSubscribers(leadData.subscribers || []);
       } catch {}
 
-      // 4. Fetch Reviews
+      // 4. Fetch Reviews (Via Admin API)
       try {
-        const revRes = await fetch("/api/reviews?all=true");
+        const revRes = await fetch("/api/admin/reviews");
         const revData = await revRes.json();
         setReviews(revData.reviews || []);
-      } catch {}
+      } catch (e) {
+        console.error("Reviews fetch error:", e);
+      }
 
-      // 5. Fetch Contact Inquiries via Server API
+      // 5. Fetch Contact Inquiries (Via Admin API)
       try {
         const msgRes = await fetch("/api/admin/messages");
         const msgData = await msgRes.json();
@@ -212,7 +214,12 @@ export default function AdminPage() {
     e.preventDefault();
     const activePin = getCurrentPin();
 
-    if (pinInput.trim() === activePin || pinInput.trim() === "9999" || pinInput.trim() === "1234" || pinInput.trim() === "2026") {
+    if (
+      pinInput.trim() === activePin ||
+      pinInput.trim() === "9999" ||
+      pinInput.trim() === "1234" ||
+      pinInput.trim() === "2026"
+    ) {
       setIsAuthenticated(true);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("aivault_admin_auth", "true");
@@ -309,6 +316,23 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       alert("Failed to delete message.");
+    }
+  };
+
+  const handleDeleteReview = async (id: string | number) => {
+    if (!confirm("Are you sure you want to delete this review?")) return;
+    try {
+      const res = await fetch("/api/admin/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, action: "delete" }),
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setReviews((prev) => prev.filter((r) => r.id !== id));
+      showToast("Review deleted successfully.");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete review.");
     }
   };
 
@@ -501,21 +525,6 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       alert("Failed to delete subscriber.");
-    }
-  };
-
-  const handleDeleteReview = async (id: string | number) => {
-    if (!confirm("Are you sure you want to delete this review?")) return;
-    try {
-      const res = await fetch(`/api/reviews?id=${encodeURIComponent(String(id))}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Delete failed");
-      setReviews((prev) => prev.filter((r) => r.id !== id));
-      showToast("Review deleted successfully.");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete review.");
     }
   };
 
