@@ -18,7 +18,9 @@ type ToolRecord = {
   category?: string | null;
   pricing?: string | null;
   pricing_model?: string | null;
+  pricing_type?: string | null;
   score?: number | string | null;
+  ai_vault_score?: number | string | null;
   neural_score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
@@ -60,7 +62,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   useEffect(() => {
     if (typeof window !== "undefined" && rawSlug) {
       try {
-        const stored = localStorage.getItem("aivault_saved_tools");
+        const stored = localStorage.getItem("aivault_saved");
         if (stored) {
           const list: string[] = JSON.parse(stored);
           if (list.some((s) => s.toLowerCase() === rawSlug.toLowerCase())) {
@@ -120,10 +122,14 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   const toolName = String(tool?.name || "AI Tool");
   const category = String(tool?.category || "Productivity");
-  const pricing = String(tool?.pricing_model || tool?.pricing || "Freemium");
-  const score = getToolScore(tool);
+  const pricing = String(tool?.pricing_type || tool?.pricing_model || tool?.pricing || "Freemium");
+  
+  // Use existing score logic, fallback to explicit ai_vault_score
+  const rawScore = tool?.ai_vault_score ?? tool?.score ?? 95;
+  const score = getToolScore({ score: rawScore });
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
+  
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
@@ -170,7 +176,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       if (!res.ok || data.error) throw new Error(data.error || "Subscription failed");
 
       setAlertStatus("success");
-      setAlertMsg(`✓ Tracking enabled! We will notify you of discounts & major updates for ${toolName}.`);
+      setAlertMsg(`✓ Tracking enabled! We will notify you of discounts for ${toolName}.`);
       setAlertEmail("");
     } catch (err: unknown) {
       setAlertStatus("error");
@@ -229,7 +235,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const handleBookmarkToggle = () => {
     if (typeof window === "undefined" || !rawSlug) return;
     try {
-      const stored = localStorage.getItem("aivault_saved_tools");
+      const stored = localStorage.getItem("aivault_saved");
       let list: string[] = stored ? JSON.parse(stored) : [];
       if (bookmarked) {
         list = list.filter((s) => s.toLowerCase() !== rawSlug.toLowerCase());
@@ -238,7 +244,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         if (!list.includes(rawSlug)) list.push(rawSlug);
         setBookmarked(true);
       }
-      localStorage.setItem("aivault_saved_tools", JSON.stringify(list));
+      localStorage.setItem("aivault_saved", JSON.stringify(list));
     } catch (e) {
       console.error(e);
     }
@@ -288,18 +294,18 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+      <main className="flex min-h-screen items-center justify-center bg-[#06080F]">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-gray-800 border-t-emerald-500" />
       </main>
     );
   }
 
   if (!tool) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafbfc] px-4 text-center">
-        <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
-        <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
-        <Link href="/" className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#06080F] px-4 text-center">
+        <h1 className="text-2xl font-black text-white">AI Tool Not Found</h1>
+        <p className="mt-2 text-xs text-gray-500">The requested tool record could not be loaded.</p>
+        <Link href="/" className="mt-5 rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-bold text-black shadow-md">
           ← Return to Directory
         </Link>
       </main>
@@ -307,32 +313,34 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   }
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
+    <main className="min-h-screen bg-[#06080F] text-white selection:bg-emerald-500 selection:text-black pb-28">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
-            AI Vault<span className="text-blue-600">.</span>
+      <header className="sticky top-0 z-50 border-b border-gray-800/80 bg-[#0B0F19]/90 backdrop-blur-md px-4 sm:px-8">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="text-xl font-black tracking-tight text-white">
+              AI <span className="text-emerald-400">Vault.</span>
+            </span>
           </Link>
 
-          <div className="flex items-center gap-2 sm:gap-2.5">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-gray-800 bg-[#0D1322] px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-emerald-500/40 hover:text-white transition"
             >
               <span>⚖️ Compare</span>
             </Link>
 
             <Link
               href="/vault"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              className="inline-flex items-center gap-1 rounded-xl border border-gray-800 bg-[#0D1322] px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-emerald-500/40 hover:text-emerald-400 transition"
             >
               <span>★ Vault</span>
             </Link>
 
             <button
               onClick={handleCopyLink}
-              className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-gray-800 bg-[#0D1322] px-3 py-1.5 text-xs font-bold text-gray-300 hover:border-emerald-500/40 hover:text-white transition"
             >
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
@@ -342,7 +350,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
+              className="inline-flex items-center gap-1 rounded-xl bg-emerald-500 px-4 py-1.5 text-xs font-black text-black shadow-lg shadow-emerald-500/20 transition hover:bg-emerald-400"
             >
               Visit Website ↗
             </a>
@@ -351,38 +359,41 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
+        {/* Breadcrumb */}
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-2 text-[11px] font-bold text-gray-500">
           <div className="flex items-center gap-2">
-            <Link href="/" className="hover:text-blue-600">Directory</Link>
+            <Link href="/" className="hover:text-emerald-400 transition">Directory</Link>
             <span>/</span>
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-blue-600 capitalize">{category}</Link>
+            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-emerald-400 transition capitalize">{category}</Link>
             <span>/</span>
-            <span className="font-semibold text-slate-700">{toolName}</span>
+            <span className="text-gray-300">{toolName}</span>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             Verified Catalog Entry
           </span>
         </div>
 
         {/* HERO SECTION */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <section className="bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
             <div className="flex items-start gap-4 min-w-0">
-              <ToolLogo name={toolName} src={logo} size="lg" />
+              <div className="w-16 h-16 shrink-0 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400 text-2xl">
+                {toolName.slice(0, 2).toUpperCase()}
+              </div>
               <div className="min-w-0">
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                  <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/30">
                     Verified AI
                   </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                  <span className="rounded-md bg-gray-800 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-gray-300 border border-gray-700">
                     {category}
                   </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-700">
+                  <span className="rounded-md border border-gray-700 bg-gray-800 px-2 py-0.5 text-[9px] font-bold text-gray-300 uppercase">
                     {pricing}
                   </span>
                 </div>
-                <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
+                <h1 className="text-3xl font-black text-white sm:text-4xl tracking-tight mt-1">
                   {toolName}
                 </h1>
               </div>
@@ -391,10 +402,10 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             <div className="flex items-center gap-2 self-start">
               <button
                 onClick={handleUpvote}
-                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-sm ${
+                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-md ${
                   upvoted
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                    : "border-gray-800 bg-[#0D1322] text-gray-400 hover:border-gray-700 hover:text-white"
                 }`}
               >
                 <span>▲</span>
@@ -403,58 +414,58 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
               <button
                 onClick={handleBookmarkToggle}
-                className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
+                className={`rounded-xl border p-2 text-xs font-bold transition shadow-md px-3.5 py-2 ${
                   bookmarked
-                    ? "border-amber-400 bg-amber-50 text-amber-600 font-bold"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+                    : "border-gray-800 bg-[#0D1322] text-gray-400 hover:border-gray-700 hover:text-white"
                 }`}
               >
-                {bookmarked ? "★ Saved" : "★ Save"}
+                {bookmarked ? "★ Saved" : "☆ Save"}
               </button>
             </div>
           </div>
 
-          <p className="mt-5 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-3xl">
+          <p className="mt-5 text-sm leading-relaxed text-gray-300 max-w-3xl">
             {cleanOverview}
           </p>
 
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">AI Vault Score</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{formattedScore}</p>
+            <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500 tracking-wider">AI Vault Score</p>
+              <p className="mt-1 text-sm font-black text-emerald-400">{formattedScore}</p>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing Tier</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{pricing}</p>
+            <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500 tracking-wider">Pricing Tier</p>
+              <p className="mt-1 text-sm font-black text-white">{pricing}</p>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Category</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{category}</p>
+            <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500 tracking-wider">Category</p>
+              <p className="mt-1 text-sm font-black text-white">{category}</p>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900 truncate">{deployment}</p>
+            <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500 tracking-wider">Deployment</p>
+              <p className="mt-1 text-xs font-bold text-white truncate">{deployment}</p>
             </div>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
+          <div className="mt-6 rounded-2xl border border-gray-800 bg-[#0D1322] p-4 sm:p-5">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                <p className="text-[10px] font-black uppercase tracking-wider text-gray-400">
                   AI Vault Quality Index
                 </p>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-gray-500 mt-1">
                   Evaluated across operational throughput, catalog reliability, and integration stability.
                 </p>
               </div>
               <div className="text-right">
-                <span className="text-2xl font-black text-slate-950">{formattedScore}</span>
+                <span className="text-2xl font-black text-emerald-400">{formattedScore}</span>
               </div>
             </div>
             {score !== null && (
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+              <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-gray-800">
                 <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600"
+                  className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-500"
                   style={{ width: barWidth }}
                 />
               </div>
@@ -463,71 +474,71 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         </section>
 
         {/* INLINE PRICE DROP & UPDATE ALERT WIDGET */}
-        <section className="mt-6 rounded-3xl border border-blue-200/80 bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white shadow-md">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white mb-2">
-                🔔 Price & Feature Tracker
-              </span>
-              <h2 className="text-lg font-black sm:text-xl">
-                Get Deal Alerts & Version Updates for {toolName}
-              </h2>
-              <p className="mt-1 text-xs text-blue-100 max-w-lg leading-relaxed">
-                Receive instant email alerts whenever {toolName} updates its pricing model, releases new capabilities, or offers promotional discounts.
-              </p>
-            </div>
+        <section className="mt-6 bg-gradient-to-r from-[#0D1A14] to-[#0A1220] border border-emerald-500/30 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-2xl">
+          <div className="space-y-1 text-center sm:text-left">
+            <span className="inline-block px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-[10px] font-extrabold uppercase tracking-widest mb-2">
+              🔔 Price & Feature Tracker
+            </span>
+            <h2 className="text-lg font-black text-white sm:text-xl">
+              Get Deal Alerts & Updates for {toolName}
+            </h2>
+            <p className="mt-1 text-xs text-gray-400 max-w-md leading-relaxed">
+              Receive instant email alerts whenever {toolName} updates its pricing model, releases new capabilities, or offers promotional discounts.
+            </p>
+          </div>
 
-            <form onSubmit={handlePriceAlertSubmit} className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+          <div className="w-full sm:w-auto">
+            <form onSubmit={handlePriceAlertSubmit} className="flex flex-col sm:flex-row gap-2">
               <input
                 type="email"
                 required
                 placeholder="Enter your email..."
                 value={alertEmail}
                 onChange={(e) => setAlertEmail(e.target.value)}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs text-white placeholder:text-blue-200 outline-none focus:bg-white/20 min-w-[240px]"
+                className="rounded-xl border border-gray-700 bg-[#06080F] px-4 py-3 text-xs text-white placeholder:text-gray-500 outline-none focus:border-emerald-500 min-w-[240px] shadow-inner"
               />
               <button
                 type="submit"
                 disabled={alertStatus === "loading"}
-                className="rounded-xl bg-white px-5 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-50 transition shadow-sm disabled:opacity-50"
+                className="rounded-xl bg-emerald-500 px-5 py-3 text-xs font-black text-black hover:bg-emerald-400 transition shadow-lg shadow-emerald-500/25 disabled:opacity-50 whitespace-nowrap"
               >
                 {alertStatus === "loading" ? "Setting Alert..." : "Enable Alert 🔔"}
               </button>
             </form>
+            {alertMsg && (
+              <p className={`mt-3 text-xs font-bold text-center sm:text-left ${alertStatus === "success" ? "text-emerald-400" : "text-rose-400"}`}>
+                {alertMsg}
+              </p>
+            )}
           </div>
-          {alertMsg && (
-            <p className={`mt-3 text-xs font-bold ${alertStatus === "success" ? "text-emerald-200" : "text-rose-200"}`}>
-              {alertMsg}
-            </p>
-          )}
         </section>
 
         {/* PROMPT PLAYBOOK */}
-        <section className="mt-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+        <section className="mt-6 bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-6">
             <div>
-              <span className="inline-block rounded-full bg-indigo-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-indigo-700">
+              <span className="inline-block rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400">
                 ⚡ Ready-to-Use AI Playbook
               </span>
-              <h2 className="text-base font-black text-slate-950 mt-1">
+              <h2 className="text-base font-black text-white mt-2">
                 Copy-Paste Prompts for {toolName}
               </h2>
             </div>
-            <span className="text-[10px] font-bold text-slate-400">1-Click Copied into Clipboard</span>
+            <span className="text-[10px] font-bold text-gray-500">1-Click Copied into Clipboard</span>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {playbookPrompts.map((item, idx) => (
-              <div key={idx} className="flex flex-col justify-between rounded-2xl border border-indigo-100/80 bg-white p-4 shadow-sm">
+              <div key={idx} className="flex flex-col justify-between rounded-2xl border border-gray-800 bg-[#0D1322] p-4 shadow-sm">
                 <div>
-                  <h3 className="text-xs font-black text-slate-900">{item.title}</h3>
-                  <p className="mt-2 text-xs font-mono text-slate-600 bg-slate-50 p-2.5 rounded-xl leading-relaxed border border-slate-100">
+                  <h3 className="text-xs font-black text-gray-300">{item.title}</h3>
+                  <p className="mt-3 text-xs font-mono text-gray-400 bg-[#06080F] p-3 rounded-xl leading-relaxed border border-gray-800/80">
                     "{item.prompt}"
                   </p>
                 </div>
                 <button
                   onClick={() => handleCopyPrompt(item.prompt, idx)}
-                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white transition hover:bg-blue-700 shadow-md shadow-blue-500/20"
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-xl bg-gray-800 border border-gray-700 py-2.5 text-xs font-bold text-gray-300 transition hover:bg-gray-700 hover:text-white"
                 >
                   <span>{copiedPromptIndex === idx ? "✓ Copied to Clipboard!" : "📋 Copy Prompt Template"}</span>
                 </button>
@@ -537,27 +548,27 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         </section>
 
         {/* DECISION ENGINE */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Quick Decision Engine</span>
-          <h2 className="text-base font-black text-slate-950 mt-0.5">Is {toolName} right for your stack?</h2>
-          <p className="mt-1 text-xs text-slate-500">Answer 2 quick questions to calculate your team compatibility:</p>
+        <section className="mt-6 bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Quick Decision Engine</span>
+          <h2 className="text-base font-black text-white mt-1">Is {toolName} right for your stack?</h2>
+          <p className="mt-1 text-xs text-gray-400">Answer 2 quick questions to calculate your team compatibility:</p>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-              <p className="text-xs font-bold text-slate-900 mb-2">1. What is your team budget?</p>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl bg-[#0D1322] p-4 border border-gray-800">
+              <p className="text-xs font-bold text-gray-300 mb-3">1. What is your team budget?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setQuizBudget("free")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "free" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition border ${
+                    quizBudget === "free" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : "bg-[#06080F] text-gray-400 border-gray-700 hover:text-white"
                   }`}
                 >
                   Free / Low Cost
                 </button>
                 <button
                   onClick={() => setQuizBudget("paid")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "paid" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition border ${
+                    quizBudget === "paid" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : "bg-[#06080F] text-gray-400 border-gray-700 hover:text-white"
                   }`}
                 >
                   Paid SaaS Budget
@@ -565,21 +576,21 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               </div>
             </div>
 
-            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-              <p className="text-xs font-bold text-slate-900 mb-2">2. Who will be using it?</p>
+            <div className="rounded-2xl bg-[#0D1322] p-4 border border-gray-800">
+              <p className="text-xs font-bold text-gray-300 mb-3">2. Who will be using it?</p>
               <div className="flex gap-2">
                 <button
                   onClick={() => setQuizTeam("solo")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "solo" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition border ${
+                    quizTeam === "solo" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : "bg-[#06080F] text-gray-400 border-gray-700 hover:text-white"
                   }`}
                 >
                   Solo / Founder
                 </button>
                 <button
                   onClick={() => setQuizTeam("team")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "team" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
+                  className={`flex-1 rounded-xl py-2.5 text-xs font-bold transition border ${
+                    quizTeam === "team" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/50" : "bg-[#06080F] text-gray-400 border-gray-700 hover:text-white"
                   }`}
                 >
                   Growing Team
@@ -589,12 +600,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
 
           {quizBudget && quizTeam && (
-            <div className="mt-4 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 flex items-center justify-between">
+            <div className="mt-5 rounded-2xl bg-emerald-950/30 border border-emerald-500/20 p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div>
-                <p className="text-xs font-bold text-emerald-900">
+                <p className="text-sm font-bold text-emerald-400">
                   ✓ High Match: {toolName} fits your requirements ({pricing} tier).
                 </p>
-                <p className="text-[11px] text-emerald-700 mt-0.5">
+                <p className="text-xs text-emerald-500/80 mt-1">
                   Great choice for {quizTeam === "solo" ? "individual fast deployment" : "team scale and cross-collaboration"}.
                 </p>
               </div>
@@ -603,7 +614,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 onClick={handleOutboundClick}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm"
+                className="rounded-xl bg-emerald-500 px-5 py-2.5 text-xs font-black text-black hover:bg-emerald-400 shadow-md shadow-emerald-500/20 whitespace-nowrap"
               >
                 Proceed ↗
               </a>
@@ -612,40 +623,40 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         </section>
 
         {/* ABOUT SECTION */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+        <section className="mt-6 bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-3">
-            <span className="h-2 w-2 rounded-full bg-blue-600" />
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            <h2 className="text-[10px] font-black uppercase tracking-widest text-gray-500">
               In-Depth Overview
             </h2>
           </div>
-          <h3 className="text-xl font-black text-slate-950 sm:text-2xl">
+          <h3 className="text-xl font-black text-white sm:text-2xl">
             About {toolName}
           </h3>
 
-          <div className="mt-4 space-y-3 text-xs sm:text-sm leading-relaxed text-slate-700">
+          <div className="mt-4 space-y-4 text-sm leading-relaxed text-gray-400">
             <p>
-              <strong>{toolName}</strong> is designed to streamline critical operations within the <strong>{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, it eliminates repetitive manual workflows, accelerates task turnaround times, and enhances team productivity.
+              <strong className="text-gray-300">{toolName}</strong> is designed to streamline critical operations within the <strong className="text-gray-300">{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, it eliminates repetitive manual workflows, accelerates task turnaround times, and enhances team productivity.
             </p>
             <p>
-              Operated under a flexible <strong>{pricing}</strong> model, {toolName} provides instant cloud accessibility without requiring complex technical infrastructure or prolonged onboarding.
+              Operated under a flexible <strong className="text-gray-300">{pricing}</strong> model, {toolName} provides instant cloud accessibility without requiring complex technical infrastructure or prolonged onboarding.
             </p>
           </div>
         </section>
 
         {/* FEATURES */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <h2 className="text-base font-black text-slate-950 mb-4">
+        <section className="mt-6 bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 sm:p-8 shadow-sm">
+          <h2 className="text-base font-black text-white mb-5">
             Key Capabilities & Features
           </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2">
             {featuresList.map((f, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <div key={idx} className="rounded-2xl border border-gray-800 bg-[#0D1322] p-4">
                 <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">✓</span>
-                  <h3 className="text-xs font-bold text-slate-950">{f.title}</h3>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-[10px] font-bold text-black">✓</span>
+                  <h3 className="text-xs font-bold text-gray-200">{f.title}</h3>
                 </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600 pl-7">{f.desc}</p>
+                <p className="mt-2 text-xs leading-relaxed text-gray-500 pl-7">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -653,59 +664,59 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
         {/* USE CASES & TARGET AUDIENCE */}
         <section className="mt-6 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-black text-slate-950 mb-3">
+          <div className="rounded-3xl bg-[#0B0F19] border border-gray-800 p-6 shadow-sm">
+            <h2 className="text-base font-black text-white mb-4">
               Best Use Cases
             </h2>
-            <ul className="space-y-2.5 text-xs text-slate-700">
+            <ul className="space-y-3 text-xs text-gray-400">
               {useCasesList.map((u, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-2.5">
-                  <span className="text-blue-600 font-bold">→</span>
+                <li key={idx} className="flex items-start gap-3 rounded-xl bg-[#0D1322] border border-gray-800 p-3">
+                  <span className="text-emerald-500 font-bold">→</span>
                   <span>{u}</span>
                 </li>
               ))}
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-black text-slate-950 mb-3">
+          <div className="rounded-3xl bg-[#0B0F19] border border-gray-800 p-6 shadow-sm">
+            <h2 className="text-base font-black text-white mb-4">
               Who Should Use {toolName}?
             </h2>
-            <div className="space-y-2.5">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Founders & Growth Teams</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Quickly scale output without hiring additional manual resources.</p>
+            <div className="space-y-3">
+              <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+                <p className="text-xs font-bold text-gray-300">Founders & Growth Teams</p>
+                <p className="text-xs text-gray-500 mt-1">Quickly scale output without hiring additional manual resources.</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Specialists & Power Users</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Execute high-throughput {category.toLowerCase()} tasks with high accuracy.</p>
+              <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+                <p className="text-xs font-bold text-gray-300">Specialists & Power Users</p>
+                <p className="text-xs text-gray-500 mt-1">Execute high-throughput {category.toLowerCase()} tasks with high accuracy.</p>
               </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Operations & Agile Teams</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Standardize operational pipelines and improve project turnarounds.</p>
+              <div className="rounded-xl border border-gray-800 bg-[#0D1322] p-3.5">
+                <p className="text-xs font-bold text-gray-300">Operations & Agile Teams</p>
+                <p className="text-xs text-gray-500 mt-1">Standardize operational pipelines and improve project turnarounds.</p>
               </div>
             </div>
           </div>
         </section>
 
         {/* ROI CALCULATOR */}
-        <section className="mt-6 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white p-6 shadow-sm sm:p-7">
+        <section className="mt-6 rounded-3xl bg-gradient-to-br from-[#0B0F19] to-[#0D1322] border border-gray-800 p-6 shadow-xl sm:p-8">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-md">
-              <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600 mb-2">
+              <span className="inline-block rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-emerald-400 border border-emerald-500/20 mb-3">
                 ⚡ Interactive ROI Estimator
               </span>
-              <h2 className="text-base font-black text-slate-950">
+              <h2 className="text-base font-black text-white">
                 How much time can {toolName} save you?
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1.5 text-xs text-gray-400">
                 Adjust your team's weekly hours spent on {category.toLowerCase()} tasks:
               </p>
 
-              <div className="mt-4">
-                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
+              <div className="mt-5">
+                <div className="flex justify-between text-xs font-bold text-gray-400 mb-2">
                   <span>Current manual effort:</span>
-                  <span className="text-blue-600 font-black">{weeklyHours} hrs / week</span>
+                  <span className="text-emerald-400 font-black">{weeklyHours} hrs / week</span>
                 </div>
                 <input
                   type="range"
@@ -713,21 +724,21 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                   max="40"
                   value={weeklyHours}
                   onChange={(e) => setWeeklyHours(Number(e.target.value))}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-600"
+                  className="h-1.5 w-full cursor-pointer appearance-none rounded-lg bg-gray-800 accent-emerald-500"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:w-80">
-              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
-                <p className="text-[9px] font-bold uppercase text-slate-400">Time Saved</p>
-                <p className="mt-1 text-xl font-black text-blue-600">~{estimatedHoursSaved}h</p>
-                <p className="text-[10px] text-slate-400">per week</p>
+              <div className="rounded-2xl border border-gray-800 bg-[#06080F] p-4 text-center shadow-inner">
+                <p className="text-[9px] font-bold uppercase text-gray-500 tracking-widest">Time Saved</p>
+                <p className="mt-1 text-2xl font-black text-emerald-400">~{estimatedHoursSaved}h</p>
+                <p className="text-[10px] text-gray-600 mt-0.5">per week</p>
               </div>
-              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
-                <p className="text-[9px] font-bold uppercase text-slate-400">Est. Value</p>
-                <p className="mt-1 text-xl font-black text-emerald-600">${estimatedMonthlySavings}</p>
-                <p className="text-[10px] text-slate-400">per month</p>
+              <div className="rounded-2xl border border-gray-800 bg-[#06080F] p-4 text-center shadow-inner">
+                <p className="text-[9px] font-bold uppercase text-gray-500 tracking-widest">Est. Value</p>
+                <p className="mt-1 text-2xl font-black text-emerald-400">${estimatedMonthlySavings}</p>
+                <p className="text-[10px] text-gray-600 mt-0.5">per month</p>
               </div>
             </div>
           </div>
@@ -735,39 +746,39 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
         {/* PROS & CONS */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>
+          <div className="rounded-3xl border border-emerald-500/20 bg-emerald-950/20 p-6 shadow-sm">
+            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-[9px] text-black">✓</span>
               Key Strengths & Advantages
             </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-emerald-950 font-medium">
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
+            <ul className="mt-4 space-y-3 text-xs text-emerald-100/70 font-medium">
+              <li className="flex items-start gap-2.5">
+                <span className="font-bold text-emerald-500">•</span>
                 <span>Optimized architecture tailored for fast {category.toLowerCase()} execution.</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
+              <li className="flex items-start gap-2.5">
+                <span className="font-bold text-emerald-500">•</span>
                 <span>Transparent {pricing} access model with straightforward onboarding.</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
+              <li className="flex items-start gap-2.5">
+                <span className="font-bold text-emerald-500">•</span>
                 <span>High cloud availability backed by continuous service evaluation.</span>
               </li>
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-amber-100 bg-amber-50/40 p-6 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[10px] text-white">!</span>
+          <div className="rounded-3xl border border-amber-500/20 bg-amber-950/20 p-6 shadow-sm">
+            <h3 className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] text-black">!</span>
               Operational Considerations
             </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-amber-950 font-medium">
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
+            <ul className="mt-4 space-y-3 text-xs text-amber-100/70 font-medium">
+              <li className="flex items-start gap-2.5">
+                <span className="font-bold text-amber-500">•</span>
                 <span>Advanced throughput and batch limits depend on your selected plan.</span>
               </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
+              <li className="flex items-start gap-2.5">
+                <span className="font-bold text-amber-500">•</span>
                 <span>Requires constant internet connectivity to communicate with cloud APIs.</span>
               </li>
             </ul>
@@ -775,39 +786,39 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         </section>
 
         {/* TECHNICAL SPECIFICATIONS */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
+        <section className="mt-6 bg-[#0B0F19] border border-gray-800 rounded-3xl p-6 shadow-sm">
+          <h2 className="text-[11px] font-black uppercase tracking-widest text-gray-500 mb-4">
             Technical & Deployment Specifications
           </h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{deployment}</p>
+            <div className="rounded-xl bg-[#0D1322] border border-gray-800 p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500">Deployment</p>
+              <p className="mt-1 text-xs font-bold text-gray-300">{deployment}</p>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing Model</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{pricing}</p>
+            <div className="rounded-xl bg-[#0D1322] border border-gray-800 p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500">Pricing Model</p>
+              <p className="mt-1 text-xs font-bold text-gray-300">{pricing}</p>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">License Tier</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{license}</p>
+            <div className="rounded-xl bg-[#0D1322] border border-gray-800 p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500">License Tier</p>
+              <p className="mt-1 text-xs font-bold text-gray-300">{license}</p>
             </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Catalogue Status</p>
-              <p className="mt-1 text-xs font-bold text-emerald-600">Verified Active</p>
+            <div className="rounded-xl bg-[#0D1322] border border-gray-800 p-3.5">
+              <p className="text-[9px] font-bold uppercase text-gray-500">Catalogue Status</p>
+              <p className="mt-1 text-xs font-bold text-emerald-400">Verified Active</p>
             </div>
           </div>
         </section>
 
         {/* SIMILAR TOOLS */}
         {related.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-4 flex items-center justify-between">
+          <section className="mt-10">
+            <div className="mb-5 flex items-center justify-between">
               <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Ecosystem Comparison</span>
-                <h2 className="text-lg font-black text-slate-950">Top Similar {category} Tools</h2>
+                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Ecosystem Comparison</span>
+                <h2 className="text-lg font-black text-white mt-1">Top Similar {category} Tools</h2>
               </div>
-              <Link href={`/compare?tools=${encodeURIComponent(rawSlug)}`} className="text-xs font-bold text-blue-600 hover:underline">
+              <Link href={`/compare?tools=${encodeURIComponent(rawSlug)}`} className="text-xs font-bold text-gray-400 hover:text-emerald-400 transition">
                 Compare All In Matrix →
               </Link>
             </div>
@@ -820,23 +831,25 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 return (
                   <div
                     key={String(item.id ?? itemSlug)}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
+                    className="group flex flex-col justify-between rounded-2xl border border-gray-800 bg-[#0B0F19] p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-emerald-500/50"
                   >
                     <Link href={`/tool/${encodeURIComponent(itemSlug)}`} className="flex items-center gap-3 min-w-0">
-                      <ToolLogo name={String(item.name || "AI Tool")} src={item.logo_url as string} size="sm" />
+                      <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400 text-sm">
+                        {String(item.name || "AI").slice(0, 2).toUpperCase()}
+                      </div>
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
+                        <p className="truncate text-xs font-bold text-gray-200 group-hover:text-emerald-400 transition-colors">
                           {String(item.name || "AI Tool")}
                         </p>
-                        <p className="text-[10px] text-slate-400 capitalize">{String(item.category || category)}</p>
+                        <p className="text-[10px] text-gray-500 capitalize">{String(item.category || category)}</p>
                       </div>
                     </Link>
 
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
-                      <span className="font-bold text-slate-500">{String(item.pricing || "Freemium")}</span>
+                    <div className="mt-4 flex items-center justify-between border-t border-gray-800/80 pt-3 text-[10px]">
+                      <span className="font-bold text-gray-400">{String(item.pricing_type || item.pricing || "Freemium")}</span>
                       <Link
                         href={compareHref}
-                        className="font-black text-blue-600 hover:underline"
+                        className="font-bold text-gray-500 hover:text-emerald-400 transition"
                       >
                         Compare vs {toolName} →
                       </Link>
@@ -849,27 +862,27 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         )}
 
         {/* BOTTOM CTA BANNER */}
-        <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
-          <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
+        <section className="mt-10 rounded-3xl bg-gradient-to-b from-[#0D1726] to-[#0B0F19] p-8 text-center sm:p-12 shadow-2xl border border-gray-800">
+          <div className="inline-block rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-400 mb-4">
             Direct Platform Access
           </div>
-          <h2 className="text-2xl font-black sm:text-3xl">Get Started with {toolName}</h2>
-          <p className="mx-auto mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
+          <h2 className="text-2xl font-black text-white sm:text-3xl">Get Started with {toolName}</h2>
+          <p className="mx-auto mt-3 max-w-md text-xs text-gray-400 leading-relaxed">
             Explore pricing tiers, interactive demonstrations, and official documentation directly on their portal.
           </p>
-          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
             <a
               href={destinationUrl}
               onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
+              className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-8 py-3.5 text-xs font-black text-black transition hover:bg-emerald-400 shadow-lg shadow-emerald-500/25"
             >
               VISIT OFFICIAL PORTAL ↗
             </a>
             <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
+              className="inline-flex items-center justify-center rounded-xl border border-gray-700 bg-gray-800 px-6 py-3.5 text-xs font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition"
             >
               ⚖️ Compare Tool
             </Link>
@@ -878,20 +891,22 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       </div>
 
       {/* STICKY BOTTOM DOCK */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-gray-800 bg-[#06080F]/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.4)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
-            <ToolLogo name={toolName} src={logo} size="sm" />
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 flex items-center justify-center font-black text-emerald-400 text-sm">
+              {toolName.slice(0, 2).toUpperCase()}
+            </div>
             <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">{toolName}</p>
-              <p className="text-[10px] text-slate-400">{category} • {pricing}</p>
+              <p className="truncate text-xs font-bold text-white">{toolName}</p>
+              <p className="text-[10px] text-gray-500">{category} • {pricing}</p>
             </div>
           </div>
 
-          <div className="flex w-full sm:w-auto items-center justify-end gap-2.5">
+          <div className="flex w-full sm:w-auto items-center justify-end gap-3">
             <Link
               href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+              className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2.5 text-xs font-bold text-gray-300 hover:bg-gray-700 hover:text-white transition"
             >
               ⚖️ Compare
             </Link>
@@ -901,9 +916,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
+              className="flex-1 sm:flex-initial rounded-xl bg-emerald-500 px-6 py-2.5 text-center text-xs font-black text-black shadow-lg shadow-emerald-500/25 hover:bg-emerald-400 transition"
             >
-              OPEN OFFICIAL PLATFORM ↗
+              OPEN PLATFORM ↗
             </a>
           </div>
         </div>
