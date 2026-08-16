@@ -156,7 +156,6 @@ function HomeContent() {
   const filteredTools = useMemo(() => {
     return tools
       .filter((t) => {
-        // Hide unapproved submissions from the public directory
         if (t.affiliate_status === "pending_submission") return false;
 
         if (selectedCat !== "All") {
@@ -190,6 +189,18 @@ function HomeContent() {
         return (a.name || "").localeCompare(b.name || "");
       });
   }, [tools, selectedCat, selectedPricing, search, sortBy]);
+
+  // Generate dynamic comparison face-offs
+  const popularComparisons = useMemo(() => {
+    const valid = tools.filter((t) => t.slug && t.affiliate_status !== "pending_submission");
+    const pairs: { toolA: ToolRecord; toolB: ToolRecord }[] = [];
+    for (let i = 0; i < Math.min(valid.length - 1, 8); i += 2) {
+      if (valid[i] && valid[i + 1]) {
+        pairs.push({ toolA: valid[i], toolB: valid[i + 1] });
+      }
+    }
+    return pairs;
+  }, [tools]);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -282,6 +293,71 @@ function HomeContent() {
           </div>
         </div>
       </section>
+
+      {/* Programmatic Tool vs Tool Battle Hub */}
+      {popularComparisons.length > 0 && !search && selectedCat === "All" && (
+        <section className="border-b border-slate-200/80 bg-white py-8 px-4 sm:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
+                  🔥 Trending Face-Offs
+                </span>
+                <h2 className="text-base font-black text-slate-950 sm:text-lg mt-1">
+                  Popular AI Head-to-Head Comparisons
+                </h2>
+              </div>
+              <Link
+                href="/compare"
+                className="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1"
+              >
+                Build Custom Comparison →
+              </Link>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {popularComparisons.map(({ toolA, toolB }, idx) => {
+                const slugA = encodeURIComponent(String(toolA.slug || ""));
+                const slugB = encodeURIComponent(String(toolB.slug || ""));
+                const nameA = String(toolA.name || "Tool A");
+                const nameB = String(toolB.name || "Tool B");
+                const vsHref = `/vs/${slugA}-vs-${slugB}`;
+
+                return (
+                  <Link
+                    key={idx}
+                    href={vsHref}
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-md"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <ToolLogo src={toolA.logo_url as string} name={nameA} size="sm" />
+                        <span className="truncate text-xs font-black text-slate-900">{nameA}</span>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
+                        VS
+                      </span>
+                      <div className="flex items-center gap-2 min-w-0 justify-end">
+                        <span className="truncate text-xs font-black text-slate-900">{nameB}</span>
+                        <ToolLogo src={toolB.logo_url as string} name={nameB} size="sm" />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px]">
+                      <span className="font-semibold text-slate-400 capitalize">
+                        {String(toolA.category || "AI")} Stack
+                      </span>
+                      <span className="font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
+                        Compare Now →
+                      </span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Category & Pricing Filters */}
