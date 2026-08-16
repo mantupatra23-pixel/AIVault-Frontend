@@ -492,7 +492,7 @@ export default function AdminPage() {
         )}
       </div>
 
-      {/* CONFIGURE MODAL */}
+      {/* CONFIGURE MODAL (REMOVED REQUIRED CONSTRAINT) */}
       {selectedTool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
@@ -521,12 +521,14 @@ export default function AdminPage() {
                 <label className="text-[10px] font-black uppercase text-blue-400 mb-1 block">Monetized Affiliate Redirect URL</label>
                 <input
                   type="url"
-                  required
-                  placeholder="https://investorfinder.com/?ref=aivault"
+                  placeholder="Paste your affiliate URL here (e.g. https://.../?ref=id)"
                   value={editAffiliateUrl}
                   onChange={(e) => setEditAffiliateUrl(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900/90 px-3.5 py-2 text-xs text-white placeholder:text-slate-600 outline-none focus:border-blue-500"
                 />
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Leave blank to route clicks directly to the official website.
+                </p>
               </div>
 
               <div>
