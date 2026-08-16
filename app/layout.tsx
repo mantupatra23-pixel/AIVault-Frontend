@@ -1,10 +1,14 @@
 // app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
+import Footer from "@/components/Footer";
+
+const inter = Inter({ subsets: ["latin"] });
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || "https://www.aivault.pp.ua";
+  process.env.NEXT_PUBLIC_SITE_URL || "https://aivault.pp.ua";
 
 const SITE_NAME = "AI Vault";
 
@@ -12,12 +16,12 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
 
   title: {
-    default: "AI Vault — Discover the World's Best AI Software",
+    default: "AI Vault — Discover, Compare & Scale with Verified AI Tools",
     template: "%s | AI Vault",
   },
 
   description:
-    "Discover, compare, and explore 740+ verified AI tools, developer utilities, and SaaS platforms.",
+    "Comprehensive software directory and benchmarking matrix for artificial intelligence tools, SaaS platforms, and workflow automation.",
 
   applicationName: SITE_NAME,
 
@@ -42,14 +46,14 @@ export const metadata: Metadata = {
     locale: "en_US",
     siteName: SITE_NAME,
     title: "AI Vault — Discover the World's Best AI Software",
-    description: "Discover, compare, and explore 740+ verified AI tools.",
+    description: "Discover, compare, and explore 750+ verified AI tools and software platforms.",
     url: SITE_URL,
   },
 
   twitter: {
     card: "summary_large_image",
     title: "AI Vault — Discover the World's Best AI Software",
-    description: "Discover, compare, and explore 740+ verified AI tools.",
+    description: "Discover, compare, and explore 750+ verified AI tools and software platforms.",
   },
 
   icons: {
@@ -61,7 +65,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#040616",
+  themeColor: "#050714",
 };
 
 export default function RootLayout({
@@ -70,9 +74,12 @@ export default function RootLayout({
   children: ReactNode;
 }>) {
   return (
-    <html lang="en" className="scroll-smooth">
-      <body className="min-h-screen bg-[#f8faff] text-slate-950 antialiased selection:bg-blue-500 selection:text-white">
-        {children}
+    <html lang="en" className="dark scroll-smooth">
+      <body
+        className={`${inter.className} min-h-screen bg-[#050714] text-slate-100 antialiased flex flex-col justify-between selection:bg-blue-600 selection:text-white`}
+      >
+        <div className="flex-grow">{children}</div>
+        <Footer />
       </body>
     </html>
   );
