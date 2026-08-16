@@ -82,14 +82,13 @@ export async function POST(req: Request) {
 
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
 
-    // Core fields guaranteed in ai_tools schema
+    // Exact confirmed columns in ai_tools schema (pricing_type removed)
     const payload: Record<string, unknown> = {
       name: String(name).trim(),
       slug: slug,
       website_url: String(website_url).trim(),
       category: category || "Productivity",
       pricing: pricing || "Freemium",
-      pricing_type: pricing || "Freemium",
       description: String(description).trim(),
       overview: String(description).trim(),
       affiliate_status: "pending_submission",
