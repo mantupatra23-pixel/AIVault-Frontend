@@ -43,7 +43,7 @@ export default function SubmitPage() {
       setErrorMsg("");
 
       const res = await fetch("/api/admin/submissions", {
-        method: "PUT",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
@@ -54,20 +54,18 @@ export default function SubmitPage() {
           submitter_email: founderEmail.trim() || null,
           description: description.trim(),
           is_featured: tier === "featured",
-          tier,
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json();
 
-      if (!res.ok && data.error) {
-        throw new Error(data.error);
+      if (!res.ok || data.error) {
+        throw new Error(data.error || "Submission failed");
       }
 
       setSubmitted(true);
     } catch (err: unknown) {
-      // Fallback direct submission handling
-      setSubmitted(true);
+      setErrorMsg(err instanceof Error ? err.message : "Error submitting tool");
     } finally {
       setLoading(false);
     }
