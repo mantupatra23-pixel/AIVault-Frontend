@@ -12,7 +12,7 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-function formatUrl(target: string): string {
+function ensureValidUrl(target: string): string {
   let url = target.trim();
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     url = `https://${url}`;
@@ -36,7 +36,7 @@ export async function GET(
   const { data: tool } = await supabase
     .from("ai_tools")
     .select("id, slug, name, website_url, website, affiliate_url, click_count")
-    .or(`slug.ilike.${rawSlug},name.ilike.${rawSlug}`)
+    .or(`slug.eq.${rawSlug},slug.ilike.${rawSlug},name.ilike.${rawSlug}`)
     .limit(1)
     .maybeSingle();
 
@@ -44,23 +44,22 @@ export async function GET(
     return NextResponse.redirect(new URL("/", request.url));
   }
 
-  // Increment Click Count in Supabase
+  // Increment Click Count
   const nextClicks = Number(tool.click_count || 0) + 1;
-  await supabase
+  supabase
     .from("ai_tools")
     .update({ click_count: nextClicks })
-    .eq("id", tool.id);
+    .eq("id", tool.id)
+    .then(() => {});
 
-  // Priority: 1. Affiliate URL -> 2. Website URL -> 3. Fallback
-  const rawTarget =
+  const destination =
     tool.affiliate_url?.trim() ||
     tool.website_url?.trim() ||
     tool.website?.trim();
 
-  if (!rawTarget) {
+  if (!destination) {
     return NextResponse.redirect(new URL(`/tool/${tool.slug || rawSlug}`, request.url));
   }
 
-  const finalDestination = formatUrl(rawTarget);
-  return NextResponse.redirect(finalDestination, { status: 307 });
+  return NextResponse.redirect(ensureValidUrl(destination), { status: 302 });
 }

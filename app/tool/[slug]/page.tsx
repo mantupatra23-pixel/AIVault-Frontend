@@ -32,10 +32,7 @@ type ToolRecord = {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-
-function getSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
@@ -51,12 +48,10 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [copied, setCopied] = useState(false);
   const [weeklyHours, setWeeklyHours] = useState(14);
   const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
-  const [notionExported, setNotionExported] = useState(false);
 
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
 
-  // Initialize Bookmark from LocalStorage
   useEffect(() => {
     if (typeof window !== "undefined" && rawSlug) {
       try {
@@ -77,8 +72,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     async function loadToolData() {
       try {
         setLoading(true);
-        const supabase = getSupabase();
-
         const { data: toolData, error: toolErr } = await supabase
           .from("ai_tools")
           .select("*")
@@ -130,18 +123,38 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
-  // SMART AFFILIATE TRACKER LINK
-  const outboundAffiliateLink = `/go/${encodeURIComponent(rawSlug)}`;
+  // DIRECT DESTINATION URL
+  const destinationUrl = useMemo(() => {
+    let raw = tool?.affiliate_url?.trim() || tool?.website_url?.trim() || tool?.website?.trim() || "";
+    if (!raw) return `/go/${encodeURIComponent(rawSlug)}`;
+    if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
+      raw = `https://${raw}`;
+    }
+    return raw;
+  }, [tool, rawSlug]);
+
+  // Background Click Tracker
+  const handleOutboundClick = () => {
+    if (!tool) return;
+    try {
+      fetch("/api/track-click", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: tool.id, slug: tool.slug || rawSlug }),
+      }).catch(() => {});
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const rawOverview = String(tool?.overview || tool?.description || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
     .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
-    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
-    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "");
+    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "");
 
   const cleanOverview =
     cleanAiContent(rawOverview) ||
-    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with automated precision and speed.`;
+    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows.`;
 
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
@@ -157,18 +170,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         {
           title: "High-Response Cold Outreach Blueprint",
           prompt: `Generate a 3-step personalised outreach cadence for prospect decision makers. Keep each message under 110 words with a specific, low-friction call to action.`,
-        },
-      ];
-    }
-    if (cat.includes("code") || cat.includes("dev")) {
-      return [
-        {
-          title: "Production Architecture Refactoring",
-          prompt: `Review the provided logic for bottlenecks. Suggest modular TypeScript/Python refactoring with error boundaries and minimal execution overhead for ${toolName}.`,
-        },
-        {
-          title: "Automated Test Suite Generator",
-          prompt: `Generate complete unit and integration tests covering edge cases, invalid payloads, and timeout handlers for this module.`,
         },
       ];
     }
@@ -228,25 +229,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
-  const handleExportNotion = () => {
-    const markdown = `# ${toolName} — Intelligence Brief (AI Vault)
-- **Category**: ${category}
-- **Pricing**: ${pricing}
-- **AI Vault Score**: ${formattedScore}
-- **Access Link**: https://aivault.pp.ua/go/${encodeURIComponent(rawSlug)}
-
-## Overview
-${cleanOverview}
-
-Generated via AI Vault (https://aivault.pp.ua)`;
-
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(markdown);
-      setNotionExported(true);
-      setTimeout(() => setNotionExported(false), 2500);
-    }
-  };
-
   const featuresList = [
     {
       title: "Intelligent Pipeline Automation",
@@ -295,7 +277,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Top Header */}
+      {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -324,9 +306,10 @@ Generated via AI Vault (https://aivault.pp.ua)`;
               <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
             </button>
 
-            {/* Smart Affiliate Outbound Button */}
+            {/* DIRECT OUTBOUND BUTTON */}
             <a
-              href={outboundAffiliateLink}
+              href={destinationUrl}
+              onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
@@ -395,7 +378,6 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                     ? "border-amber-400 bg-amber-50 text-amber-600 font-bold"
                     : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
-                title={bookmarked ? "Saved in Vault" : "Save to Vault"}
               >
                 {bookmarked ? "★ Saved" : "★ Save"}
               </button>
@@ -547,7 +529,8 @@ Generated via AI Vault (https://aivault.pp.ua)`;
                 </p>
               </div>
               <a
-                href={outboundAffiliateLink}
+                href={destinationUrl}
+                onClick={handleOutboundClick}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm"
@@ -795,7 +778,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </section>
         )}
 
-        {/* BOTTOM CTA BANNER (WITH SMART AFFILIATE OUTBOUND) */}
+        {/* BOTTOM CTA BANNER (DIRECT OUTBOUND) */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
@@ -806,7 +789,8 @@ Generated via AI Vault (https://aivault.pp.ua)`;
           </p>
           <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
             <a
-              href={outboundAffiliateLink}
+              href={destinationUrl}
+              onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
@@ -827,7 +811,7 @@ Generated via AI Vault (https://aivault.pp.ua)`;
         </footer>
       </div>
 
-      {/* STICKY BOTTOM ACTION DOCK (WITH SMART AFFILIATE OUTBOUND) */}
+      {/* STICKY BOTTOM DOCK (DIRECT OUTBOUND) */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
@@ -847,7 +831,8 @@ Generated via AI Vault (https://aivault.pp.ua)`;
             </Link>
 
             <a
-              href={outboundAffiliateLink}
+              href={destinationUrl}
+              onClick={handleOutboundClick}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
