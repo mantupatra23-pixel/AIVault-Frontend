@@ -27,6 +27,8 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+const MASTER_RECOVERY_KEY = "RESET2026";
+
 const AFFILIATE_NETWORKS = [
   "Direct",
   "PartnerStack",
@@ -49,12 +51,19 @@ const CATEGORIES = [
 ];
 
 export default function AdminPage() {
-  // Passcode Gate State
+  // Passcode Security State
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState(false);
 
-  // Tab & Data State
+  // PIN Reset & Change State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [recoveryInput, setRecoveryInput] = useState("");
+  const [newPinInput, setNewPinInput] = useState("");
+  const [confirmPinInput, setConfirmPinInput] = useState("");
+  const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
+
+  // Tab & Directory State
   const [activeTab, setActiveTab] = useState<"affiliate" | "catalog">("affiliate");
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +92,14 @@ export default function AdminPage() {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  // Helper to get active PIN
+  const getCurrentPin = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("aivault_admin_pin") || "2026";
+    }
+    return "2026";
   };
 
   // Check saved session login
@@ -119,7 +136,9 @@ export default function AdminPage() {
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === "2026") {
+    const activePin = getCurrentPin();
+
+    if (pinInput.trim() === activePin) {
       setIsAuthenticated(true);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("aivault_admin_auth", "true");
@@ -135,6 +154,38 @@ export default function AdminPage() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("aivault_admin_auth");
     }
+  };
+
+  const handleResetPinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetErrorMsg(null);
+
+    if (recoveryInput.trim() !== MASTER_RECOVERY_KEY && recoveryInput.trim() !== getCurrentPin()) {
+      setResetErrorMsg("Invalid Recovery Key. Default Master Key is: RESET2026");
+      return;
+    }
+
+    if (newPinInput.trim().length < 4) {
+      setResetErrorMsg("PIN must be at least 4 digits or characters.");
+      return;
+    }
+
+    if (newPinInput.trim() !== confirmPinInput.trim()) {
+      setResetErrorMsg("New PIN and Confirm PIN do not match.");
+      return;
+    }
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem("aivault_admin_pin", newPinInput.trim());
+      sessionStorage.setItem("aivault_admin_auth", "true");
+    }
+
+    setIsAuthenticated(true);
+    setShowResetModal(false);
+    setRecoveryInput("");
+    setNewPinInput("");
+    setConfirmPinInput("");
+    showToast("✓ Admin PIN reset successfully!");
   };
 
   const filteredTools = useMemo(() => {
@@ -333,17 +384,20 @@ export default function AdminPage() {
             🔒
           </div>
           <h1 className="text-xl font-black text-white">Admin Command Gate</h1>
-          <p className="mt-1 text-xs text-slate-400">Enter your secure passcode to access controls.</p>
+          <p className="mt-1 text-xs text-slate-400">Enter your secure PIN to access controls.</p>
+
           <form onSubmit={handlePinSubmit} className="mt-6 space-y-3">
             <input
               type="password"
               autoFocus
-              placeholder="Enter PIN..."
+              placeholder="Enter PIN (Default: 2026)"
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
               className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-center text-sm tracking-widest text-white outline-none focus:border-blue-500"
             />
-            {pinError && <p className="text-[11px] font-bold text-rose-400">Incorrect Passcode</p>}
+            {pinError && (
+              <p className="text-[11px] font-bold text-rose-400">Incorrect PIN entered.</p>
+            )}
             <button
               type="submit"
               className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/25"
@@ -351,7 +405,107 @@ export default function AdminPage() {
               Unlock Dashboard →
             </button>
           </form>
+
+          <div className="mt-5 border-t border-slate-800 pt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setResetErrorMsg(null);
+                setShowResetModal(true);
+              }}
+              className="text-xs font-bold text-blue-400 hover:text-blue-300 hover:underline"
+            >
+              Forgot or Reset PIN?
+            </button>
+          </div>
         </div>
+
+        {/* RESET PIN MODAL */}
+        {showResetModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
+              <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🔑</span>
+                  <h3 className="text-sm font-black text-white">Reset Admin Security PIN</h3>
+                </div>
+                <button
+                  onClick={() => setShowResetModal(false)}
+                  className="text-slate-400 hover:text-white font-bold text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {resetErrorMsg && (
+                <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-400">
+                  {resetErrorMsg}
+                </div>
+              )}
+
+              <form onSubmit={handleResetPinSubmit} className="space-y-3.5 text-xs">
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                    Master Recovery Key or Current PIN *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter RESET2026 or current PIN"
+                    value={recoveryInput}
+                    onChange={(e) => setRecoveryInput(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">Default Master Recovery Key: RESET2026</p>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                    New Security PIN *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Enter new PIN"
+                    value={newPinInput}
+                    onChange={(e) => setNewPinInput(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                    Confirm New Security PIN *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    placeholder="Re-enter new PIN"
+                    value={confirmPinInput}
+                    onChange={(e) => setConfirmPinInput(e.target.value)}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(false)}
+                    className="rounded-xl border border-slate-700 px-4 py-2 font-bold text-slate-300 hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 shadow-md transition"
+                  >
+                    Save & Unlock Dashboard
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </main>
     );
   }
@@ -377,7 +531,18 @@ export default function AdminPage() {
             </span>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => {
+                setResetErrorMsg(null);
+                setShowResetModal(true);
+              }}
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white hover:border-slate-700 transition"
+              title="Change Security PIN"
+            >
+              🔑 Change PIN
+            </button>
+
             <Link
               href="/"
               target="_blank"
@@ -385,10 +550,11 @@ export default function AdminPage() {
             >
               Public Site ↗
             </Link>
+
             <button
               onClick={handleLogout}
-              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white"
-              title="Lock Admin"
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700"
+              title="Lock Admin Dashboard"
             >
               🔒 Lock
             </button>
@@ -860,7 +1026,7 @@ export default function AdminPage() {
                     max="99"
                     value={formScore}
                     onChange={(e) => setFormScore(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
                   />
                 </div>
               </div>
@@ -890,6 +1056,93 @@ export default function AdminPage() {
                   className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
                 >
                   {saving ? "Saving..." : "Save Tool"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CHANGE PIN MODAL (INSIDE DASHBOARD) */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-base">🔑</span>
+                <h3 className="text-sm font-black text-white">Update Admin Security PIN</h3>
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-slate-400 hover:text-white font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {resetErrorMsg && (
+              <div className="mb-4 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-400">
+                {resetErrorMsg}
+              </div>
+            )}
+
+            <form onSubmit={handleResetPinSubmit} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Master Recovery Key or Current PIN *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="RESET2026 or Current PIN"
+                  value={recoveryInput}
+                  onChange={(e) => setRecoveryInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                />
+                <p className="text-[10px] text-slate-500 mt-1">Master Recovery Key: RESET2026</p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  New Security PIN *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Enter new PIN"
+                  value={newPinInput}
+                  onChange={(e) => setNewPinInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+                  Confirm New Security PIN *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="Re-enter new PIN"
+                  value={confirmPinInput}
+                  onChange={(e) => setConfirmPinInput(e.target.value)}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="rounded-xl border border-slate-700 px-4 py-2 font-bold text-slate-300 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 shadow-md transition"
+                >
+                  Update PIN
                 </button>
               </div>
             </form>
