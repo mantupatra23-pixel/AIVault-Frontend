@@ -92,7 +92,6 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
           : "border border-slate-200/90 bg-white shadow-sm hover:border-blue-300 hover:shadow-md"
       }`}
     >
-      {/* Featured Boost Pill */}
       {featured && (
         <div className="absolute -top-3 right-4 flex items-center gap-1 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white shadow-md shadow-blue-500/30">
           <span>⚡ Featured</span>
@@ -175,6 +174,8 @@ function HomeContent() {
   const [selectedPricing, setSelectedPricing] = useState("All");
   const [sortBy, setSortBy] = useState("score");
   const [currentPage, setCurrentPage] = useState(1);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [subscribed, setSubscribed] = useState(false);
 
   useEffect(() => {
     const cat = searchParams.get("cat");
@@ -244,7 +245,6 @@ function HomeContent() {
         const featA = isToolFeatured(a) ? 1 : 0;
         const featB = isToolFeatured(b) ? 1 : 0;
 
-        // Pinned priority for featured listings
         if (featA !== featB) {
           return featB - featA;
         }
@@ -293,389 +293,493 @@ function HomeContent() {
     window.scrollTo({ top: 400, behavior: "smooth" });
   };
 
+  const handleNewsletter = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newsletterEmail) {
+      setSubscribed(true);
+      setNewsletterEmail("");
+    }
+  };
+
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900">
-      {/* Top Navbar */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link
-            href="/"
-            className="text-lg font-black tracking-tight text-slate-950"
-          >
-            AI Vault<span className="text-blue-600">.</span>
-          </Link>
-
-          <div className="flex items-center gap-2 sm:gap-3">
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 flex flex-col justify-between">
+      <div>
+        {/* Top Navbar */}
+        <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
+          <div className="mx-auto flex max-w-7xl items-center justify-between">
             <Link
-              href="/matcher"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              href="/"
+              className="text-lg font-black tracking-tight text-slate-950"
             >
-              <span>⚡ Matcher</span>
+              AI Vault<span className="text-blue-600">.</span>
             </Link>
 
-            <Link
-              href="/compare"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
-            >
-              <span>⚖️ Compare</span>
-            </Link>
-
-            <Link
-              href="/vault"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
-            >
-              <span>★ Vault</span>
-            </Link>
-
-            <Link
-              href="/submit"
-              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition shadow-sm"
-            >
-              <span>+ Submit</span>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Hero Section */}
-      <section className="bg-[#050714] px-4 py-16 text-center text-white sm:py-20 sm:px-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          AI Vault Intelligence Engine
-        </div>
-
-        <h1 className="mx-auto max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
-          Discover the{" "}
-          <span className="bg-gradient-to-r from-blue-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">
-            Right AI
-          </span>{" "}
-          for Your Workflow.
-        </h1>
-        <p className="mx-auto mt-4 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
-          Search, compare and explore verified AI tools across productivity,
-          coding, marketing, and creative industries.
-        </p>
-
-        {/* Global Search Bar */}
-        <div className="mx-auto mt-8 max-w-2xl">
-          <div className="relative">
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${
-                tools.length > 0 ? tools.length : 750
-              } verified AI software...`}
-              className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-            />
-            {search && (
-              <button
-                onClick={() => setSearch("")}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Featured AI Spotlight Shelf */}
-      {spotlightTools.length > 0 && !search && selectedCat === "All" && (
-        <section className="border-b border-slate-200/80 bg-gradient-to-r from-slate-950 via-[#070b1e] to-slate-950 py-8 px-4 sm:px-8 text-white">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
-                  Featured AI Spotlight
-                </span>
-              </div>
+            <div className="flex items-center gap-2 sm:gap-3">
               <Link
-                href="/submit"
-                className="text-[11px] font-bold text-blue-400 hover:text-blue-300"
+                href="/matcher"
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
               >
-                Promote Your Tool ↗
+                <span>⚡ Matcher</span>
               </Link>
-            </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              {spotlightTools.map((tool) => (
-                <Link
-                  key={String(tool.id || tool.slug)}
-                  href={`/tool/${encodeURIComponent(String(tool.slug))}`}
-                  className="group rounded-2xl border border-blue-500/30 bg-white/5 p-4 backdrop-blur-md transition hover:-translate-y-1 hover:border-blue-400 hover:bg-white/10"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <ToolLogo
-                        src={tool.logo_url as string}
-                        name={String(tool.name)}
-                        size="sm"
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-black text-white group-hover:text-blue-300">
-                          {String(tool.name)}
-                        </p>
-                        <p className="text-[10px] text-slate-400 capitalize">
-                          {String(tool.category)}
-                        </p>
-                      </div>
-                    </div>
-                    <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
-                      Featured
-                    </span>
-                  </div>
-                  <p className="mt-2.5 line-clamp-2 text-[11px] text-slate-300">
-                    {String(tool.description || tool.overview || "")}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
-      )}
-
-      {/* Programmatic Head-to-Head Comparisons */}
-      {popularComparisons.length > 0 && !search && selectedCat === "All" && (
-        <section className="border-b border-slate-200/80 bg-white py-8 px-4 sm:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
-                  🔥 Trending Face-Offs
-                </span>
-                <h2 className="text-base font-black text-slate-950 sm:text-lg mt-1">
-                  Popular AI Head-to-Head Comparisons
-                </h2>
-              </div>
               <Link
                 href="/compare"
-                className="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1"
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
               >
-                Build Custom Comparison →
+                <span>⚖️ Compare</span>
+              </Link>
+
+              <Link
+                href="/vault"
+                className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              >
+                <span>★ Vault</span>
+              </Link>
+
+              <Link
+                href="/submit"
+                className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition shadow-sm"
+              >
+                <span>+ Submit</span>
               </Link>
             </div>
+          </div>
+        </header>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {popularComparisons.map(({ toolA, toolB }, idx) => {
-                const slugA = encodeURIComponent(String(toolA.slug || ""));
-                const slugB = encodeURIComponent(String(toolB.slug || ""));
-                const nameA = String(toolA.name || "Tool A");
-                const nameB = String(toolB.name || "Tool B");
-                const vsHref = `/vs/${slugA}-vs-${slugB}`;
+        {/* Hero Section */}
+        <section className="bg-[#050714] px-4 py-16 text-center text-white sm:py-20 sm:px-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-400/20 bg-blue-500/10 px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-4">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            AI Vault Intelligence Engine
+          </div>
 
-                return (
-                  <Link
-                    key={idx}
-                    href={vsHref}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-md"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <ToolLogo
-                          src={toolA.logo_url as string}
-                          name={nameA}
-                          size="sm"
-                        />
-                        <span className="truncate text-xs font-black text-slate-900">
-                          {nameA}
-                        </span>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
-                        VS
-                      </span>
-                      <div className="flex items-center gap-2 min-w-0 justify-end">
-                        <span className="truncate text-xs font-black text-slate-900">
-                          {nameB}
-                        </span>
-                        <ToolLogo
-                          src={toolB.logo_url as string}
-                          name={nameB}
-                          size="sm"
-                        />
-                      </div>
-                    </div>
+          <h1 className="mx-auto max-w-4xl text-4xl font-black tracking-tight sm:text-6xl">
+            Discover the{" "}
+            <span className="bg-gradient-to-r from-blue-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">
+              Right AI
+            </span>{" "}
+            for Your Workflow.
+          </h1>
+          <p className="mx-auto mt-4 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
+            Search, compare and explore verified AI tools across productivity,
+            coding, marketing, and creative industries.
+          </p>
 
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px]">
-                      <span className="font-semibold text-slate-400 capitalize">
-                        {String(toolA.category || "AI")} Stack
-                      </span>
-                      <span className="font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
-                        Compare Now →
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
+          {/* Global Search Bar */}
+          <div className="mx-auto mt-8 max-w-2xl">
+            <div className="relative">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={`Search ${
+                  tools.length > 0 ? tools.length : 750
+                } verified AI software...`}
+                className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              />
+              {search && (
+                <button
+                  onClick={() => setSearch("")}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
+              )}
             </div>
           </div>
         </section>
-      )}
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Category & Pricing Filters */}
-        <section className="mb-8 space-y-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat.name}
-                onClick={() => setSelectedCat(cat.name)}
-                className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all ${
-                  selectedCat === cat.name
-                    ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300"
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
-              </button>
-            ))}
-          </div>
+        {/* Featured AI Spotlight Shelf */}
+        {spotlightTools.length > 0 && !search && selectedCat === "All" && (
+          <section className="border-b border-slate-200/80 bg-gradient-to-r from-slate-950 via-[#070b1e] to-slate-950 py-8 px-4 sm:px-8 text-white">
+            <div className="mx-auto max-w-7xl">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                    Featured AI Spotlight
+                  </span>
+                </div>
+                <Link
+                  href="/submit"
+                  className="text-[11px] font-bold text-blue-400 hover:text-blue-300"
+                >
+                  Promote Your Tool ↗
+                </Link>
+              </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200/80 py-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">
-                Pricing:
-              </span>
-              <div className="flex gap-1.5">
-                {PRICING_OPTIONS.map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setSelectedPricing(p)}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                      selectedPricing === p
-                        ? "bg-blue-600 text-white font-black shadow-sm"
-                        : "text-slate-500 hover:bg-slate-100"
-                    }`}
+              <div className="grid gap-4 sm:grid-cols-3">
+                {spotlightTools.map((tool) => (
+                  <Link
+                    key={String(tool.id || tool.slug)}
+                    href={`/tool/${encodeURIComponent(String(tool.slug))}`}
+                    className="group rounded-2xl border border-blue-500/30 bg-white/5 p-4 backdrop-blur-md transition hover:-translate-y-1 hover:border-blue-400 hover:bg-white/10"
                   >
-                    {p}
-                  </button>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <ToolLogo
+                          src={tool.logo_url as string}
+                          name={String(tool.name)}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-black text-white group-hover:text-blue-300">
+                            {String(tool.name)}
+                          </p>
+                          <p className="text-[10px] text-slate-400 capitalize">
+                            {String(tool.category)}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black uppercase text-white">
+                        Featured
+                      </span>
+                    </div>
+                    <p className="mt-2.5 line-clamp-2 text-[11px] text-slate-300">
+                      {String(tool.description || tool.overview || "")}
+                    </p>
+                  </Link>
                 ))}
               </div>
             </div>
+          </section>
+        )}
 
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-400 uppercase">
-                Sort:
-              </span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 outline-none"
-              >
-                {SORT_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+        {/* Programmatic Head-to-Head Comparisons */}
+        {popularComparisons.length > 0 && !search && selectedCat === "All" && (
+          <section className="border-b border-slate-200/80 bg-white py-8 px-4 sm:px-8">
+            <div className="mx-auto max-w-7xl">
+              <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
+                    🔥 Trending Face-Offs
+                  </span>
+                  <h2 className="text-base font-black text-slate-950 sm:text-lg mt-1">
+                    Popular AI Head-to-Head Comparisons
+                  </h2>
+                </div>
+                <Link
+                  href="/compare"
+                  className="text-xs font-bold text-blue-600 hover:underline inline-flex items-center gap-1"
+                >
+                  Build Custom Comparison →
+                </Link>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {popularComparisons.map(({ toolA, toolB }, idx) => {
+                  const slugA = encodeURIComponent(String(toolA.slug || ""));
+                  const slugB = encodeURIComponent(String(toolB.slug || ""));
+                  const nameA = String(toolA.name || "Tool A");
+                  const nameB = String(toolB.name || "Tool B");
+                  const vsHref = `/vs/${slugA}-vs-${slugB}`;
+
+                  return (
+                    <Link
+                      key={idx}
+                      href={vsHref}
+                      className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-md"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ToolLogo
+                            src={toolA.logo_url as string}
+                            name={nameA}
+                            size="sm"
+                          />
+                          <span className="truncate text-xs font-black text-slate-900">
+                            {nameA}
+                          </span>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
+                          VS
+                        </span>
+                        <div className="flex items-center gap-2 min-w-0 justify-end">
+                          <span className="truncate text-xs font-black text-slate-900">
+                            {nameB}
+                          </span>
+                          <ToolLogo
+                            src={toolB.logo_url as string}
+                            name={nameB}
+                            size="sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px]">
+                        <span className="font-semibold text-slate-400 capitalize">
+                          {String(toolA.category || "AI")} Stack
+                        </span>
+                        <span className="font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
+                          Compare Now →
+                        </span>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
-        {/* Main Grid */}
-        <section>
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-950">
-              {selectedCat === "All" ? "All AI Tools" : `${selectedCat} Tools`}
-              <span className="ml-2 text-xs font-bold text-slate-400">
-                (Showing{" "}
-                {filteredTools.length > 0
-                  ? (currentPage - 1) * ITEMS_PER_PAGE + 1
-                  : 0}
-                –
-                {Math.min(
-                  currentPage * ITEMS_PER_PAGE,
-                  filteredTools.length
-                )}{" "}
-                of {filteredTools.length})
-              </span>
-            </h2>
-          </div>
-
-          {loading ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100"
-                />
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+          {/* Filters */}
+          <section className="mb-8 space-y-4">
+            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat.name}
+                  onClick={() => setSelectedCat(cat.name)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                    selectedCat === cat.name
+                      ? "bg-blue-600 text-white shadow-md shadow-blue-500/20 font-black"
+                      : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300"
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.name}</span>
+                </button>
               ))}
             </div>
-          ) : paginatedTools.length > 0 ? (
-            <>
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {paginatedTools.map((tool) => (
-                  <ToolCard key={String(tool.id || tool.slug)} tool={tool} />
-                ))}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-y border-slate-200/80 py-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">
+                  Pricing:
+                </span>
+                <div className="flex gap-1.5">
+                  {PRICING_OPTIONS.map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => setSelectedPricing(p)}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        selectedPricing === p
+                          ? "bg-blue-600 text-white font-black shadow-sm"
+                          : "text-slate-500 hover:bg-slate-100"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {totalPages > 1 && (
-                <div className="mt-10 flex items-center justify-center gap-2">
-                  <button
-                    disabled={currentPage === 1}
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    ← Prev
-                  </button>
-
-                  <div className="flex items-center gap-1.5">
-                    {Array.from({ length: Math.min(totalPages, 5) }).map(
-                      (_, idx) => {
-                        let p = idx + 1;
-                        if (currentPage > 3 && totalPages > 5) {
-                          p = currentPage - 2 + idx;
-                          if (p > totalPages) p = totalPages - (4 - idx);
-                        }
-                        const isActive = currentPage === p;
-                        return (
-                          <button
-                            key={p}
-                            onClick={() => handlePageChange(p)}
-                            className={`h-9 w-9 rounded-xl text-xs font-black transition ${
-                              isActive
-                                ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600 ring-offset-2"
-                                : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                          >
-                            {p}
-                          </button>
-                        );
-                      }
-                    )}
-                  </div>
-
-                  <button
-                    disabled={currentPage === totalPages}
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
-                  >
-                    Next →
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-              <p className="text-sm font-bold text-slate-800">
-                No matching AI tools found.
-              </p>
-              <button
-                onClick={() => {
-                  setSearch("");
-                  setSelectedCat("All");
-                  setSelectedPricing("All");
-                }}
-                className="mt-3 text-xs font-bold text-blue-600 underline"
-              >
-                Reset filters
-              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-bold text-slate-400 uppercase">
+                  Sort:
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700 outline-none"
+                >
+                  {SORT_OPTIONS.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
-        </section>
+          </section>
+
+          {/* Main Grid */}
+          <section>
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950">
+                {selectedCat === "All" ? "All AI Tools" : `${selectedCat} Tools`}
+                <span className="ml-2 text-xs font-bold text-slate-400">
+                  (Showing{" "}
+                  {filteredTools.length > 0
+                    ? (currentPage - 1) * ITEMS_PER_PAGE + 1
+                    : 0}
+                  –
+                  {Math.min(
+                    currentPage * ITEMS_PER_PAGE,
+                    filteredTools.length
+                  )}{" "}
+                  of {filteredTools.length})
+                </span>
+              </h2>
+            </div>
+
+            {loading ? (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-56 animate-pulse rounded-2xl border border-slate-200 bg-slate-100"
+                  />
+                ))}
+              </div>
+            ) : paginatedTools.length > 0 ? (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {paginatedTools.map((tool) => (
+                    <ToolCard key={String(tool.id || tool.slug)} tool={tool} />
+                  ))}
+                </div>
+
+                {totalPages > 1 && (
+                  <div className="mt-10 flex items-center justify-center gap-2">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
+                    >
+                      ← Prev
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      {Array.from({ length: Math.min(totalPages, 5) }).map(
+                        (_, idx) => {
+                          let p = idx + 1;
+                          if (currentPage > 3 && totalPages > 5) {
+                            p = currentPage - 2 + idx;
+                            if (p > totalPages) p = totalPages - (4 - idx);
+                          }
+                          const isActive = currentPage === p;
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => handlePageChange(p)}
+                              className={`h-9 w-9 rounded-xl text-xs font-black transition ${
+                                isActive
+                                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/25 ring-2 ring-blue-600 ring-offset-2"
+                                  : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                              }`}
+                            >
+                              {p}
+                            </button>
+                          );
+                        }
+                      )}
+                    </div>
+
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      className="rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-bold text-slate-700 transition disabled:opacity-30 disabled:cursor-not-allowed hover:bg-blue-50 hover:text-blue-600"
+                    >
+                      Next →
+                    </button>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
+                <p className="text-sm font-bold text-slate-800">
+                  No matching AI tools found.
+                </p>
+                <button
+                  onClick={() => {
+                    setSearch("");
+                    setSelectedCat("All");
+                    setSelectedPricing("All");
+                  }}
+                  className="mt-3 text-xs font-bold text-blue-600 underline"
+                >
+                  Reset filters
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
+
+      {/* Global Dark Footer */}
+      <footer className="mt-20 border-t border-slate-800 bg-[#050714] text-white">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-8">
+          <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+            {/* Col 1 */}
+            <div className="space-y-3">
+              <Link href="/" className="text-lg font-black tracking-tight">
+                AI Vault<span className="text-blue-500">.</span>
+              </Link>
+              <p className="text-xs leading-relaxed text-slate-400">
+                The premier intelligence directory and decision engine for modern AI tools, enterprise software, and workflow automation.
+              </p>
+              <form onSubmit={handleNewsletter} className="pt-2">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-300 mb-2">
+                  Get Weekly AI Breakdowns & Price Alerts
+                </p>
+                {subscribed ? (
+                  <p className="text-xs font-bold text-emerald-400">✓ Subscribed successfully!</p>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      required
+                      value={newsletterEmail}
+                      onChange={(e) => setNewsletterEmail(e.target.value)}
+                      placeholder="name@company.com"
+                      className="w-full rounded-xl border border-slate-800 bg-slate-900/90 px-3 py-2 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition"
+                    >
+                      Join
+                    </button>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Col 2 */}
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 mb-3">
+                Explore Categories
+              </h3>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><button onClick={() => setSelectedCat("Productivity")} className="hover:text-white transition">Productivity AI Tools</button></li>
+                <li><button onClick={() => setSelectedCat("Marketing")} className="hover:text-white transition">Marketing AI Tools</button></li>
+                <li><button onClick={() => setSelectedCat("Coding")} className="hover:text-white transition">Coding AI Tools</button></li>
+                <li><button onClick={() => setSelectedCat("Chatbot")} className="hover:text-white transition">Chatbot AI Tools</button></li>
+              </ul>
+            </div>
+
+            {/* Col 3 */}
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 mb-3">
+                Specialized Stacks
+              </h3>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><button onClick={() => setSelectedCat("Image")} className="hover:text-white transition">Image Software</button></li>
+                <li><button onClick={() => setSelectedCat("Writing")} className="hover:text-white transition">Writing Software</button></li>
+                <li><Link href="/compare" className="hover:text-white transition">⚖️ Comparison Matrix</Link></li>
+                <li><Link href="/vault" className="hover:text-white transition">★ Saved Vault Tools</Link></li>
+              </ul>
+            </div>
+
+            {/* Col 4 */}
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-300 mb-3">
+                Platform & Trust
+              </h3>
+              <ul className="space-y-2 text-xs text-slate-400">
+                <li><Link href="/about" className="hover:text-white transition">About AI Vault</Link></li>
+                <li><Link href="/contact" className="hover:text-white transition">Contact Editorial Desk</Link></li>
+                <li><Link href="/submit" className="text-blue-400 hover:underline transition">+ Submit Your AI Tool ↗</Link></li>
+                <li><Link href="/admin" className="hover:text-white transition">Admin Console</Link></li>
+              </ul>
+              <p className="mt-4 text-[10px] text-slate-500">
+                Indexed 750+ verified AI platforms across 8 primary categories.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-800/80 pt-6 text-[11px] text-slate-500 sm:flex-row">
+            <p>© 2026 AI Vault Intelligence Engine. All rights reserved.</p>
+            <div className="flex flex-wrap gap-4">
+              <Link href="/about" className="hover:text-slate-300 transition">About</Link>
+              <Link href="/contact" className="hover:text-slate-300 transition">Contact</Link>
+              <Link href="/privacy" className="hover:text-slate-300 transition">Privacy Policy</Link>
+              <Link href="/terms" className="hover:text-slate-300 transition">Terms of Service</Link>
+            </div>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
