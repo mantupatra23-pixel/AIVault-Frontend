@@ -1,4 +1,3 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
 import Footer from "@/components/Footer";
@@ -8,7 +7,7 @@ export const metadata: Metadata = {
   title: "AI Vault — AI Intelligence Directory & Decision Engine",
   description:
     "Search, compare, and explore verified AI software platforms across productivity, coding, marketing, and creative industries.",
-  metadataBase: new URL("https://aivault.pp.ua"),
+  metadataBase: new URL("https://www.aivault.pp.ua"),
   other: {
     "google-adsense-account": "ca-pub-518587791488826",
   },
