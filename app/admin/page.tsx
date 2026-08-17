@@ -117,6 +117,10 @@ export default function AdminPage() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
 
+  // 10 AI Tools Ingestion State
+  const [isIngesting, setIsIngesting] = useState(false);
+  const [ingestMessage, setIngestMessage] = useState("");
+
   // Configure Modal State
   const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
   const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
@@ -267,6 +271,32 @@ export default function AdminPage() {
     setNewPinInput("");
     setConfirmPinInput("");
     showToast("✓ Admin PIN reset successfully!");
+  };
+
+  // Manual Ingest 10 AI Tools Handler
+  const handleIngest10Tools = async () => {
+    setIsIngesting(true);
+    setIngestMessage("");
+
+    try {
+      const res = await fetch("/api/ingest", { method: "POST" });
+      const data = await res.json();
+
+      if (data.success) {
+        setIngestMessage(`✅ Successfully added ${data.new_tools_added || 10} new AI tools!`);
+        showToast(`✓ Added ${data.new_tools_added || 10} new AI tools to directory!`);
+        await loadAdminData();
+      } else {
+        setIngestMessage(`❌ Error: ${data.error || "Failed to ingest tools"}`);
+        alert(data.error || "Failed to ingest tools");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      setIngestMessage(`❌ Network error: ${msg}`);
+      alert(`Network error: ${msg}`);
+    } finally {
+      setIsIngesting(false);
+    }
   };
 
   const handleModerateSubmission = async (id: string | number, action: "approve" | "reject") => {
@@ -1124,25 +1154,58 @@ export default function AdminPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
               <div>
                 <h2 className="text-lg font-black text-white">Full Catalog Tool Manager</h2>
-                <p className="text-xs text-slate-400">Add, edit details, scores, or remove tools from production</p>
+                <p className="text-xs text-slate-400">Add, edit details, scores, or trigger auto-ingest for new AI tools</p>
               </div>
 
-              <button
-                onClick={() => {
-                  setEditingToolRecord(null);
-                  setFormName("");
-                  setFormCategory("Productivity");
-                  setFormPricing("Freemium");
-                  setFormWebsite("");
-                  setFormOverview("");
-                  setFormScore("92");
-                  setIsAddModalOpen(true);
-                }}
-                className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
-              >
-                + Add New Tool
-              </button>
+              {/* ACTION BUTTONS: AUTO-INGEST + ADD TOOL */}
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  onClick={handleIngest10Tools}
+                  disabled={isIngesting}
+                  className={`rounded-xl px-4 py-2 text-xs font-black transition shadow-lg flex items-center gap-2 ${
+                    isIngesting
+                      ? "bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-700"
+                      : "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20 active:scale-95 cursor-pointer"
+                  }`}
+                >
+                  {isIngesting ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></span>
+                      Generating 10 Tools...
+                    </>
+                  ) : (
+                    <>
+                      <span>⚡</span>
+                      Auto-Ingest 10 AI Tools
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingToolRecord(null);
+                    setFormName("");
+                    setFormCategory("Productivity");
+                    setFormPricing("Freemium");
+                    setFormWebsite("");
+                    setFormOverview("");
+                    setFormScore("92");
+                    setIsAddModalOpen(true);
+                  }}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-600/20"
+                >
+                  + Add New Tool
+                </button>
+              </div>
             </div>
+
+            {/* Ingestion Status Alert Banner */}
+            {ingestMessage && (
+              <div className="mb-5 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 p-3.5 text-xs font-bold text-emerald-300 flex items-center justify-between">
+                <span>{ingestMessage}</span>
+                <button onClick={() => setIngestMessage("")} className="text-slate-400 hover:text-white">✕</button>
+              </div>
+            )}
 
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
