@@ -3,28 +3,6 @@
 import { use, useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
-import {
-  CheckCircle2,
-  XCircle,
-  ExternalLink,
-  Share2,
-  Bookmark,
-  Sparkles,
-  ArrowRight,
-  Copy,
-  Check,
-  Star,
-  ShieldCheck,
-  ChevronDown,
-  ChevronUp,
-  Play,
-  Code2,
-  DollarSign,
-  Layers,
-  HelpCircle,
-  BarChart3,
-  Sliders,
-} from "lucide-react";
 
 import ToolLogo from "@/components/ToolLogo";
 import ToolReviews from "@/components/ToolReviews";
@@ -52,8 +30,6 @@ type ToolRecord = {
   deployment?: string | null;
   license?: string | null;
   youtube_id?: string | null;
-  rating?: number | null;
-  votes?: number | null;
   [key: string]: unknown;
 };
 
@@ -80,7 +56,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
 
-  // Price Alert State
+  // Price Alert Lead State
   const [alertEmail, setAlertEmail] = useState("");
   const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [alertMsg, setAlertMsg] = useState("");
@@ -158,7 +134,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
   const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
-  const youtubeVideoId = (tool?.youtube_id as string) || "dQw4w9WgXcQ";
+  const youtubeId = (tool?.youtube_id as string) || "dQw4w9WgXcQ";
 
   const destinationUrl = useMemo(() => {
     let raw = tool?.affiliate_url?.trim() || tool?.website_url?.trim() || tool?.website?.trim() || "";
@@ -487,8 +463,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 <ToolLogo name={toolName} src={logo} size="lg" />
                 <div className="min-w-0">
                   <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600 flex items-center gap-1">
-                      <ShieldCheck className="w-3 h-3" /> Verified AI
+                    <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
+                      ✓ Verified AI
                     </span>
                     <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
                       {category}
@@ -577,12 +553,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             </div>
           </section>
 
-          {/* 2. 10-POINT EVALUATION BREAKDOWN (FUTUREPEDIA MATRIX) */}
+          {/* 2. 10-POINT EVALUATION BREAKDOWN */}
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 uppercase tracking-wider">
-                  <BarChart3 className="w-4 h-4" /> AI Vault Quality Index
+                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider">
+                  📊 AI Vault Quality Index
                 </span>
                 <h2 className="text-xl font-black text-slate-900 mt-1">10-Point Technical Evaluation Matrix</h2>
               </div>
@@ -622,8 +598,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           {/* 3. MULTI-TIER PRICING BREAKDOWN */}
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-5">
             <div>
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 uppercase tracking-wider">
-                <DollarSign className="w-4 h-4" /> Transparent Costing
+              <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
+                💰 Transparent Costing
               </span>
               <h2 className="text-xl font-black text-slate-900 mt-1">Tiered Pricing & Plan Comparison</h2>
             </div>
@@ -635,9 +611,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                   <h3 className="text-2xl font-black text-slate-900 mt-1">$0 <span className="text-xs font-semibold text-slate-400">/ forever</span></h3>
                 </div>
                 <ul className="text-xs text-slate-600 space-y-2">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Core AI model access</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Standard daily request limits</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Community docs support</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> Core AI model access</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> Standard daily request limits</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> Community docs support</li>
                 </ul>
                 <a href={destinationUrl} target="_blank" rel="noopener noreferrer" className="block text-center w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition">
                   Start Free
@@ -653,9 +629,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                   <h3 className="text-2xl font-black text-slate-900 mt-1">$19 - $29 <span className="text-xs font-semibold text-slate-400">/ mo</span></h3>
                 </div>
                 <ul className="text-xs text-slate-700 space-y-2 font-medium">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" /> Priority queue generation</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" /> Unlimited generation quotas</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-blue-600 shrink-0" /> Cloud collaboration & team exports</li>
+                  <li className="flex items-center gap-2"><span className="text-blue-600 font-bold">✓</span> Priority queue generation</li>
+                  <li className="flex items-center gap-2"><span className="text-blue-600 font-bold">✓</span> Unlimited generation quotas</li>
+                  <li className="flex items-center gap-2"><span className="text-blue-600 font-bold">✓</span> Cloud collaboration & team exports</li>
                 </ul>
                 <a href={destinationUrl} target="_blank" rel="noopener noreferrer" className="block text-center w-full py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition">
                   Get Pro Access
@@ -668,9 +644,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                   <h3 className="text-2xl font-black text-slate-900 mt-1">Custom <span className="text-xs font-semibold text-slate-400">/ SLA quote</span></h3>
                 </div>
                 <ul className="text-xs text-slate-600 space-y-2">
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Dedicated API & webhooks</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> Custom fine-tuned weights</li>
-                  <li className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" /> 24/7 Dedicated SLA support</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> Dedicated API & webhooks</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> Custom fine-tuned weights</li>
+                  <li className="flex items-center gap-2"><span className="text-emerald-500 font-bold">✓</span> 24/7 Dedicated SLA support</li>
                 </ul>
                 <a href={destinationUrl} target="_blank" rel="noopener noreferrer" className="block text-center w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition">
                   Contact Sales
@@ -682,8 +658,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           {/* 4. VIDEO DEMO WALKTHROUGH */}
           <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm space-y-5">
             <div>
-              <span className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 uppercase tracking-wider">
-                <Play className="w-4 h-4" /> Interactive Walkthrough
+              <span className="text-xs font-bold text-indigo-600 uppercase tracking-wider">
+                🎬 Interactive Walkthrough
               </span>
               <h2 className="text-xl font-black text-slate-900 mt-1">Product Demonstration & Tutorial</h2>
             </div>
@@ -691,7 +667,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             <div className="relative aspect-video rounded-2xl overflow-hidden bg-slate-900 border border-slate-800 shadow-inner">
               <iframe
                 className="w-full h-full"
-                src={`https://www.youtube.com/embed/${youtubeVideoId}`}
+                src={`https://www.youtube.com/embed/${youtubeId}`}
                 title={`${toolName} Video Walkthrough`}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
@@ -897,7 +873,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           <section className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
               <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>
+                <span className="text-emerald-600 font-bold">✓</span>
                 Key Strengths & Advantages
               </h3>
               <ul className="mt-4 space-y-2.5 text-xs text-emerald-950 font-medium">
@@ -918,7 +894,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
             <div className="rounded-3xl border border-amber-100 bg-amber-50/40 p-6 shadow-sm">
               <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-2">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[10px] text-white">!</span>
+                <span className="text-amber-600 font-bold">!</span>
                 Operational Considerations
               </h3>
               <ul className="mt-4 space-y-2.5 text-xs text-amber-950 font-medium">
@@ -941,8 +917,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           <section className="rounded-3xl bg-slate-900 text-white p-6 sm:p-8 space-y-5 border border-slate-800 shadow-md">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 uppercase tracking-wider">
-                  <Code2 className="w-4 h-4" /> Founder & Media Asset
+                <span className="text-xs font-bold text-blue-400 uppercase tracking-wider">
+                  💻 Founder & Media Asset
                 </span>
                 <h2 className="text-xl font-black mt-1">Promote {toolName} with the Verified Badge</h2>
                 <p className="text-slate-400 text-xs mt-1">
@@ -954,8 +930,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 onClick={copyEmbedCode}
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow transition shrink-0"
               >
-                {copiedBadge ? <Check className="w-4 h-4 text-emerald-300" /> : <Copy className="w-4 h-4" />}
-                <span>{copiedBadge ? "Snippet Copied!" : "Copy Embed HTML"}</span>
+                <span>{copiedBadge ? "✓ Snippet Copied!" : "📋 Copy Embed HTML"}</span>
               </button>
             </div>
 
