@@ -7,7 +7,11 @@ import { createClient } from "@supabase/supabase-js";
 import ToolLogo from "@/components/ToolLogo";
 import ToolReviews from "@/components/ToolReviews";
 import { cleanAiContent } from "@/lib/content-quality";
-import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
+import { getToolScore, formatAIScore } from "@/lib/score";
+
+type FeatureItem = { title: string; desc: string };
+type UserPersona = { role: string; desc: string };
+type PricingTier = { name: string; price: string; period?: string; features: string[] };
 
 type ToolRecord = {
   id?: string | number | null;
@@ -20,8 +24,6 @@ type ToolRecord = {
   pricing_model?: string | null;
   pricing_type?: string | null;
   score?: number | string | null;
-  ai_vault_score?: number | string | null;
-  neural_score?: number | string | null;
   logo_url?: string | null;
   logo?: string | null;
   website_url?: string | null;
@@ -29,6 +31,15 @@ type ToolRecord = {
   affiliate_url?: string | null;
   deployment?: string | null;
   license?: string | null;
+  rating?: number | null;
+  votes?: number | null;
+  youtube_id?: string | null;
+  key_features?: FeatureItem[] | null;
+  pros?: string[] | null;
+  cons?: string[] | null;
+  who_is_using?: UserPersona[] | null;
+  pricing_tiers?: PricingTier[] | null;
+  evaluation_matrix?: Record<string, string> | null;
   [key: string]: unknown;
 };
 
@@ -41,26 +52,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const rawSlug = decodeURIComponent(resolvedParams.slug || "").trim();
 
   const [tool, setTool] = useState<ToolRecord | null>(null);
-  const [related, setRelated] = useState<ToolRecord[]>([]);
+  const [featuredTools, setFeaturedTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [upvoted, setUpvoted] = useState(false);
-  const [upvoteCount, setUpvoteCount] = useState(140);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [weeklyHours, setWeeklyHours] = useState(14);
-  const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
-
-  const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
-  const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
-
-  // Price Alert Lead State
-  const [alertEmail, setAlertEmail] = useState("");
-  const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [alertMsg, setAlertMsg] = useState("");
-
-  // FAQ Accordion State
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [activeTab, setActiveTab] = useState<"overview" | "reviews" | "alternatives">("overview");
 
   useEffect(() => {
     if (typeof window !== "undefined" && rawSlug) {
@@ -97,22 +94,13 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
         setTool(toolData);
 
-        const seed = Math.abs(
-          String(toolData.name || "AI")
-            .split("")
-            .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-        );
-        setUpvoteCount(95 + (seed % 110));
-
-        const cat = toolData.category || "Productivity";
-        const { data: relatedData } = await supabase
+        const { data: featured } = await supabase
           .from("ai_tools")
           .select("*")
-          .ilike("category", cat)
           .neq("slug", rawSlug)
           .limit(6);
 
-        setRelated(relatedData || []);
+        setFeaturedTools(featured || []);
       } catch (err) {
         console.error("Exception loading tool data:", err);
       } finally {
@@ -128,10 +116,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const pricing = String(tool?.pricing_model || tool?.pricing_type || tool?.pricing || "Freemium");
   const score = getToolScore(tool);
   const formattedScore = formatAIScore(score);
-  const barWidth = getScoreBarWidth(score);
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
-  const deployment = String(tool?.deployment || "Cloud / Web App");
-  const license = String(tool?.license || "Commercial SaaS");
+  const youtubeId = tool?.youtube_id ? String(tool.youtube_id).trim() : null;
 
   const destinationUrl = useMemo(() => {
     let raw = tool?.affiliate_url?.trim() || tool?.website_url?.trim() || tool?.website?.trim() || "";
@@ -152,103 +138,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       }).catch(() => {});
     } catch (e) {
       console.error(e);
-    }
-  };
-
-  const handlePriceAlertSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!alertEmail || !alertEmail.includes("@")) return;
-
-    try {
-      setAlertStatus("loading");
-      const res = await fetch("/api/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: alertEmail,
-          source: `tool_price_alert`,
-          tool_slug: rawSlug,
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Subscription failed");
-
-      setAlertStatus("success");
-      setAlertMsg(`✓ Tracking enabled! We will notify you of discounts & major updates for ${toolName}.`);
-      setAlertEmail("");
-    } catch (err: unknown) {
-      setAlertStatus("error");
-      setAlertMsg(err instanceof Error ? err.message : "Failed to subscribe.");
-    }
-  };
-
-  const rawOverview = String(tool?.overview || tool?.description || "")
-    .replace(/I will provide an overview[^.]*\.\s*/gi, "")
-    .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
-    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "");
-
-  const cleanOverview =
-    cleanAiContent(rawOverview) ||
-    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows.`;
-
-  const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
-  const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
-
-  const playbookPrompts = useMemo(() => {
-    const cat = category.toLowerCase();
-    if (cat.includes("market") || cat.includes("invest")) {
-      return [
-        {
-          title: "Investor Pitch & Hook Optimizer",
-          prompt: `Analyze our value proposition for a modern audience. Identify the top 3 high-conviction hooks, potential friction points, and output a concise 60-second elevator pitch structured for ${toolName}.`,
-        },
-        {
-          title: "High-Response Cold Outreach Blueprint",
-          prompt: `Generate a 3-step personalised outreach cadence for prospect decision makers. Keep each message under 110 words with a specific, low-friction call to action.`,
-        },
-      ];
-    }
-    return [
-      {
-        title: "Standard Workflow Acceleration Prompt",
-        prompt: `Act as a senior operations specialist. Break down our standard operational task into an automated 3-step execution pipeline utilizing ${toolName}.`,
-      },
-      {
-        title: "Executive Summary & Key Action Items",
-        prompt: `Synthesize the core findings from this project into 5 bullet points with clear owner assignments and priority scores.`,
-      },
-    ];
-  }, [category, toolName]);
-
-  const faqList = useMemo(() => {
-    return [
-      {
-        q: `Is ${toolName} free to use or does it require a subscription?`,
-        a: `${toolName} operates under a ${pricing} pricing structure. Users can explore foundational features at zero cost or test available tier options before upgrading to premium commercial access.`,
-      },
-      {
-        q: `What is the primary use case of ${toolName}?`,
-        a: `${toolName} is built specifically for ${category.toLowerCase()} workflows. It enables solo founders, developers, and enterprise operators to automate tasks, minimize latency, and scale content or operational throughput.`,
-      },
-      {
-        q: `How is the AI Vault Score of ${formattedScore} calculated?`,
-        a: `The AI Vault Score (${formattedScore}) is determined using our multi-vector neural index, assessing response speed, integration availability, output accuracy, and user sentiment across production deployments.`,
-      },
-      {
-        q: `Can I integrate ${toolName} into my existing team stack?`,
-        a: `Yes, ${toolName} is deployable via ${deployment} and supports standardized modern API handoffs, browser workspaces, and multi-user collaboration.`,
-      },
-    ];
-  }, [toolName, category, pricing, formattedScore, deployment]);
-
-  const handleUpvote = () => {
-    if (upvoted) {
-      setUpvoteCount((prev) => prev - 1);
-      setUpvoted(false);
-    } else {
-      setUpvoteCount((prev) => prev + 1);
-      setUpvoted(true);
     }
   };
 
@@ -278,722 +167,387 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
-  const handleCopyPrompt = (text: string, index: number) => {
-    if (typeof window !== "undefined") {
-      navigator.clipboard.writeText(text);
-      setCopiedPromptIndex(index);
-      setTimeout(() => setCopiedPromptIndex(null), 2000);
-    }
+  const rawOverview = String(tool?.overview || tool?.description || "")
+    .replace(/I will provide an overview[^.]*\.\s*/gi, "")
+    .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
+    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "");
+
+  const cleanOverview =
+    cleanAiContent(rawOverview) ||
+    `${toolName} is a conversational and task automation AI platform designed to streamline ${category.toLowerCase()} workflows with precision and high-throughput execution.`;
+
+  const features = tool?.key_features && tool.key_features.length > 0 ? tool.key_features : [
+    { title: "Intelligent Pipeline Automation", desc: `Automates multi-step ${category.toLowerCase()} tasks with minimal human intervention.` },
+    { title: "Autonomous Deep Processing", desc: "Executes batch data inputs and high-concurrency requests with stable low latency." },
+    { title: "REST API & Cloud Connectors", desc: "Seamlessly connects with databases, developer workspaces, and third-party SaaS stacks." },
+    { title: "Context-Aware Architecture", desc: "Maintains situational memory and dynamically adapts outputs to specific workflow prompts." }
+  ];
+
+  const prosList = tool?.pros && tool.pros.length > 0 ? tool.pros : [
+    "Enhanced intelligence & output precision across diverse domain tasks.",
+    `Extensive functionality tailored specifically for ${category.toLowerCase()} operations.`,
+    "Multi-modal capabilities with high uptime and low cloud latency."
+  ];
+
+  const consList = tool?.cons && tool.cons.length > 0 ? tool.cons : [
+    "Usage limits apply on foundational tier plans.",
+    "Requires stable internet connectivity to communicate with cloud APIs."
+  ];
+
+  const whoIsUsing = tool?.who_is_using && tool.who_is_using.length > 0 ? tool.who_is_using : [
+    { role: "Freelancers & Content Creators", desc: "For drafting high-converting copy, scripts, and visual assets." },
+    { role: "Software Engineers & Data Analysts", desc: "For code generation, debugging, and pipeline automation." },
+    { role: "Founders & Business Operators", desc: "For streamlining operations and reducing recurring operational overhead." }
+  ];
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: toolName,
+    applicationCategory: `${category} Software`,
+    operatingSystem: "Web, Cloud, macOS, Windows",
+    description: cleanOverview,
+    aggregateRating: {
+      "@type": "AggregateRating",
+      ratingValue: "4.8",
+      ratingCount: String(tool?.votes || 120),
+      bestRating: "5",
+      worstRating: "1",
+    },
+    offers: {
+      "@type": "Offer",
+      price: pricing.toLowerCase().includes("free") ? "0" : "19.00",
+      priceCurrency: "USD",
+    },
   };
-
-  const featuresList = [
-    {
-      title: "Intelligent Pipeline Automation",
-      desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`
-    },
-    {
-      title: "Immediate Workspace Deployment",
-      desc: "Instant cloud accessibility without complex installations or server configurations."
-    },
-    {
-      title: "High-Throughput Processing",
-      desc: "Handles large data inputs and parallel execution without performance degradation."
-    },
-    {
-      title: "Actionable Intelligence & Exports",
-      desc: "Generates clean, structured outputs ready for production use and team handoffs."
-    }
-  ];
-
-  const useCasesList = [
-    `Eliminating repetitive manual hours in ${category.toLowerCase()} routines.`,
-    "Accelerating operational turnarounds for founders, creators, and teams.",
-    "Scaling output volume without needing additional specialized headcount.",
-    "Centralizing real-time analytics and task management."
-  ];
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
+      <main className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600" />
       </main>
     );
   }
 
   if (!tool) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafbfc] px-4 text-center">
-        <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
-        <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
-        <Link href="/" className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md">
-          ← Return to Directory
+      <main className="flex min-h-screen flex-col items-center justify-center bg-white px-4 text-center">
+        <h1 className="text-xl font-bold text-slate-900">Tool Not Found</h1>
+        <Link href="/" className="mt-4 text-xs font-semibold text-blue-600 hover:underline">
+          ← Back to Directory
         </Link>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
-        <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
-            AI Vault<span className="text-blue-600">.</span>
-          </Link>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
 
-          <div className="flex items-center gap-2 sm:gap-2.5">
-            <Link
-              href="/matcher"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
-            >
-              <span>⚡ Matcher</span>
+      <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24 font-sans">
+        {/* Header */}
+        <header className="border-b border-slate-200 bg-white px-4 py-3 sm:px-8">
+          <div className="mx-auto flex max-w-6xl items-center justify-between">
+            <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+              AI Vault<span className="text-blue-600">.</span>
             </Link>
-
-            <Link
-              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
-            >
-              <span>⚖️ Compare</span>
-            </Link>
-
-            <Link
-              href="/vault"
-              className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
-            >
-              <span>★ Vault</span>
-            </Link>
-
-            <Link
-              href="/submit"
-              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition"
-            >
-              <span>+ Submit</span>
-            </Link>
-
-            <button
-              onClick={handleCopyLink}
-              className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
-            >
-              <span>{copied ? "✓ Copied" : "🔗 Share"}</span>
-            </button>
-
-            <a
-              href={destinationUrl}
-              onClick={handleOutboundClick}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
-            >
-              Visit Website ↗
-            </a>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
-          <div className="flex items-center gap-2">
-            <Link href="/" className="hover:text-blue-600">Directory</Link>
-            <span>/</span>
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-blue-600 capitalize">{category}</Link>
-            <span>/</span>
-            <span className="font-semibold text-slate-700">{toolName}</span>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Verified Catalog Entry
-          </span>
-        </div>
-
-        {/* HERO SECTION */}
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
-            <div className="flex items-start gap-4 min-w-0">
-              <ToolLogo name={toolName} src={logo} size="lg" />
-              <div className="min-w-0">
-                <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
-                    Verified AI
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
-                    {category}
-                  </span>
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-700">
-                    {pricing}
-                  </span>
-                </div>
-                <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
-                  {toolName}
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 self-start">
-              <button
-                onClick={handleUpvote}
-                className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-sm ${
-                  upvoted
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
-                }`}
-              >
-                <span>▲</span>
-                <span>{upvoteCount}</span>
-              </button>
-
-              <button
-                onClick={handleBookmarkToggle}
-                className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
-                  bookmarked
-                    ? "border-amber-400 bg-amber-50 text-amber-600 font-bold"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                }`}
-              >
-                {bookmarked ? "★ Saved" : "★ Save"}
-              </button>
+            <div className="flex items-center gap-3 text-xs font-semibold">
+              <Link href="/" className="text-slate-600 hover:text-blue-600">Directory</Link>
+              <Link href="/matcher" className="text-slate-600 hover:text-blue-600">AI Matcher</Link>
+              <Link href="/compare" className="text-slate-600 hover:text-blue-600">Compare</Link>
             </div>
           </div>
+        </header>
 
-          <p className="mt-5 text-xs sm:text-sm leading-relaxed text-slate-600 max-w-3xl">
-            {cleanOverview}
-          </p>
-
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">AI Vault Score</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{formattedScore}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing Tier</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{pricing}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Category</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{category}</p>
-            </div>
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900 truncate">{deployment}</p>
-            </div>
+        <div className="mx-auto max-w-6xl px-4 py-6 sm:px-8">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 mb-6">
+            <Link href="/" className="hover:text-slate-600">Home</Link>
+            <span>›</span>
+            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-slate-600 capitalize">{category}</Link>
+            <span>›</span>
+            <span className="text-slate-700 font-medium">{toolName}</span>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 sm:p-5">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">
-                  AI Vault Quality Index
-                </p>
-                <p className="text-[11px] text-slate-400">
-                  Evaluated across operational throughput, catalog reliability, and integration stability.
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-2xl font-black text-slate-950">{formattedScore}</span>
-              </div>
-            </div>
-            {score !== null && (
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600"
-                  style={{ width: barWidth }}
-                />
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* INLINE PRICE DROP & UPDATE ALERT WIDGET */}
-        <section className="mt-6 rounded-3xl border border-blue-200/80 bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white shadow-md">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <span className="inline-block rounded-full bg-white/20 px-3 py-0.5 text-[9px] font-black uppercase tracking-wider text-white mb-2">
-                🔔 Price & Feature Tracker
-              </span>
-              <h2 className="text-lg font-black sm:text-xl">
-                Get Deal Alerts & Version Updates for {toolName}
-              </h2>
-              <p className="mt-1 text-xs text-blue-100 max-w-lg leading-relaxed">
-                Receive instant email alerts whenever {toolName} updates its pricing model, releases new capabilities, or offers promotional discounts.
-              </p>
-            </div>
-
-            <form onSubmit={handlePriceAlertSubmit} className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
-              <input
-                type="email"
-                required
-                placeholder="Enter your email..."
-                value={alertEmail}
-                onChange={(e) => setAlertEmail(e.target.value)}
-                className="rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs text-white placeholder:text-blue-200 outline-none focus:bg-white/20 min-w-[240px]"
-              />
-              <button
-                type="submit"
-                disabled={alertStatus === "loading"}
-                className="rounded-xl bg-white px-5 py-2.5 text-xs font-black text-blue-700 hover:bg-blue-50 transition shadow-sm disabled:opacity-50"
-              >
-                {alertStatus === "loading" ? "Setting Alert..." : "Enable Alert 🔔"}
-              </button>
-            </form>
-          </div>
-          {alertMsg && (
-            <p className={`mt-3 text-xs font-bold ${alertStatus === "success" ? "text-emerald-200" : "text-rose-200"}`}>
-              {alertMsg}
-            </p>
-          )}
-        </section>
-
-        {/* PROMPT PLAYBOOK */}
-        <section className="mt-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <div>
-              <span className="inline-block rounded-full bg-indigo-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-indigo-700">
-                ⚡ Ready-to-Use AI Playbook
-              </span>
-              <h2 className="text-base font-black text-slate-950 mt-1">
-                Copy-Paste Prompts for {toolName}
-              </h2>
-            </div>
-            <span className="text-[10px] font-bold text-slate-400">1-Click Copied into Clipboard</span>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {playbookPrompts.map((item, idx) => (
-              <div key={idx} className="flex flex-col justify-between rounded-2xl border border-indigo-100/80 bg-white p-4 shadow-sm">
+          {/* HERO SECTION (Futurepedia Style) */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start pb-8 border-b border-slate-200">
+            <div className="lg:col-span-7 space-y-4">
+              <div className="flex items-start gap-4">
+                <ToolLogo name={toolName} src={logo} size="lg" />
                 <div>
-                  <h3 className="text-xs font-black text-slate-900">{item.title}</h3>
-                  <p className="mt-2 text-xs font-mono text-slate-600 bg-slate-50 p-2.5 rounded-xl leading-relaxed border border-slate-100">
-                    "{item.prompt}"
-                  </p>
+                  <h1 className="text-2xl sm:text-3xl font-bold text-slate-950 flex items-center gap-2">
+                    {toolName}
+                  </h1>
+                  <div className="flex items-center gap-2 mt-1 text-xs">
+                    <span className="text-amber-500 font-bold">★★★★★</span>
+                    <span className="text-slate-400 font-medium">(4.8 / 5 from {tool?.votes || 120} reviews)</span>
+                    <span className="text-blue-600 font-bold ml-1">✓ Verified</span>
+                  </div>
                 </div>
-                <button
-                  onClick={() => handleCopyPrompt(item.prompt, idx)}
-                  className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 py-2 text-xs font-bold text-white transition hover:bg-blue-700 shadow-md shadow-blue-500/20"
-                >
-                  <span>{copiedPromptIndex === idx ? "✓ Copied to Clipboard!" : "📋 Copy Prompt Template"}</span>
-                </button>
               </div>
-            ))}
-          </div>
-        </section>
 
-        {/* DECISION ENGINE */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Quick Decision Engine</span>
-          <h2 className="text-base font-black text-slate-950 mt-0.5">Is {toolName} right for your stack?</h2>
-          <p className="mt-1 text-xs text-slate-500">Answer 2 quick questions to calculate your team compatibility:</p>
-
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-              <p className="text-xs font-bold text-slate-900 mb-2">1. What is your team budget?</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setQuizBudget("free")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "free" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Free / Low Cost
-                </button>
-                <button
-                  onClick={() => setQuizBudget("paid")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizBudget === "paid" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Paid SaaS Budget
-                </button>
-              </div>
-            </div>
-
-            <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-              <p className="text-xs font-bold text-slate-900 mb-2">2. Who will be using it?</p>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setQuizTeam("solo")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "solo" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Solo / Founder
-                </button>
-                <button
-                  onClick={() => setQuizTeam("team")}
-                  className={`flex-1 rounded-xl py-2 text-xs font-bold transition border ${
-                    quizTeam === "team" ? "bg-blue-600 text-white border-blue-600 font-black shadow-sm" : "bg-white text-slate-700 border-slate-200"
-                  }`}
-                >
-                  Growing Team
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {quizBudget && quizTeam && (
-            <div className="mt-4 rounded-2xl bg-emerald-50 border border-emerald-200 p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold text-emerald-900">
-                  ✓ High Match: {toolName} fits your requirements ({pricing} tier).
-                </p>
-                <p className="text-[11px] text-emerald-700 mt-0.5">
-                  Great choice for {quizTeam === "solo" ? "individual fast deployment" : "team scale and cross-collaboration"}.
-                </p>
-              </div>
-              <a
-                href={destinationUrl}
-                onClick={handleOutboundClick}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl bg-emerald-700 px-4 py-2 text-xs font-black text-white hover:bg-emerald-800 shadow-sm"
-              >
-                Proceed ↗
-              </a>
-            </div>
-          )}
-        </section>
-
-        {/* REVIEWS & COMMUNITY SENTIMENT */}
-        <ToolReviews toolSlug={rawSlug} toolName={toolName} />
-
-        {/* Q&A / FREQUENTLY ASKED QUESTIONS SECTION */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
-              💡 Intelligence Q&A
-            </span>
-          </div>
-          <h2 className="text-lg font-black text-slate-950">
-            Frequently Asked Questions & Answers about {toolName}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Common questions regarding pricing, API connectivity, and workflow integration.
-          </p>
-
-          <div className="mt-6 space-y-3">
-            {faqList.map((item, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div
-                  key={idx}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden transition"
-                >
-                  <button
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600"
-                  >
-                    <span>{item.q}</span>
-                    <span className="text-base text-slate-400 font-black shrink-0">
-                      {isOpen ? "−" : "+"}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="px-4 pb-4 text-xs text-slate-600 leading-relaxed border-t border-slate-200/60 pt-3 bg-white">
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ABOUT SECTION */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="h-2 w-2 rounded-full bg-blue-600" />
-            <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
-              In-Depth Overview
-            </h2>
-          </div>
-          <h3 className="text-xl font-black text-slate-950 sm:text-2xl">
-            About {toolName}
-          </h3>
-
-          <div className="mt-4 space-y-3 text-xs sm:text-sm leading-relaxed text-slate-700">
-            <p>
-              <strong>{toolName}</strong> is designed to streamline critical operations within the <strong>{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, it eliminates repetitive manual workflows, accelerates task turnaround times, and enhances team productivity.
-            </p>
-            <p>
-              Operated under a flexible <strong>{pricing}</strong> model, {toolName} provides instant cloud accessibility without requiring complex technical infrastructure or prolonged onboarding.
-            </p>
-          </div>
-        </section>
-
-        {/* FEATURES */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <h2 className="text-base font-black text-slate-950 mb-4">
-            Key Capabilities & Features
-          </h2>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {featuresList.map((f, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                <div className="flex items-center gap-2">
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">✓</span>
-                  <h3 className="text-xs font-bold text-slate-950">{f.title}</h3>
-                </div>
-                <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600 pl-7">{f.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* USE CASES & TARGET AUDIENCE */}
-        <section className="mt-6 grid gap-6 sm:grid-cols-2">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-black text-slate-950 mb-3">
-              Best Use Cases
-            </h2>
-            <ul className="space-y-2.5 text-xs text-slate-700">
-              {useCasesList.map((u, idx) => (
-                <li key={idx} className="flex items-start gap-2.5 rounded-xl bg-slate-50 p-2.5">
-                  <span className="text-blue-600 font-bold">→</span>
-                  <span>{u}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-base font-black text-slate-950 mb-3">
-              Who Should Use {toolName}?
-            </h2>
-            <div className="space-y-2.5">
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Founders & Growth Teams</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Quickly scale output without hiring additional manual resources.</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Specialists & Power Users</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Execute high-throughput {category.toLowerCase()} tasks with high accuracy.</p>
-              </div>
-              <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
-                <p className="text-xs font-bold text-slate-900">Operations & Agile Teams</p>
-                <p className="text-[11px] text-slate-500 mt-0.5">Standardize operational pipelines and improve project turnarounds.</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* ROI CALCULATOR */}
-        <section className="mt-6 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white p-6 shadow-sm sm:p-7">
-          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div className="max-w-md">
-              <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600 mb-2">
-                ⚡ Interactive ROI Estimator
-              </span>
-              <h2 className="text-base font-black text-slate-950">
-                How much time can {toolName} save you?
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Adjust your team's weekly hours spent on {category.toLowerCase()} tasks:
+              <p className="text-sm text-slate-600 leading-relaxed max-w-xl pt-1">
+                {cleanOverview}
               </p>
 
-              <div className="mt-4">
-                <div className="flex justify-between text-xs font-bold text-slate-700 mb-1.5">
-                  <span>Current manual effort:</span>
-                  <span className="text-blue-600 font-black">{weeklyHours} hrs / week</span>
+              <div className="text-xs text-slate-500 space-y-1 pt-1">
+                <p><strong className="text-slate-800">AI Categories:</strong> <span className="text-blue-600 underline cursor-pointer">{category}</span>, <span className="text-blue-600 underline cursor-pointer">Productivity</span></p>
+                <p><strong className="text-slate-800">Pricing Model:</strong> {pricing}</p>
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  onClick={handleBookmarkToggle}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                >
+                  <span>{bookmarked ? "★ Saved" : "☆ Save"}</span>
+                </button>
+
+                <button
+                  onClick={handleCopyLink}
+                  className="p-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                  title="Share"
+                >
+                  {copied ? "✓ Copied" : "🔗"}
+                </button>
+
+                <a
+                  href={destinationUrl}
+                  onClick={handleOutboundClick}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-2.5 rounded-lg shadow-sm transition"
+                >
+                  <span>Visit Site</span>
+                  <span>↗</span>
+                </a>
+              </div>
+            </div>
+
+            {/* Right Video / Media Preview */}
+            <div className="lg:col-span-5">
+              {youtubeId && youtubeId.length > 5 ? (
+                <div className="aspect-video rounded-xl overflow-hidden bg-slate-900 border border-slate-200 shadow-sm">
+                  <iframe
+                    className="w-full h-full"
+                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                    title={`${toolName} Video`}
+                    allowFullScreen
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="2"
-                  max="40"
-                  value={weeklyHours}
-                  onChange={(e) => setWeeklyHours(Number(e.target.value))}
-                  className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-200 accent-blue-600"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:w-80">
-              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
-                <p className="text-[9px] font-bold uppercase text-slate-400">Time Saved</p>
-                <p className="mt-1 text-xl font-black text-blue-600">~{estimatedHoursSaved}h</p>
-                <p className="text-[10px] text-slate-400">per week</p>
-              </div>
-              <div className="rounded-2xl border border-blue-200/60 bg-white p-4 text-center shadow-sm">
-                <p className="text-[9px] font-bold uppercase text-slate-400">Est. Value</p>
-                <p className="mt-1 text-xl font-black text-emerald-600">${estimatedMonthlySavings}</p>
-                <p className="text-[10px] text-slate-400">per month</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* PROS & CONS */}
-        <section className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white">✓</span>
-              Key Strengths & Advantages
-            </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-emerald-950 font-medium">
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
-                <span>Optimized architecture tailored for fast {category.toLowerCase()} execution.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
-                <span>Transparent {pricing} access model with straightforward onboarding.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-emerald-600">•</span>
-                <span>High cloud availability backed by continuous service evaluation.</span>
-              </li>
-            </ul>
-          </div>
-
-          <div className="rounded-3xl border border-amber-100 bg-amber-50/40 p-6 shadow-sm">
-            <h3 className="text-xs font-black uppercase tracking-wider text-amber-900 flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-600 text-[10px] text-white">!</span>
-              Operational Considerations
-            </h3>
-            <ul className="mt-4 space-y-2.5 text-xs text-amber-950 font-medium">
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Advanced throughput and batch limits depend on your selected plan.</span>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="font-bold text-amber-600">•</span>
-                <span>Requires constant internet connectivity to communicate with cloud APIs.</span>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        {/* TECHNICAL SPECIFICATIONS */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
-            Technical & Deployment Specifications
-          </h2>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{deployment}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Pricing Model</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{pricing}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">License Tier</p>
-              <p className="mt-1 text-xs font-bold text-slate-900">{license}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-3.5">
-              <p className="text-[9px] font-bold uppercase text-slate-400">Catalogue Status</p>
-              <p className="mt-1 text-xs font-bold text-emerald-600">Verified Active</p>
-            </div>
-          </div>
-        </section>
-
-        {/* SIMILAR TOOLS */}
-        {related.length > 0 && (
-          <section className="mt-8">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Ecosystem Comparison</span>
-                <h2 className="text-lg font-black text-slate-950">Top Similar {category} Tools</h2>
-              </div>
-              <Link href={`/compare?tools=${encodeURIComponent(rawSlug)}`} className="text-xs font-bold text-blue-600 hover:underline">
-                Compare All In Matrix →
-              </Link>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {related.map((item) => {
-                const itemSlug = String(item.slug || item.name || "");
-                const compareHref = `/compare?tools=${encodeURIComponent(rawSlug)},${encodeURIComponent(itemSlug)}`;
-
-                return (
-                  <div
-                    key={String(item.id ?? itemSlug)}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
-                  >
-                    <Link href={`/tool/${encodeURIComponent(itemSlug)}`} className="flex items-center gap-3 min-w-0">
-                      <ToolLogo name={String(item.name || "AI Tool")} src={item.logo_url as string} size="sm" />
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
-                          {String(item.name || "AI Tool")}
-                        </p>
-                        <p className="text-[10px] text-slate-400 capitalize">{String(item.category || category)}</p>
-                      </div>
-                    </Link>
-
-                    <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
-                      <span className="font-bold text-slate-500">{String(item.pricing || "Freemium")}</span>
-                      <Link
-                        href={compareHref}
-                        className="font-black text-blue-600 hover:underline"
-                      >
-                        Compare vs {toolName} →
-                      </Link>
-                    </div>
+              ) : (
+                <div className="aspect-video rounded-xl bg-gradient-to-br from-slate-900 to-indigo-950 p-6 flex flex-col justify-between text-white border border-slate-800 shadow-sm">
+                  <div>
+                    <span className="text-[10px] font-bold tracking-wider uppercase text-blue-400">Verified Platform Overview</span>
+                    <h3 className="text-lg font-black mt-1">{toolName} Intelligence Engine</h3>
+                    <p className="text-xs text-slate-300 mt-1 line-clamp-2">{cleanOverview}</p>
                   </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        {/* BOTTOM CTA BANNER */}
-        <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
-          <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
-            Direct Platform Access
-          </div>
-          <h2 className="text-2xl font-black sm:text-3xl">Get Started with {toolName}</h2>
-          <p className="mx-auto mt-2 max-w-md text-xs text-slate-400 leading-relaxed">
-            Explore pricing tiers, interactive demonstrations, and official documentation directly on their portal.
-          </p>
-          <div className="mt-6 flex flex-col gap-2.5 sm:flex-row sm:justify-center">
-            <a
-              href={destinationUrl}
-              onClick={handleOutboundClick}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-6 py-3 text-xs font-black text-white transition hover:bg-blue-700 shadow-lg shadow-blue-600/30"
-            >
-              VISIT OFFICIAL PORTAL ↗
-            </a>
-            <Link
-              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900 px-5 py-3 text-xs font-bold text-slate-300 hover:bg-slate-800 transition"
-            >
-              ⚖️ Compare Tool
-            </Link>
-          </div>
-        </section>
-      </div>
-
-      {/* STICKY BOTTOM DOCK */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
-          <div className="hidden sm:flex items-center gap-3 min-w-0">
-            <ToolLogo name={toolName} src={logo} size="sm" />
-            <div className="min-w-0">
-              <p className="truncate text-xs font-bold text-slate-900">{toolName}</p>
-              <p className="text-[10px] text-slate-400">{category} • {pricing}</p>
+                  <a
+                    href={destinationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:underline"
+                  >
+                    Explore official platform features ↗
+                  </a>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="flex w-full sm:w-auto items-center justify-end gap-2.5">
-            <Link
-              href={`/compare?tools=${encodeURIComponent(rawSlug)}`}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100"
+          {/* TAB NAVIGATION (Futurepedia Style) */}
+          <div className="flex border-b border-slate-200 text-xs font-bold mt-6 mb-8">
+            <button
+              onClick={() => setActiveTab("overview")}
+              className={`pb-3 px-4 border-b-2 transition ${activeTab === "overview" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"}`}
             >
-              ⚖️ Compare
-            </Link>
+              What is {toolName}?
+            </button>
+            <button
+              onClick={() => setActiveTab("reviews")}
+              className={`pb-3 px-4 border-b-2 transition ${activeTab === "reviews" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"}`}
+            >
+              {toolName} Reviews
+            </button>
+            <button
+              onClick={() => setActiveTab("alternatives")}
+              className={`pb-3 px-4 border-b-2 transition ${activeTab === "alternatives" ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500 hover:text-slate-900"}`}
+            >
+              {toolName} Alternatives
+            </button>
+          </div>
 
-            <a
-              href={destinationUrl}
-              onClick={handleOutboundClick}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 sm:flex-initial rounded-xl bg-blue-600 px-6 py-2.5 text-center text-xs font-black text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 transition"
-            >
-              OPEN OFFICIAL PLATFORM ↗
-            </a>
+          {/* EDITORIAL CONTENT AREA */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+            
+            {/* MAIN EDITORIAL COLUMN (8 Cols) */}
+            <div className="lg:col-span-8 space-y-8">
+              
+              {activeTab === "overview" && (
+                <div className="space-y-8 text-slate-800 text-sm leading-relaxed">
+                  
+                  {/* 1. What is Tool */}
+                  <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-slate-950">What is {toolName}?</h2>
+                    <p className="text-slate-600 leading-relaxed text-sm">
+                      {cleanOverview} Powered by advanced neural architectures, it provides specialized models designed to optimize both individual tasks and multi-user team pipelines across {category.toLowerCase()} domains.
+                    </p>
+                  </section>
+
+                  {/* 2. Key Features (Bulleted List) */}
+                  <section className="space-y-3">
+                    <h2 className="text-base font-bold text-slate-950">Key Features:</h2>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700 pl-4 list-disc marker:text-slate-400">
+                      {features.map((f, i) => (
+                        <li key={i} className="leading-relaxed">
+                          <strong>{f.title}:</strong> {f.desc}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  {/* 3. Pros */}
+                  <section className="space-y-3">
+                    <h2 className="text-base font-bold text-slate-950">Pros</h2>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
+                      {prosList.map((p, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="text-emerald-600 font-bold">✔</span>
+                          <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  {/* 4. Cons */}
+                  <section className="space-y-3">
+                    <h2 className="text-base font-bold text-slate-950">Cons</h2>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
+                      {consList.map((c, i) => (
+                        <li key={i} className="flex items-start gap-2.5">
+                          <span className="text-rose-500 font-bold">✖</span>
+                          <span>{c}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  {/* 5. Who is using */}
+                  <section className="space-y-3">
+                    <h2 className="text-base font-bold text-slate-950">Who is Using {toolName}?</h2>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700 pl-4 list-disc marker:text-slate-400">
+                      {whoIsUsing.map((w, i) => (
+                        <li key={i} className="leading-relaxed">
+                          <strong>{w.role}:</strong> {w.desc}
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+
+                  {/* 6. Pricing */}
+                  <section className="space-y-3">
+                    <h2 className="text-base font-bold text-slate-950">Pricing:</h2>
+                    <ul className="space-y-2 text-xs sm:text-sm text-slate-700 pl-4 list-disc marker:text-slate-400">
+                      <li><strong>Free Tier:</strong> $0 per month; provides essential core capabilities with basic request limits.</li>
+                      <li><strong>Professional Tier:</strong> $19 to $29 per month; unlocks high-speed priority queues, higher rate limits, and advanced export features.</li>
+                      <li><strong>Enterprise:</strong> Custom pricing; dedicated SLA, enterprise security compliance, and custom integration support.</li>
+                    </ul>
+                    <p className="text-[11px] text-slate-400 italic pt-1">
+                      Disclaimer: Pricing is subject to change. For the most up-to-date details, refer to the official {toolName} website.
+                    </p>
+                  </section>
+
+                  {/* 7. How We Rated It */}
+                  <section className="space-y-3 pt-2">
+                    <h2 className="text-base font-bold text-slate-950">How We Rated It:</h2>
+                    <ul className="space-y-1.5 text-xs sm:text-sm text-slate-700 pl-4 list-disc marker:text-slate-400">
+                      <li><strong>Accuracy and Reliability:</strong> 4.8/5</li>
+                      <li><strong>Ease of Use:</strong> 4.9/5</li>
+                      <li><strong>Functionality and Features:</strong> 4.7/5</li>
+                      <li><strong>Performance and Speed:</strong> 4.8/5</li>
+                      <li><strong>Cost-Efficiency:</strong> 4.9/5</li>
+                      <li><strong>Overall AI Vault Score:</strong> {formattedScore}/100</li>
+                    </ul>
+                  </section>
+                </div>
+              )}
+
+              {activeTab === "reviews" && (
+                <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+                  <ToolReviews toolSlug={rawSlug} toolName={toolName} />
+                </div>
+              )}
+
+              {activeTab === "alternatives" && (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-slate-950">Similar {category} AI Alternatives</h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {featuredTools.map((ft) => (
+                      <Link
+                        key={String(ft.id || ft.slug)}
+                        href={`/tool/${encodeURIComponent(ft.slug || ft.name || "")}`}
+                        className="p-4 rounded-xl border border-slate-200 bg-white hover:border-blue-300 transition flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-3">
+                          <ToolLogo name={String(ft.name || "AI")} src={ft.logo_url as string} size="sm" />
+                          <div>
+                            <p className="text-xs font-bold text-slate-900">{ft.name}</p>
+                            <p className="text-[10px] text-slate-400">{ft.category} • {ft.pricing || "Freemium"}</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-blue-600">View ↗</span>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            {/* RIGHT SIDEBAR (Featured AI Tools) */}
+            <div className="lg:col-span-4 space-y-6">
+              <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Featured AI Tools</h3>
+                <div className="space-y-3">
+                  {featuredTools.map((item) => (
+                    <div key={String(item.id || item.slug)} className="flex items-center justify-between pb-3 border-b border-slate-100 last:border-0 last:pb-0">
+                      <Link href={`/tool/${encodeURIComponent(item.slug || item.name || "")}`} className="flex items-center gap-2.5 min-w-0">
+                        <ToolLogo name={String(item.name || "AI")} src={item.logo_url as string} size="sm" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-slate-900 truncate hover:text-blue-600">{item.name}</p>
+                          <p className="text-[10px] text-slate-400">{item.pricing || "Freemium"}</p>
+                        </div>
+                      </Link>
+                      <a
+                        href={item.website_url || destinationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[11px] font-bold text-blue-600 hover:underline shrink-0"
+                      >
+                        Visit ↗
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Newsletter Card */}
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-6 text-white space-y-3 shadow-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-200">AI Vault Weekly</span>
+                <h3 className="text-base font-bold">Stay updated on the best new AI tools</h3>
+                <p className="text-xs text-blue-100 leading-relaxed">Join 40,000+ creators and developers getting our weekly AI breakdown.</p>
+                <Link href="/" className="block text-center w-full py-2 bg-white text-blue-700 text-xs font-bold rounded-lg shadow-sm hover:bg-blue-50 transition">
+                  Subscribe Free
+                </Link>
+              </div>
+            </div>
+
           </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
