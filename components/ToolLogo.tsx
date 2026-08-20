@@ -1,46 +1,37 @@
 // components/ToolLogo.tsx
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
-type ToolLogoProps = {
+export type ToolLogoProps = {
   src?: string | null;
+  logoUrl?: string | null;
   name: string;
   website?: string | null;
+  websiteUrl?: string | null;
   slug?: string | null;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | number;
   className?: string;
 };
 
-const SIZE_MAP = {
+const SIZE_MAP: Record<string, string> = {
   sm: "h-8 w-8 text-xs",
-  md: "h-11 w-11 text-sm font-black",
-  lg: "h-14 w-14 text-base font-black",
-  xl: "h-16 w-16 text-lg font-black",
+  md: "h-11 w-11 text-sm font-bold",
+  lg: "h-14 w-14 text-base font-bold",
+  xl: "h-16 w-16 text-lg font-bold",
 };
 
-const PIXEL_MAP = {
+const PIXEL_MAP: Record<string, number> = {
   sm: 32,
   md: 44,
   lg: 56,
   xl: 64,
 };
 
-// Rich Tech Gradients matching modern SaaS platforms
-const GRADIENTS = [
-  "from-blue-600 via-indigo-600 to-violet-700",
-  "from-violet-600 via-purple-600 to-fuchsia-700",
-  "from-emerald-500 via-teal-600 to-cyan-700",
-  "from-cyan-500 via-blue-600 to-indigo-700",
-  "from-amber-500 via-orange-600 to-red-600",
-  "from-fuchsia-600 via-pink-600 to-rose-600",
-  "from-slate-800 via-slate-900 to-black",
-];
-
-function extractCleanDomain(website?: string | null): string {
-  if (!website || typeof website !== "string") return "";
+function extractCleanDomain(urlInput?: string | null): string {
+  if (!urlInput || typeof urlInput !== "string") return "";
   try {
-    const raw = website.trim();
+    const raw = urlInput.trim();
     const url = raw.startsWith("http://") || raw.startsWith("https://") ? raw : `https://${raw}`;
     const hostname = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
     if (
@@ -55,18 +46,21 @@ function extractCleanDomain(website?: string | null): string {
   return "";
 }
 
-export default function ToolLogo({
+export function ToolLogo({
   src,
+  logoUrl,
   name,
   website,
-  slug,
+  websiteUrl,
   size = "md",
   className = "",
 }: ToolLogoProps) {
   const cleanName = (name || "AI Tool").trim();
-  const domain = useMemo(() => extractCleanDomain(website), [website]);
+  const directLogo = src || logoUrl;
+  const targetWebsite = website || websiteUrl;
+  const domain = useMemo(() => extractCleanDomain(targetWebsite), [targetWebsite]);
 
-  // Generate crisp 2-letter uppercase initials
+  // 2-Letter Uppercase Initials Fallback
   const initials = useMemo(() => {
     const sanitized = cleanName.replace(/[^a-zA-Z0-9\s]/g, "");
     const parts = sanitized.split(/\s+/).filter(Boolean);
@@ -76,29 +70,27 @@ export default function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
-  // Distinct gradient for every tool
-  const gradientClass = useMemo(() => {
-    const hash = cleanName.split("").reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    return GRADIENTS[hash % GRADIENTS.length];
-  }, [cleanName]);
-
-  // Priority Candidates (Only use reliable direct logo endpoints)
+  // Fallback Pipeline: 1. DB URL -> 2. Google High-Res (128px) -> 3. Clearbit -> 4. DuckDuckGo
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
-    // 1. Database original uploaded logo
-    if (src && typeof src === "string" && src.trim().startsWith("http") && !src.includes("placeholder")) {
-      list.push(src.trim());
+    if (
+      directLogo &&
+      typeof directLogo === "string" &&
+      directLogo.trim().startsWith("http") &&
+      !directLogo.includes("placeholder")
+    ) {
+      list.push(directLogo.trim());
     }
 
-    // 2. Clearbit & DuckDuckGo (they fail fast instead of returning fake grey globe)
     if (domain) {
+      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
       list.push(`https://logo.clearbit.com/${domain}`);
       list.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
     }
 
     return list;
-  }, [src, domain]);
+  }, [directLogo, domain]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loadFailed, setLoadFailed] = useState(candidateUrls.length === 0);
@@ -116,14 +108,16 @@ export default function ToolLogo({
     }
   };
 
-  const dimensionClass = SIZE_MAP[size] || SIZE_MAP.md;
-  const pixelSize = PIXEL_MAP[size] || 44;
+  const isNumericSize = typeof size === "number";
+  const dimensionClass = !isNumericSize ? (SIZE_MAP[size as string] || SIZE_MAP.md) : "";
+  const pixelSize = isNumericSize ? size : (PIXEL_MAP[size as string] || 44);
 
-  // Render Crisp Gradient Badge if image not found or failed
+  // Neon-Green & Black Cyberpunk Initials Badge Fallback
   if (loadFailed || !candidateUrls[currentIndex]) {
     return (
       <div
-        className={`flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br ${gradientClass} text-white shadow-md ring-1 ring-white/20 select-none tracking-tight font-black transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+        style={isNumericSize ? { width: size, height: size } : undefined}
+        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0a0a0a] border border-[#00FF66]/30 text-[#00FF66] shadow-[0_0_10px_rgba(0,255,102,0.15)] select-none tracking-tight transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
       >
         {initials}
       </div>
@@ -132,7 +126,8 @@ export default function ToolLogo({
 
   return (
     <div
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-1.5 shadow-sm transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+      style={isNumericSize ? { width: size, height: size } : undefined}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-neutral-800 bg-[#0d0d0d] p-1.5 shadow-sm transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
     >
       <img
         src={candidateUrls[currentIndex]}
@@ -140,9 +135,11 @@ export default function ToolLogo({
         width={pixelSize}
         height={pixelSize}
         onError={handleImgError}
-        className="h-full w-full object-contain rounded-xl"
+        className="h-full w-full object-contain rounded-lg"
         loading="lazy"
       />
     </div>
   );
 }
+
+export default ToolLogo;
