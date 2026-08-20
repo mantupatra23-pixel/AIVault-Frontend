@@ -60,7 +60,7 @@ export function ToolLogo({
   const targetWebsite = website || websiteUrl;
   const domain = useMemo(() => extractCleanDomain(targetWebsite), [targetWebsite]);
 
-  // 2-Letter Uppercase Initials Fallback
+  // Clean 2-letter uppercase initials badge
   const initials = useMemo(() => {
     const sanitized = cleanName.replace(/[^a-zA-Z0-9\s]/g, "");
     const parts = sanitized.split(/\s+/).filter(Boolean);
@@ -70,23 +70,28 @@ export function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
-  // Fallback Pipeline: 1. DB URL -> 2. Google High-Res (128px) -> 3. Clearbit -> 4. DuckDuckGo
+  // Priority Pipeline (Fails fast on missing logos to trigger Neon Badge)
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
+    // 1. Direct DB logo
     if (
       directLogo &&
       typeof directLogo === "string" &&
       directLogo.trim().startsWith("http") &&
-      !directLogo.includes("placeholder")
+      !directLogo.includes("placeholder") &&
+      !directLogo.includes("default_icon")
     ) {
       list.push(directLogo.trim());
     }
 
     if (domain) {
-      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+      // 2. Clearbit direct company logo
       list.push(`https://logo.clearbit.com/${domain}`);
+      // 3. DuckDuckGo high-res icon
       list.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+      // 4. Google Favicon (with default_icon=none so missing logos fail fast to neon badge)
+      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128&default_icon=none`);
     }
 
     return list;
@@ -112,12 +117,12 @@ export function ToolLogo({
   const dimensionClass = !isNumericSize ? (SIZE_MAP[size as string] || SIZE_MAP.md) : "";
   const pixelSize = isNumericSize ? size : (PIXEL_MAP[size as string] || 44);
 
-  // Neon-Green & Black Cyberpunk Initials Badge Fallback
+  // Modern Neon Green & Deep Black Initial Badge
   if (loadFailed || !candidateUrls[currentIndex]) {
     return (
       <div
         style={isNumericSize ? { width: size, height: size } : undefined}
-        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0a0a0a] border border-[#00FF66]/30 text-[#00FF66] shadow-[0_0_10px_rgba(0,255,102,0.15)] select-none tracking-tight transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0d1117] border border-[#00FF66]/40 text-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.2)] select-none tracking-tight font-extrabold transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
       >
         {initials}
       </div>
