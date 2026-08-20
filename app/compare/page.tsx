@@ -28,6 +28,8 @@ type ToolRecord = {
   affiliate_url?: string | null;
   deployment?: string | null;
   license?: string | null;
+  features?: string[] | string | null;
+  pros?: string[] | string | null;
   [key: string]: unknown;
 };
 
@@ -36,6 +38,32 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+}
+
+// Dynamic Feature Extractor Helper
+function extractFeatureList(tool: ToolRecord): string[] {
+  if (Array.isArray(tool.features) && tool.features.length > 0) {
+    return tool.features.slice(0, 4);
+  }
+  const text = String(tool.overview || tool.description || "");
+  const sentences = text.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
+  if (sentences.length >= 2) {
+    return sentences.slice(0, 3);
+  }
+  return [
+    "Autonomous Task Execution",
+    "API & Workflow Integration",
+    "Cloud Cloud-native Processing",
+  ];
+}
+
+function getBestFor(tool: ToolRecord): string {
+  const cat = (tool.category || "").toLowerCase();
+  if (cat.includes("code") || cat.includes("dev")) return "Developers & Full-stack Engineers";
+  if (cat.includes("market") || cat.includes("seo")) return "Growth Teams & Marketers";
+  if (cat.includes("writ") || cat.includes("content")) return "Copywriters & Content Creators";
+  if (cat.includes("image") || cat.includes("video")) return "Designers & Video Editors";
+  return "Founders, Operators & Product Teams";
 }
 
 function CompareContent() {
@@ -145,7 +173,8 @@ function CompareContent() {
   }, [allTools, searchQuery]);
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
+      {/* Top Navbar */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -160,6 +189,7 @@ function CompareContent() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* Title */}
         <div className="text-center max-w-2xl mx-auto mb-10">
           <span className="inline-block rounded-full bg-blue-600/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">
             Side-by-Side Intelligence
@@ -168,10 +198,11 @@ function CompareContent() {
             Compare AI Tools
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-slate-500">
-            Evaluate capabilities, verified scores, pricing tiers, and workflows across 2–3 software platforms simultaneously.
+            Evaluate deep capabilities, verified benchmark scores, pricing tiers, and feature matrices.
           </p>
         </div>
 
+        {/* Selected Tool Slots */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -187,7 +218,7 @@ function CompareContent() {
                   className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ToolLogo name={name} src={logo} size="sm" />
+                    <ToolLogo name={name} src={logo} website={current.website_url || current.website} size="sm" />
                     <div className="min-w-0">
                       <h3 className="truncate text-xs font-black text-slate-950">{name}</h3>
                       <p className="text-[10px] text-slate-400 capitalize">{category}</p>
@@ -197,7 +228,7 @@ function CompareContent() {
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setSearchOpenForSlot(slotIdx)}
-                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50"
+                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
                     >
                       Change
                     </button>
@@ -227,10 +258,11 @@ function CompareContent() {
           })}
         </div>
 
+        {/* Rich Comparison Matrix */}
         {selectedTools.length > 0 ? (
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[650px]">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/80">
                     <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-1/4">
@@ -239,7 +271,7 @@ function CompareContent() {
                     {selectedTools.map((t, i) => (
                       <th key={i} className="p-4 text-xs font-black text-slate-950 w-1/4">
                         <div className="flex items-center gap-2">
-                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
+                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
                           <span className="truncate">{String(t.name)}</span>
                         </div>
                       </th>
@@ -248,6 +280,7 @@ function CompareContent() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 text-xs">
+                  {/* AI Vault Score */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                     {selectedTools.map((t, i) => {
@@ -265,17 +298,49 @@ function CompareContent() {
                     })}
                   </tr>
 
+                  {/* Pricing Tier */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-bold text-slate-900">
-                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-mono">
                           {String(t.pricing_model || t.pricing || "Freemium")}
                         </span>
                       </td>
                     ))}
                   </tr>
 
+                  {/* Key Capabilities & Features */}
+                  <tr>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Features</td>
+                    {selectedTools.map((t, i) => {
+                      const feats = extractFeatureList(t);
+                      return (
+                        <td key={i} className="p-4">
+                          <ul className="space-y-1.5 text-[11px] text-slate-700">
+                            {feats.map((f, idx) => (
+                              <li key={idx} className="flex items-start gap-1.5">
+                                <span className="text-blue-600 font-bold">✓</span>
+                                <span>{f}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </td>
+                      );
+                    })}
+                  </tr>
+
+                  {/* Ideal Target Audience */}
+                  <tr>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Best For</td>
+                    {selectedTools.map((t, i) => (
+                      <td key={i} className="p-4 font-semibold text-slate-800 text-[11px]">
+                        {getBestFor(t)}
+                      </td>
+                    ))}
+                  </tr>
+
+                  {/* Category */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Category</td>
                     {selectedTools.map((t, i) => (
@@ -285,24 +350,27 @@ function CompareContent() {
                     ))}
                   </tr>
 
+                  {/* Operational Summary */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 text-[11px] leading-relaxed text-slate-600">
-                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in workflow automation.`}
+                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in high-performance workflow automation.`}
                       </td>
                     ))}
                   </tr>
 
+                  {/* Deployment / Integration */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-semibold text-slate-700">
-                        {String(t.deployment || "Cloud / Web App")}
+                        {String(t.deployment || "Cloud / Web App & API")}
                       </td>
                     ))}
                   </tr>
 
+                  {/* Direct Official Access CTAs */}
                   <tr className="bg-slate-50/40">
                     <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
@@ -314,7 +382,7 @@ function CompareContent() {
                             <a
                               href={`/go/${encodeURIComponent(slug)}`}
                               target="_blank"
-                              rel="noopener noreferrer"
+                              rel="noopener noreferrer sponsored"
                               className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
                             >
                               Visit Portal ↗
@@ -337,6 +405,7 @@ function CompareContent() {
         ) : null}
       </div>
 
+      {/* Tool Selector Modal */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -367,7 +436,7 @@ function CompareContent() {
                   className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
+                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
                     <div className="min-w-0">
                       <p className="text-xs font-bold text-slate-900 truncate">{String(t.name)}</p>
                       <p className="text-[10px] text-slate-400 capitalize">{String(t.category || "AI")}</p>
