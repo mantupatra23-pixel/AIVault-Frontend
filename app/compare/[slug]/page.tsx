@@ -10,7 +10,7 @@ type PageProps = {
 };
 
 function formatToolName(slugPart: string): string {
-  if (!slugPart) return "Tool";
+  if (!slugPart) return "AI Tool";
   return slugPart
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -53,92 +53,94 @@ export default async function CompareSlugPage({ params }: PageProps) {
   const tool1Name = formatToolName(tool1Slug);
   const tool2Name = formatToolName(tool2Slug);
 
-  // Deterministic benchmark scores
   const score1 = 76 + (tool1Slug.length % 20);
   const score2 = 82 + (tool2Slug.length % 15);
 
   return (
-    <main className="min-h-screen bg-[#05070a] text-slate-100 py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto">
-        
-        {/* Top Bar Navigation */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-neutral-800/60">
-          <Link href="/" className="text-base font-black tracking-tight text-white">
-            AI Vault<span className="text-[#00FF66]">.</span>
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between">
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
           </Link>
-          <Link
-            href="/"
-            className="text-xs font-bold text-neutral-400 hover:text-[#00FF66] transition flex items-center gap-1"
-          >
-            ← Back to Directory
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/compare"
+              className="text-xs font-bold text-slate-600 hover:text-blue-600 transition"
+            >
+              ← Back to Comparison Hub
+            </Link>
+          </div>
         </div>
+      </header>
 
-        {/* Hero Section */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="inline-block rounded-full bg-[#00FF66]/10 border border-[#00FF66]/20 px-3.5 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-[#00FF66] mb-3">
+      <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
+        {/* Title Header */}
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <span className="inline-block rounded-full bg-blue-600/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">
             Side-by-Side Intelligence
           </span>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Compare <span className="text-[#00FF66]">AI Tools</span>
+          <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
+            {tool1Name} <span className="text-blue-600">vs</span> {tool2Name}
           </h1>
-          <p className="mt-3 text-xs sm:text-sm text-neutral-400 max-w-xl mx-auto">
-            Evaluate capabilities, verified scores, pricing tiers, and workflows across 2–3 software platforms simultaneously.
+          <p className="mt-2 text-xs sm:text-sm text-slate-500">
+            Evaluate capabilities, verified scores, pricing tiers, and workflows across these platforms.
           </p>
         </div>
 
-        {/* Top Active Tool Slots */}
+        {/* Selected Tool Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="flex items-center justify-between rounded-2xl border border-neutral-800 bg-[#0a0e17] p-4 shadow-xl">
+          <div className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm">
             <div className="flex items-center gap-3 min-w-0">
               <ToolLogo name={tool1Name} size="sm" />
               <div className="min-w-0">
-                <h3 className="truncate text-xs font-bold text-white">{tool1Name}</h3>
-                <p className="text-[10px] text-neutral-400 capitalize font-mono">Productivity</p>
+                <h3 className="truncate text-xs font-black text-slate-950">{tool1Name}</h3>
+                <p className="text-[10px] text-slate-400 capitalize">Productivity</p>
               </div>
             </div>
             <Link
               href="/compare"
-              className="rounded-lg border border-neutral-700 bg-[#05070a] px-2.5 py-1 text-[10px] font-bold text-neutral-300 hover:border-[#00FF66] hover:text-[#00FF66] transition"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
             >
               Change
             </Link>
           </div>
 
-          <div className="flex items-center justify-between rounded-2xl border border-neutral-800 bg-[#0a0e17] p-4 shadow-xl">
+          <div className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm">
             <div className="flex items-center gap-3 min-w-0">
               <ToolLogo name={tool2Name} size="sm" />
               <div className="min-w-0">
-                <h3 className="truncate text-xs font-bold text-white">{tool2Name}</h3>
-                <p className="text-[10px] text-neutral-400 capitalize font-mono">Productivity</p>
+                <h3 className="truncate text-xs font-black text-slate-950">{tool2Name}</h3>
+                <p className="text-[10px] text-slate-400 capitalize">Productivity</p>
               </div>
             </div>
             <Link
               href="/compare"
-              className="rounded-lg border border-neutral-700 bg-[#05070a] px-2.5 py-1 text-[10px] font-bold text-neutral-300 hover:border-[#00FF66] hover:text-[#00FF66] transition"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
             >
               Change
             </Link>
           </div>
         </div>
 
-        {/* Full Comparison Table */}
-        <div className="overflow-hidden rounded-2xl border border-neutral-800/80 bg-[#080c14] shadow-2xl mb-10">
+        {/* Comparison Table */}
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm mb-10">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse min-w-[600px]">
               <thead>
-                <tr className="border-b border-neutral-800 bg-[#0a0e17]/80">
-                  <th className="p-4 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 w-1/3">
+                <tr className="border-b border-slate-100 bg-slate-50/80">
+                  <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-1/3">
                     Specification
                   </th>
-                  <th className="p-4 text-xs font-bold text-white w-1/3">
-                    <div className="flex items-center gap-2.5">
+                  <th className="p-4 text-xs font-black text-slate-950 w-1/3">
+                    <div className="flex items-center gap-2">
                       <ToolLogo name={tool1Name} size="sm" />
                       <span className="truncate">{tool1Name}</span>
                     </div>
                   </th>
-                  <th className="p-4 text-xs font-bold text-white w-1/3">
-                    <div className="flex items-center gap-2.5">
+                  <th className="p-4 text-xs font-black text-slate-950 w-1/3">
+                    <div className="flex items-center gap-2">
                       <ToolLogo name={tool2Name} size="sm" />
                       <span className="truncate">{tool2Name}</span>
                     </div>
@@ -146,86 +148,74 @@ export default async function CompareSlugPage({ params }: PageProps) {
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-neutral-800/60 text-xs">
-                {/* AI Vault Score */}
+              <tbody className="divide-y divide-slate-100 text-xs">
                 <tr>
-                  <td className="p-4 font-bold text-neutral-400 bg-[#05070a]/40">AI Vault Score</td>
+                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                   <td className="p-4">
-                    <span className="text-base font-black text-[#00FF66]">{score1}/100</span>
-                    <div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-neutral-800">
-                      <div
-                        className="h-full bg-[#00FF66] rounded-full shadow-[0_0_10px_rgba(0,255,102,0.6)]"
-                        style={{ width: `${score1}%` }}
-                      />
+                    <span className="text-base font-black text-blue-600">{score1}/100</span>
+                    <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${score1}%` }} />
                     </div>
                   </td>
                   <td className="p-4">
-                    <span className="text-base font-black text-[#00FF66]">{score2}/100</span>
-                    <div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-neutral-800">
-                      <div
-                        className="h-full bg-[#00FF66] rounded-full shadow-[0_0_10px_rgba(0,255,102,0.6)]"
-                        style={{ width: `${score2}%` }}
-                      />
+                    <span className="text-base font-black text-blue-600">{score2}/100</span>
+                    <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${score2}%` }} />
                     </div>
                   </td>
                 </tr>
 
-                {/* Pricing Tier */}
                 <tr>
-                  <td className="p-4 font-bold text-neutral-400 bg-[#05070a]/40">Pricing Tier</td>
-                  <td className="p-4">
-                    <span className="rounded-md border border-[#00FF66]/30 bg-[#00FF66]/10 text-[#00FF66] px-2.5 py-1 text-[10px] font-mono font-bold">
+                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
+                  <td className="p-4 font-bold text-slate-900">
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
                       Freemium
                     </span>
                   </td>
-                  <td className="p-4">
-                    <span className="rounded-md border border-[#00FF66]/30 bg-[#00FF66]/10 text-[#00FF66] px-2.5 py-1 text-[10px] font-mono font-bold">
+                  <td className="p-4 font-bold text-slate-900">
+                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
                       Freemium
                     </span>
                   </td>
                 </tr>
 
-                {/* Category */}
                 <tr>
-                  <td className="p-4 font-bold text-neutral-400 bg-[#05070a]/40">Category</td>
-                  <td className="p-4 font-semibold text-neutral-200">Productivity</td>
-                  <td className="p-4 font-semibold text-neutral-200">Productivity</td>
+                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Category</td>
+                  <td className="p-4 capitalize font-semibold text-slate-700">Productivity</td>
+                  <td className="p-4 capitalize font-semibold text-slate-700">Productivity</td>
                 </tr>
 
-                {/* Summary */}
                 <tr>
-                  <td className="p-4 font-bold text-neutral-400 bg-[#05070a]/40">Summary</td>
-                  <td className="p-4 text-[11px] leading-relaxed text-neutral-300">
-                    {tool1Name} delivers optimized workflow automation, structured generation pipelines, and direct platform integrations.
+                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
+                  <td className="p-4 text-[11px] leading-relaxed text-slate-600">
+                    {tool1Name} is designed to streamline automated workflows, content processing, and team efficiency.
                   </td>
-                  <td className="p-4 text-[11px] leading-relaxed text-neutral-300">
-                    {tool2Name} offers end-to-end tooling tailored for developer scaling, high-performance tasks, and custom analytics.
+                  <td className="p-4 text-[11px] leading-relaxed text-slate-600">
+                    {tool2Name} offers high-performance execution, custom platform integrations, and developer scalability.
                   </td>
                 </tr>
 
-                {/* Deployment */}
                 <tr>
-                  <td className="p-4 font-bold text-neutral-400 bg-[#05070a]/40">Deployment</td>
-                  <td className="p-4 font-semibold text-neutral-300">Cloud / Web App</td>
-                  <td className="p-4 font-semibold text-neutral-300">Cloud / Web App</td>
+                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
+                  <td className="p-4 font-semibold text-slate-700">Cloud / Web App</td>
+                  <td className="p-4 font-semibold text-slate-700">Cloud / Web App</td>
                 </tr>
 
-                {/* Official Access Buttons */}
-                <tr className="bg-[#05070a]/60">
-                  <td className="p-4 font-bold text-neutral-400">Official Access</td>
+                <tr className="bg-slate-50/40">
+                  <td className="p-4 font-bold text-slate-500">Official Access</td>
                   <td className="p-4">
                     <div className="flex flex-col gap-2">
                       <a
-                        href={`https://www.google.com/search?q=${encodeURIComponent(tool1Name + ' ai tool official website')}`}
+                        href={`https://www.google.com/search?q=${encodeURIComponent(tool1Name + ' ai official website')}`}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
-                        className="inline-flex items-center justify-center rounded-xl bg-[#00FF66] px-4 py-2.5 text-center text-xs font-black text-black shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00e65c] transition"
+                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
                       >
                         Visit Portal ↗
                       </a>
                       <Link
                         href={`/tool/${tool1Slug}`}
-                        className="text-center text-[10px] font-bold text-neutral-400 hover:text-[#00FF66] transition"
+                        className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
                       >
                         View Full Dossier →
                       </Link>
@@ -234,16 +224,16 @@ export default async function CompareSlugPage({ params }: PageProps) {
                   <td className="p-4">
                     <div className="flex flex-col gap-2">
                       <a
-                        href={`https://www.google.com/search?q=${encodeURIComponent(tool2Name + ' ai tool official website')}`}
+                        href={`https://www.google.com/search?q=${encodeURIComponent(tool2Name + ' ai official website')}`}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
-                        className="inline-flex items-center justify-center rounded-xl bg-[#00FF66] px-4 py-2.5 text-center text-xs font-black text-black shadow-[0_0_15px_rgba(0,255,102,0.3)] hover:bg-[#00e65c] transition"
+                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
                       >
                         Visit Portal ↗
                       </a>
                       <Link
                         href={`/tool/${tool2Slug}`}
-                        className="text-center text-[10px] font-bold text-neutral-400 hover:text-[#00FF66] transition"
+                        className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
                       >
                         View Full Dossier →
                       </Link>
@@ -254,7 +244,6 @@ export default async function CompareSlugPage({ params }: PageProps) {
             </table>
           </div>
         </div>
-
       </div>
     </main>
   );

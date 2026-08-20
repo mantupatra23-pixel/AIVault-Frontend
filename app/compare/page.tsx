@@ -48,10 +48,6 @@ function CompareContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchOpenForSlot, setSearchOpenForSlot] = useState<number | null>(null);
 
-  // Quick Face-off custom input states
-  const [quick1, setQuick1] = useState("");
-  const [quick2, setQuick2] = useState("");
-
   useEffect(() => {
     async function loadCatalog() {
       try {
@@ -149,69 +145,33 @@ function CompareContent() {
   }, [allTools, searchQuery]);
 
   return (
-    <main className="min-h-screen bg-[#07090e] text-slate-100 pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-neutral-800/80 bg-[#07090e]/95 backdrop-blur-xl px-4 py-3 sm:px-8">
+    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-lg font-black tracking-tight text-white">
-              AI Vault<span className="text-[#00FF66]">.</span>
-            </span>
+          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
+            AI Vault<span className="text-blue-600">.</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link
-              href="/"
-              className="text-xs font-bold text-neutral-400 hover:text-[#00FF66] transition"
-            >
+            <Link href="/" className="text-xs font-bold text-slate-600 hover:text-blue-600">
               ← Back to Directory
             </Link>
           </div>
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6">
-        {/* Header Hero */}
-        <div className="text-center max-w-3xl mx-auto mb-10">
-          <span className="inline-block rounded-full bg-[#00FF66]/10 border border-[#00FF66]/20 px-3.5 py-1 text-[10px] font-mono font-bold uppercase tracking-widest text-[#00FF66] mb-3">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        <div className="text-center max-w-2xl mx-auto mb-10">
+          <span className="inline-block rounded-full bg-blue-600/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">
             Side-by-Side Intelligence
           </span>
-          <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight">
-            Compare <span className="text-[#00FF66]">AI Tools</span>
+          <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
+            Compare AI Tools
           </h1>
-          <p className="mt-3 text-xs sm:text-sm text-neutral-400">
+          <p className="mt-2 text-xs sm:text-sm text-slate-500">
             Evaluate capabilities, verified scores, pricing tiers, and workflows across 2–3 software platforms simultaneously.
           </p>
         </div>
 
-        {/* Quick Launch SEO Face-Off Card */}
-        <div className="bg-[#0e131f] border border-neutral-800 p-5 rounded-2xl mb-8 max-w-2xl mx-auto text-center shadow-xl">
-          <p className="text-xs text-neutral-400 mb-3 font-mono">Quick Static Head-to-Head Comparison:</p>
-          <div className="flex flex-wrap items-center justify-center gap-2.5">
-            <input
-              type="text"
-              placeholder="e.g. writesonic"
-              value={quick1}
-              onChange={(e) => setQuick1(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              className="bg-[#07090e] border border-neutral-700 text-white px-3.5 py-2 rounded-xl text-xs outline-none focus:border-[#00FF66] w-36 sm:w-44"
-            />
-            <span className="text-[#00FF66] font-bold text-xs">VS</span>
-            <input
-              type="text"
-              placeholder="e.g. jasper"
-              value={quick2}
-              onChange={(e) => setQuick2(e.target.value.toLowerCase().replace(/\s+/g, "-"))}
-              className="bg-[#07090e] border border-neutral-700 text-white px-3.5 py-2 rounded-xl text-xs outline-none focus:border-[#00FF66] w-36 sm:w-44"
-            />
-            <Link
-              href={`/compare/${quick1 || "tool1"}-vs-${quick2 || "tool2"}`}
-              className="bg-[#00FF66] text-black font-bold px-4 py-2 rounded-xl text-xs hover:bg-[#00e65c] transition shadow-[0_0_15px_rgba(0,255,102,0.25)]"
-            >
-              Launch Face-Off ↗
-            </Link>
-          </div>
-        </div>
-
-        {/* 3 Interactive Tool Slots */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -224,27 +184,27 @@ function CompareContent() {
               return (
                 <div
                   key={slotIdx}
-                  className="relative flex items-center justify-between rounded-2xl border border-[#00FF66]/30 bg-[#0e131f] p-4 shadow-lg"
+                  className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <ToolLogo name={name} src={logo} website={current.website_url || current.website} size="sm" />
+                    <ToolLogo name={name} src={logo} size="sm" />
                     <div className="min-w-0">
-                      <h3 className="truncate text-xs font-bold text-white">{name}</h3>
-                      <p className="text-[10px] text-neutral-400 capitalize font-mono">{category}</p>
+                      <h3 className="truncate text-xs font-black text-slate-950">{name}</h3>
+                      <p className="text-[10px] text-slate-400 capitalize">{category}</p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setSearchOpenForSlot(slotIdx)}
-                      className="rounded-lg border border-neutral-700 bg-[#07090e] px-2.5 py-1 text-[10px] font-bold text-neutral-300 hover:border-[#00FF66] hover:text-[#00FF66] transition"
+                      className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50"
                     >
                       Change
                     </button>
                     {selectedTools.length > 1 && (
                       <button
                         onClick={() => removeTool(slotIdx)}
-                        className="rounded-lg bg-neutral-800/80 px-2 py-1 text-[10px] font-bold text-neutral-400 hover:bg-rose-500/20 hover:text-rose-400 transition"
+                        className="rounded-lg bg-slate-200 px-2 py-1 text-[10px] font-bold text-slate-700 hover:bg-rose-100 hover:text-rose-700"
                       >
                         ✕
                       </button>
@@ -258,7 +218,7 @@ function CompareContent() {
               <button
                 key={slotIdx}
                 onClick={() => setSearchOpenForSlot(slotIdx)}
-                className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-neutral-800 bg-[#0b0e14] p-4 text-xs font-bold text-neutral-400 hover:border-[#00FF66]/60 hover:text-[#00FF66] transition"
+                className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white p-4 text-xs font-bold text-slate-500 hover:border-blue-500 hover:text-blue-600 transition"
               >
                 <span>+</span>
                 <span>Add Tool to Compare</span>
@@ -267,20 +227,19 @@ function CompareContent() {
           })}
         </div>
 
-        {/* Detailed Comparison Table */}
         {selectedTools.length > 0 ? (
-          <div className="overflow-hidden rounded-2xl border border-neutral-800 bg-[#0b0e14] shadow-2xl">
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[650px]">
                 <thead>
-                  <tr className="border-b border-neutral-800 bg-[#0e131f]/70">
-                    <th className="p-4 text-[10px] font-mono font-bold uppercase tracking-wider text-neutral-400 w-1/4">
+                  <tr className="border-b border-slate-100 bg-slate-50/80">
+                    <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-1/4">
                       Specification
                     </th>
                     {selectedTools.map((t, i) => (
-                      <th key={i} className="p-4 text-xs font-bold text-white w-1/4">
-                        <div className="flex items-center gap-2.5">
-                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
+                      <th key={i} className="p-4 text-xs font-black text-slate-950 w-1/4">
+                        <div className="flex items-center gap-2">
+                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
                           <span className="truncate">{String(t.name)}</span>
                         </div>
                       </th>
@@ -288,17 +247,17 @@ function CompareContent() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-neutral-800/60 text-xs">
+                <tbody className="divide-y divide-slate-100 text-xs">
                   <tr>
-                    <td className="p-4 font-bold text-neutral-400 bg-[#07090e]/40">AI Vault Score</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                     {selectedTools.map((t, i) => {
                       const s = getToolScore(t);
                       return (
                         <td key={i} className="p-4">
-                          <span className="text-base font-black text-[#00FF66]">{formatAIScore(s)}</span>
+                          <span className="text-base font-black text-blue-600">{formatAIScore(s)}</span>
                           {s !== null && (
-                            <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-neutral-800">
-                              <div className="h-full bg-[#00FF66] rounded-full shadow-[0_0_8px_rgba(0,255,102,0.4)]" style={{ width: getScoreBarWidth(s) }} />
+                            <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-full bg-blue-600 rounded-full" style={{ width: getScoreBarWidth(s) }} />
                             </div>
                           )}
                         </td>
@@ -307,10 +266,10 @@ function CompareContent() {
                   </tr>
 
                   <tr>
-                    <td className="p-4 font-bold text-neutral-400 bg-[#07090e]/40">Pricing Tier</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
                     {selectedTools.map((t, i) => (
-                      <td key={i} className="p-4 font-bold text-white">
-                        <span className="rounded-md border border-[#00FF66]/20 bg-[#00FF66]/10 text-[#00FF66] px-2.5 py-1 text-[10px] font-mono">
+                      <td key={i} className="p-4 font-bold text-slate-900">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
                           {String(t.pricing_model || t.pricing || "Freemium")}
                         </span>
                       </td>
@@ -318,35 +277,34 @@ function CompareContent() {
                   </tr>
 
                   <tr>
-                    <td className="p-4 font-bold text-neutral-400 bg-[#07090e]/40">Category</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Category</td>
                     {selectedTools.map((t, i) => (
-                      <td key={i} className="p-4 capitalize font-semibold text-neutral-200">
+                      <td key={i} className="p-4 capitalize font-semibold text-slate-700">
                         {String(t.category || "Productivity")}
                       </td>
                     ))}
                   </tr>
 
                   <tr>
-                    <td className="p-4 font-bold text-neutral-400 bg-[#07090e]/40">Summary</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
-                      <td key={i} className="p-4 text-[11px] leading-relaxed text-neutral-300">
-                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in enterprise workflow automation.`}
+                      <td key={i} className="p-4 text-[11px] leading-relaxed text-slate-600">
+                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in workflow automation.`}
                       </td>
                     ))}
                   </tr>
 
                   <tr>
-                    <td className="p-4 font-bold text-neutral-400 bg-[#07090e]/40">Deployment</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
-                      <td key={i} className="p-4 font-semibold text-neutral-300">
+                      <td key={i} className="p-4 font-semibold text-slate-700">
                         {String(t.deployment || "Cloud / Web App")}
                       </td>
                     ))}
                   </tr>
 
-                  {/* Smart Affiliate Outbound Action */}
-                  <tr className="bg-[#07090e]/60">
-                    <td className="p-4 font-bold text-neutral-400">Official Access</td>
+                  <tr className="bg-slate-50/40">
+                    <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
                       const slug = String(t.slug || "");
 
@@ -356,14 +314,14 @@ function CompareContent() {
                             <a
                               href={`/go/${encodeURIComponent(slug)}`}
                               target="_blank"
-                              rel="noopener noreferrer sponsored"
-                              className="inline-flex items-center justify-center rounded-xl bg-[#00FF66] px-4 py-2 text-center text-xs font-bold text-black shadow-[0_0_15px_rgba(0,255,102,0.25)] hover:bg-[#00e65c] transition"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
                             >
                               Visit Portal ↗
                             </a>
                             <Link
                               href={`/tool/${encodeURIComponent(slug)}`}
-                              className="text-center text-[10px] font-bold text-neutral-400 hover:text-[#00FF66] underline transition"
+                              className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
                             >
                               View Full Dossier →
                             </Link>
@@ -379,15 +337,14 @@ function CompareContent() {
         ) : null}
       </div>
 
-      {/* Tool Selector Search Modal */}
       {searchOpenForSlot !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="w-full max-w-md rounded-2xl border border-neutral-800 bg-[#0e131f] p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-white">Select Tool to Compare</h3>
+              <h3 className="text-sm font-black text-slate-950">Select Tool to Compare</h3>
               <button
                 onClick={() => setSearchOpenForSlot(null)}
-                className="text-neutral-400 hover:text-white text-sm font-bold p-1"
+                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
               >
                 ✕
               </button>
@@ -399,7 +356,7 @@ function CompareContent() {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by tool name or category..."
-              className="w-full rounded-xl border border-neutral-700 bg-[#07090e] px-4 py-2.5 text-xs text-white placeholder-neutral-500 outline-none focus:border-[#00FF66]"
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
             />
 
             <div className="mt-4 max-h-60 overflow-y-auto space-y-1.5">
@@ -407,16 +364,16 @@ function CompareContent() {
                 <button
                   key={String(t.id || t.slug)}
                   onClick={() => addTool(t, searchOpenForSlot)}
-                  className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-[#07090e] border border-transparent hover:border-neutral-800"
+                  className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
+                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} size="sm" />
                     <div className="min-w-0">
-                      <p className="text-xs font-bold text-white truncate">{String(t.name)}</p>
-                      <p className="text-[10px] text-neutral-400 capitalize font-mono">{String(t.category || "AI")}</p>
+                      <p className="text-xs font-bold text-slate-900 truncate">{String(t.name)}</p>
+                      <p className="text-[10px] text-slate-400 capitalize">{String(t.category || "AI")}</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold text-[#00FF66]">Select →</span>
+                  <span className="text-[10px] font-black text-blue-600">Select →</span>
                 </button>
               ))}
             </div>
@@ -431,8 +388,8 @@ export default function ComparePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#07090e]">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-neutral-800 border-t-[#00FF66]" />
+        <div className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
         </div>
       }
     >
