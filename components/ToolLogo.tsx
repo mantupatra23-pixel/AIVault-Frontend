@@ -60,7 +60,7 @@ export function ToolLogo({
   const targetWebsite = website || websiteUrl;
   const domain = useMemo(() => extractCleanDomain(targetWebsite), [targetWebsite]);
 
-  // Clean 2-letter uppercase initials badge
+  // Clean 2-letter uppercase initials badge (e.g. "OS", "SW", "SP")
   const initials = useMemo(() => {
     const sanitized = cleanName.replace(/[^a-zA-Z0-9\s]/g, "");
     const parts = sanitized.split(/\s+/).filter(Boolean);
@@ -70,28 +70,24 @@ export function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
-  // Priority Pipeline (Fails fast on missing logos to trigger Neon Badge)
+  // Only use endpoints that properly FAIL on missing images to trigger Neon badge
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
-    // 1. Direct DB logo
     if (
       directLogo &&
       typeof directLogo === "string" &&
       directLogo.trim().startsWith("http") &&
-      !directLogo.includes("placeholder") &&
-      !directLogo.includes("default_icon")
+      !directLogo.includes("placeholder")
     ) {
       list.push(directLogo.trim());
     }
 
     if (domain) {
-      // 2. Clearbit direct company logo
-      list.push(`https://logo.clearbit.com/${domain}`);
-      // 3. DuckDuckGo high-res icon
-      list.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
-      // 4. Google Favicon (with default_icon=none so missing logos fail fast to neon badge)
+      // 1. Google High-Res Favicon (with 404 fail parameter)
       list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128&default_icon=none`);
+      // 2. Clearbit direct brand logo
+      list.push(`https://logo.clearbit.com/${domain}`);
     }
 
     return list;
@@ -117,12 +113,12 @@ export function ToolLogo({
   const dimensionClass = !isNumericSize ? (SIZE_MAP[size as string] || SIZE_MAP.md) : "";
   const pixelSize = isNumericSize ? size : (PIXEL_MAP[size as string] || 44);
 
-  // Modern Neon Green & Deep Black Initial Badge
+  // Futuristic Neon Green & Deep Black Initial Badge
   if (loadFailed || !candidateUrls[currentIndex]) {
     return (
       <div
         style={isNumericSize ? { width: size, height: size } : undefined}
-        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0d1117] border border-[#00FF66]/40 text-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.2)] select-none tracking-tight font-extrabold transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0a0f0d] border border-[#00FF66]/50 text-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.2)] select-none tracking-tight font-black transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
       >
         {initials}
       </div>
