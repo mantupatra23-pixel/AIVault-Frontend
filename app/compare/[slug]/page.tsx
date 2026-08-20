@@ -5,22 +5,23 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ToolLogo from "@/components/ToolLogo";
 
-interface Props {
-  params: {
-    slug: string;
-  };
-}
+type PageProps = {
+  params: Promise<{ slug: string }> | { slug: string };
+};
 
-// Capitalize formatting helper
 function formatToolName(slugPart: string): string {
+  if (!slugPart) return "Tool";
   return slugPart
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const parts = params.slug.split("-vs-");
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const resolvedParams = await Promise.resolve(params);
+  const slug = resolvedParams?.slug || "";
+  const parts = slug.split("-vs-");
+
   if (parts.length !== 2) {
     return { title: "AI Comparison — AI Vault" };
   }
@@ -29,20 +30,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const tool2 = formatToolName(parts[1]);
 
   return {
-    title: `${tool1} vs ${tool2} Comparison (2026) — Features, Pricing & Score | AI Vault`,
-    description: `Detailed side-by-side benchmark of ${tool1} and ${tool2}. Compare capabilities, AI Vault scores, pricing models, and deployment workflows.`,
-    alternates: {
-      canonical: `https://www.aivault.pp.ua/compare/${params.slug}`,
-    },
-    openGraph: {
-      title: `${tool1} vs ${tool2} Face-Off — AI Vault`,
-      description: `Which AI tool is better? In-depth comparison of ${tool1} and ${tool2}.`,
-    },
+    title: `${tool1} vs ${tool2} (2026) — Side-by-Side Comparison | AI Vault`,
+    description: `Compare ${tool1} and ${tool2}. Explore pricing, AI Vault scores, features, and deployment capabilities.`,
   };
 }
 
-export default function CompareSlugPage({ params }: Props) {
-  const parts = params.slug.split("-vs-");
+export default async function CompareSlugPage({ params }: PageProps) {
+  const resolvedParams = await Promise.resolve(params);
+  const slug = resolvedParams?.slug || "";
+  const parts = slug.split("-vs-");
 
   if (parts.length !== 2) {
     notFound();
@@ -54,7 +50,6 @@ export default function CompareSlugPage({ params }: Props) {
   const tool1Name = formatToolName(tool1Slug);
   const tool2Name = formatToolName(tool2Slug);
 
-  // Deterministic benchmark scores
   const score1 = 88 + (tool1Slug.length % 10);
   const score2 = 87 + (tool2Slug.length % 11);
 
@@ -125,7 +120,7 @@ export default function CompareSlugPage({ params }: Props) {
                 <tr>
                   <td className="py-4 px-6 text-neutral-400 font-medium">Pricing Model</td>
                   <td className="py-4 px-6">
-                    <span className="px-2.5 py-1 bg-neutral-800 text-neutral-300 text-xs rounded-md font-mono">Freemium</span>
+                    <span className="px-2.5 py-1 bg-neutral-800 text-[#00FF66] text-xs rounded-md font-mono border border-[#00FF66]/20">Freemium</span>
                   </td>
                   <td className="py-4 px-6">
                     <span className="px-2.5 py-1 bg-neutral-800 text-neutral-300 text-xs rounded-md font-mono">Paid / Trial</span>
@@ -136,12 +131,6 @@ export default function CompareSlugPage({ params }: Props) {
                   <td className="py-4 px-6 text-neutral-400 font-medium">Deployment</td>
                   <td className="py-4 px-6 text-neutral-300">Cloud / API / Web App</td>
                   <td className="py-4 px-6 text-neutral-300">Cloud / Web App</td>
-                </tr>
-
-                <tr>
-                  <td className="py-4 px-6 text-neutral-400 font-medium">Primary Focus</td>
-                  <td className="py-4 px-6 text-neutral-300">Automated Workflow & Generation</td>
-                  <td className="py-4 px-6 text-neutral-300">Enterprise Scale & Optimization</td>
                 </tr>
 
                 <tr>
@@ -172,13 +161,11 @@ export default function CompareSlugPage({ params }: Props) {
           </div>
         </div>
 
-        {/* Editorial Summary Box */}
+        {/* Editorial Summary */}
         <div className="p-6 rounded-2xl bg-[#0e131f] border border-neutral-800 text-neutral-300 text-sm leading-relaxed">
           <h3 className="text-base font-bold text-white mb-2">Editorial Verdict</h3>
           <p>
-            Both <strong className="text-white">{tool1Name}</strong> and <strong className="text-white">{tool2Name}</strong> offer powerful AI automations. 
-            Choose <strong className="text-[#00FF66]">{tool1Name}</strong> if your priority is rapid prototyping and developer flexibility. 
-            Select <strong className="text-[#00FF66]">{tool2Name}</strong> if you require enterprise-grade scaling and standardized team workflows.
+            Both <strong className="text-white">{tool1Name}</strong> and <strong className="text-white">{tool2Name}</strong> offer powerful AI automations. Choose <strong className="text-[#00FF66]">{tool1Name}</strong> for fast workflow integration and agile execution, or select <strong className="text-[#00FF66]">{tool2Name}</strong> for structured enterprise scalability.
           </p>
         </div>
 
