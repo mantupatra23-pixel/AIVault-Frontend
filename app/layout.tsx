@@ -1,3 +1,4 @@
+// app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
 import Footer from "@/components/Footer";
@@ -8,13 +9,37 @@ export const metadata: Metadata = {
   description:
     "Search, compare, and explore verified AI software platforms across productivity, coding, marketing, and creative industries.",
   metadataBase: new URL("https://www.aivault.pp.ua"),
+  icons: {
+    icon: [
+      { url: "/icon.png" },
+      { url: "/favicon.png", type: "image/png" },
+      { url: "/logo.png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png" },
+      { url: "/logo.png" },
+    ],
+    shortcut: ["/icon.png"],
+  },
+  openGraph: {
+    title: "AI Vault — AI Intelligence Engine",
+    description:
+      "Search & compare 800+ verified AI tools across productivity, coding, and marketing.",
+    url: "https://www.aivault.pp.ua",
+    siteName: "AI Vault",
+    images: [
+      {
+        url: "/logo.png",
+        width: 1200,
+        height: 1200,
+        alt: "AI Vault Brand Logo",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
   other: {
     "google-adsense-account": "ca-pub-518587791488826",
-  },
-  icons: {
-    icon: [{ url: "/logo.png" }, { url: "/favicon.ico" }],
-    shortcut: "/logo.png",
-    apple: "/logo.png",
   },
 };
 
@@ -36,7 +61,7 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
       </head>
-      <body className="flex min-h-screen flex-col justify-between bg-[#fafbfc] text-slate-900 antialiased selection:bg-blue-600 selection:text-white">
+      <body className="flex min-h-screen flex-col justify-between bg-[#0a0a0c] text-slate-100 antialiased selection:bg-[#00FF66] selection:text-black">
         <div className="flex-grow">{children}</div>
         <Footer />
 
