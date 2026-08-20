@@ -40,29 +40,57 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// Dynamic Feature Extractor Helper
-function extractFeatureList(tool: ToolRecord): string[] {
+// AI Fluff Filter & Feature Cleaner
+function extractCleanFeatures(tool: ToolRecord): string[] {
   if (Array.isArray(tool.features) && tool.features.length > 0) {
-    return tool.features.slice(0, 4);
+    return tool.features.slice(0, 3);
   }
-  const text = String(tool.overview || tool.description || "");
-  const sentences = text.split(/[.!?]+/).map((s) => s.trim()).filter(Boolean);
+
+  const rawText = String(tool.overview || tool.description || "");
+  const sentences = rawText
+    .split(/[.!?\n]+/)
+    .map((s) => s.trim())
+    .filter((s) => {
+      if (s.length < 15 || s.length > 120) return false;
+      const lower = s.toLowerCase();
+      // Remove AI boilerplate patterns
+      return (
+        !lower.startsWith("i have") &&
+        !lower.startsWith("we will") &&
+        !lower.startsWith("with the") &&
+        !lower.startsWith("however") &&
+        !lower.includes("product hunt") &&
+        !lower.includes("alternatives") &&
+        !lower.includes("delve into") &&
+        !lower.includes("ever-evolving")
+      );
+    });
+
   if (sentences.length >= 2) {
     return sentences.slice(0, 3);
   }
-  return [
-    "Autonomous Task Execution",
-    "API & Workflow Integration",
-    "Cloud Cloud-native Processing",
-  ];
+
+  // Smart Category-aware fallback features
+  const cat = (tool.category || "").toLowerCase();
+  if (cat.includes("code") || cat.includes("dev")) {
+    return ["Automated Code Refactoring", "Syntax & Logic Validation", "CLI & API Integrations"];
+  }
+  if (cat.includes("chat") || cat.includes("agent")) {
+    return ["Real-time Autonomous Responses", "Contextual Prompt Memory", "Custom API Webhook Actions"];
+  }
+  if (cat.includes("market") || cat.includes("seo")) {
+    return ["Automated Audience Growth", "High-conversion Content Engine", "Analytics & Rank Tracking"];
+  }
+  return ["Workflow Acceleration Pipeline", "API & Web App Automation", "Real-time Intelligence Engine"];
 }
 
-function getBestFor(tool: ToolRecord): string {
+function getBestForAudience(tool: ToolRecord): string {
   const cat = (tool.category || "").toLowerCase();
-  if (cat.includes("code") || cat.includes("dev")) return "Developers & Full-stack Engineers";
-  if (cat.includes("market") || cat.includes("seo")) return "Growth Teams & Marketers";
+  if (cat.includes("code") || cat.includes("dev")) return "Software Engineers & Tech Leads";
+  if (cat.includes("chat") || cat.includes("agent")) return "Customer Ops & Support Teams";
+  if (cat.includes("market") || cat.includes("seo")) return "Growth Marketers & Agencies";
   if (cat.includes("writ") || cat.includes("content")) return "Copywriters & Content Creators";
-  if (cat.includes("image") || cat.includes("video")) return "Designers & Video Editors";
+  if (cat.includes("image") || cat.includes("video")) return "Designers & Media Producers";
   return "Founders, Operators & Product Teams";
 }
 
@@ -174,7 +202,7 @@ function CompareContent() {
 
   return (
     <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-24">
-      {/* Top Navbar */}
+      {/* Top Bar */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -202,7 +230,7 @@ function CompareContent() {
           </p>
         </div>
 
-        {/* Selected Tool Slots */}
+        {/* Selected Slot Cards */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -258,7 +286,7 @@ function CompareContent() {
           })}
         </div>
 
-        {/* Rich Comparison Matrix */}
+        {/* Matrix Table */}
         {selectedTools.length > 0 ? (
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="overflow-x-auto">
@@ -303,24 +331,24 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-bold text-slate-900">
-                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-mono">
+                        <span className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px]">
                           {String(t.pricing_model || t.pricing || "Freemium")}
                         </span>
                       </td>
                     ))}
                   </tr>
 
-                  {/* Key Capabilities & Features */}
+                  {/* Clean Key Features */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Features</td>
                     {selectedTools.map((t, i) => {
-                      const feats = extractFeatureList(t);
+                      const feats = extractCleanFeatures(t);
                       return (
                         <td key={i} className="p-4">
                           <ul className="space-y-1.5 text-[11px] text-slate-700">
                             {feats.map((f, idx) => (
                               <li key={idx} className="flex items-start gap-1.5">
-                                <span className="text-blue-600 font-bold">✓</span>
+                                <span className="text-blue-600 font-bold shrink-0">✓</span>
                                 <span>{f}</span>
                               </li>
                             ))}
@@ -330,12 +358,12 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Ideal Target Audience */}
+                  {/* Target Audience */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Best For</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-semibold text-slate-800 text-[11px]">
-                        {getBestFor(t)}
+                        {getBestForAudience(t)}
                       </td>
                     ))}
                   </tr>
@@ -355,12 +383,12 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 text-[11px] leading-relaxed text-slate-600">
-                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in high-performance workflow automation.`}
+                        {cleanAiContent(t.overview || t.description) || `${t.name} is designed to streamline automated workflows and team productivity.`}
                       </td>
                     ))}
                   </tr>
 
-                  {/* Deployment / Integration */}
+                  {/* Deployment */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
@@ -370,7 +398,7 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Direct Official Access CTAs */}
+                  {/* Official Access */}
                   <tr className="bg-slate-50/40">
                     <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
@@ -405,7 +433,7 @@ function CompareContent() {
         ) : null}
       </div>
 
-      {/* Tool Selector Modal */}
+      {/* Search Modal */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
