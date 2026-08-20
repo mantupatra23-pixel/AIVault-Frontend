@@ -60,7 +60,7 @@ export function ToolLogo({
   const targetWebsite = website || websiteUrl;
   const domain = useMemo(() => extractCleanDomain(targetWebsite), [targetWebsite]);
 
-  // Clean 2-letter uppercase initials badge (e.g. "OS", "SW", "SP")
+  // Clean 2-letter uppercase initials badge (e.g. "SW", "SP", "HG")
   const initials = useMemo(() => {
     const sanitized = cleanName.replace(/[^a-zA-Z0-9\s]/g, "");
     const parts = sanitized.split(/\s+/).filter(Boolean);
@@ -70,24 +70,26 @@ export function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
-  // Only use endpoints that properly FAIL on missing images to trigger Neon badge
+  // Only endpoints that strictly 404 on missing logos (NO generic globes)
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
+    // 1. Direct valid DB logo (exclude google globe links)
     if (
       directLogo &&
       typeof directLogo === "string" &&
       directLogo.trim().startsWith("http") &&
-      !directLogo.includes("placeholder")
+      !directLogo.includes("placeholder") &&
+      !directLogo.includes("favicons?domain")
     ) {
       list.push(directLogo.trim());
     }
 
     if (domain) {
-      // 1. Google High-Res Favicon (with 404 fail parameter)
-      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128&default_icon=none`);
-      // 2. Clearbit direct brand logo
+      // 2. Clearbit direct official brand logo
       list.push(`https://logo.clearbit.com/${domain}`);
+      // 3. Unavatar strict API (fails fast with 404 instead of globe)
+      list.push(`https://unavatar.io/${domain}?fallback=false`);
     }
 
     return list;
@@ -118,7 +120,7 @@ export function ToolLogo({
     return (
       <div
         style={isNumericSize ? { width: size, height: size } : undefined}
-        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#0a0f0d] border border-[#00FF66]/50 text-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.2)] select-none tracking-tight font-black transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+        className={`flex shrink-0 items-center justify-center rounded-xl bg-[#080c0a] border border-[#00FF66]/50 text-[#00FF66] shadow-[0_0_12px_rgba(0,255,102,0.25)] select-none tracking-tight font-black transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
       >
         {initials}
       </div>
