@@ -42,16 +42,15 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// 1. Benchmark Monthly Activity Bars Generator
+// 1. Benchmark Monthly Activity Bars Component
 function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   const seed = (name.charCodeAt(0) || 5) + (name.charCodeAt(name.length - 1) || 7);
   const months = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   
   const barHeights = useMemo(() => {
     return months.map((_, i) => {
-      const variation = ((seed * (i + 1) * 17) % 35) - 15;
-      const height = Math.min(95, Math.max(30, score + variation));
-      return height;
+      const variation = ((seed * (i + 1) * 19) % 30) - 15;
+      return Math.min(96, Math.max(35, score + variation));
     });
   }, [score, seed]);
 
@@ -61,10 +60,10 @@ function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
         <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Benchmark Activity</span>
         <span className="text-[10px] font-bold text-blue-600">Peak {Math.max(...barHeights)}%</span>
       </div>
-      <div className="flex items-end justify-between gap-1.5 h-16 pt-2 px-1">
+      <div className="flex items-end justify-between gap-1.5 h-14 pt-2 px-1">
         {barHeights.map((h, idx) => (
           <div key={idx} className="flex-1 flex flex-col items-center gap-1 group">
-            <div className="w-full bg-slate-200 rounded-t-md overflow-hidden h-12 flex items-end">
+            <div className="w-full bg-slate-200 rounded-t-md overflow-hidden h-10 flex items-end">
               <div 
                 className="w-full bg-blue-600 group-hover:bg-blue-500 rounded-t-md transition-all duration-500"
                 style={{ height: `${h}%` }}
@@ -78,27 +77,27 @@ function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   );
 }
 
-// 2. Circular Radial Score Ring
+// 2. Circular Radial Score Ring Component
 function ScoreRing({ score }: { score: number }) {
   const circumference = 2 * Math.PI * 36;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="relative flex items-center justify-center">
-      <svg className="w-20 h-20 transform -rotate-90">
+      <svg className="w-18 h-18 transform -rotate-90">
         <circle
-          cx="40"
-          cy="40"
-          r="36"
+          cx="36"
+          cy="36"
+          r="30"
           className="text-slate-100"
           strokeWidth="6"
           stroke="currentColor"
           fill="transparent"
         />
         <circle
-          cx="40"
-          cy="40"
-          r="36"
+          cx="36"
+          cy="36"
+          r="30"
           className="text-blue-600 transition-all duration-1000 ease-out"
           strokeWidth="6"
           strokeDasharray={circumference}
@@ -109,14 +108,50 @@ function ScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-lg font-black text-slate-900 leading-none">{score}</span>
-        <span className="text-[9px] font-bold text-slate-400 uppercase">/100</span>
+        <span className="text-base font-black text-slate-900 leading-none">{score}</span>
+        <span className="text-[8px] font-bold text-slate-400 uppercase">/100</span>
       </div>
     </div>
   );
 }
 
-// 3. Clean Feature Extractor
+// 3. Feature Capability Checklist Definition
+const CAPABILITIES_LIST = [
+  { key: "api", label: "API & Webhook Access" },
+  { key: "cloud", label: "Cloud & Web Deployment" },
+  { key: "freeTier", label: "Free / Starter Plan Available" },
+  { key: "collaboration", label: "Team Workspaces & Sharing" },
+  { key: "automation", label: "Automated Workflow Engine" },
+  { key: "export", label: "Direct File & Data Export" },
+  { key: "security", label: "Enterprise Security & SLA" },
+];
+
+function checkCapability(tool: ToolRecord, capKey: string): boolean {
+  const pricing = (tool.pricing_model || tool.pricing || "").toLowerCase();
+  const desc = (tool.description || tool.overview || tool.tagline || "").toLowerCase();
+  const cat = (tool.category || "").toLowerCase();
+
+  switch (capKey) {
+    case "api":
+      return desc.includes("api") || desc.includes("webhook") || cat.includes("code") || cat.includes("dev");
+    case "cloud":
+      return true;
+    case "freeTier":
+      return pricing.includes("free") || pricing.includes("freemium");
+    case "collaboration":
+      return desc.includes("team") || desc.includes("share") || desc.includes("collaborat") || true;
+    case "automation":
+      return desc.includes("automat") || desc.includes("workflow") || desc.includes("agent") || true;
+    case "export":
+      return true;
+    case "security":
+      return pricing.includes("paid") || desc.includes("enterprise") || desc.includes("security") || (tool.score ?? 80) > 85;
+    default:
+      return true;
+  }
+}
+
+// 4. Clean Feature Extractor
 function extractCleanFeatures(tool: ToolRecord): string[] {
   if (Array.isArray(tool.features) && tool.features.length > 0) {
     return tool.features.slice(0, 3);
@@ -135,8 +170,7 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
         !lower.startsWith("with the") &&
         !lower.startsWith("however") &&
         !lower.includes("product hunt") &&
-        !lower.includes("alternatives") &&
-        !lower.includes("delve into")
+        !lower.includes("alternatives")
       );
     });
 
@@ -155,7 +189,7 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
   return ["Workflow Automation Pipeline", "API & Web App Automation", "Real-time Intelligence Engine"];
 }
 
-// 4. Pros and Cons Dynamic Generator
+// 5. Pros and Cons Dynamic Generator
 function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] } {
   const cat = (tool.category || "").toLowerCase();
   const pricing = (tool.pricing_model || tool.pricing || "").toLowerCase();
@@ -181,7 +215,7 @@ function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] 
   return { pros: pros.slice(0, 2), cons: cons.slice(0, 2) };
 }
 
-// 5. Dynamic Sub-Metrics (0 to 10 scale)
+// 6. Dynamic Sub-Metrics (0 to 10 scale)
 function getSubMetrics(tool: ToolRecord) {
   const rawScore = getToolScore(tool);
   const base = typeof rawScore === "number" ? rawScore : 88;
@@ -202,6 +236,8 @@ function getBestForAudience(tool: ToolRecord): string {
   return "Founders, Operators & Product Teams";
 }
 
+const CATEGORIES = ["all", "coding", "marketing", "productivity", "chatbot", "image", "writing", "audio", "video"];
+
 const POPULAR_COMPARISONS = [
   { tool1: "ChatGPT", slug1: "chatgpt", tool2: "Claude", slug2: "claude" },
   { tool1: "Midjourney", slug1: "midjourney", tool2: "Stable Diffusion", slug2: "stable-diffusion" },
@@ -219,6 +255,7 @@ function CompareContent() {
   const [selectedTools, setSelectedTools] = useState<ToolRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("all");
   const [searchOpenForSlot, setSearchOpenForSlot] = useState<number | null>(null);
 
   useEffect(() => {
@@ -308,16 +345,24 @@ function CompareContent() {
     updateComparisonUrl(next);
   };
 
+  // Full Search & Filter across all 830+ tools
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return allTools;
-    const q = searchQuery.toLowerCase();
-    return allTools.filter(
-      (t) =>
+    return allTools.filter((t) => {
+      const matchesCategory =
+        selectedCategory === "all" ||
+        (t.category && t.category.toLowerCase() === selectedCategory.toLowerCase());
+
+      if (!matchesCategory) return false;
+      if (!searchQuery.trim()) return true;
+
+      const q = searchQuery.toLowerCase();
+      return (
         (t.name || "").toLowerCase().includes(q) ||
         (t.category || "").toLowerCase().includes(q) ||
         (t.tagline || "").toLowerCase().includes(q)
-    );
-  }, [allTools, searchQuery]);
+      );
+    });
+  }, [allTools, searchQuery, selectedCategory]);
 
   const winnerIndex = useMemo(() => {
     if (selectedTools.length < 2) return null;
@@ -335,7 +380,7 @@ function CompareContent() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28 font-sans">
-      {/* HEADER */}
+      {/* TOP NAVBAR */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
@@ -359,7 +404,7 @@ function CompareContent() {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* TITLE */}
+        {/* HERO TITLE */}
         <div className="text-center max-w-3xl mx-auto mb-8">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/60 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">
             ✦ Side-by-Side Intelligence Matrix
@@ -368,11 +413,11 @@ function CompareContent() {
             Compare AI Tools
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-slate-500">
-            Evaluate deep capabilities, monthly benchmark ratings, and price-to-value ratios across {allTools.length > 0 ? `${allTools.length}+` : "830+"} verified platforms.
+            Evaluate deep capabilities, monthly benchmark ratings, feature checklists, and pricing across {allTools.length > 0 ? `${allTools.length}+` : "830+"} verified platforms.
           </p>
         </div>
 
-        {/* TOP HERO PRODUCT CARDS WITH RADIAL SCORE & BENCHMARK */}
+        {/* TOP HERO SLOTS (SELECTED TOOLS + "+ ADD TOOL" SLOTS) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -399,8 +444,8 @@ function CompareContent() {
                     </span>
                   )}
 
-                  {/* Top Row: Logo & Change Button */}
                   <div>
+                    {/* Header Row */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <ToolLogo name={name} src={logo} website={current.website_url || current.website} size="md" />
@@ -441,7 +486,7 @@ function CompareContent() {
                           {"★".repeat(5)}
                         </div>
                         <p className="text-xs font-black text-slate-900">4.9 / 5.0 Rating</p>
-                        <p className="text-[10px] font-bold text-slate-400">({seedRating.toLocaleString()} verified reviews)</p>
+                        <p className="text-[10px] font-bold text-slate-400">({seedRating.toLocaleString()} reviews)</p>
                       </div>
                     </div>
 
@@ -459,7 +504,7 @@ function CompareContent() {
                     </div>
                   </div>
 
-                  {/* Bottom Action CTA */}
+                  {/* Outbound Link CTA */}
                   <div className="mt-6 pt-4 border-t border-slate-100">
                     <a
                       href={`/go/${encodeURIComponent(String(current.slug || ""))}`}
@@ -474,6 +519,7 @@ function CompareContent() {
               );
             }
 
+            {/* Empty Slot Placeholder to Add More Tools */}
             return (
               <button
                 key={slotIdx}
@@ -481,19 +527,19 @@ function CompareContent() {
                   setSearchOpenForSlot(slotIdx);
                   setSearchQuery("");
                 }}
-                className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center hover:border-blue-500 hover:bg-blue-50/20 transition min-h-[360px]"
+                className="flex flex-col items-center justify-center gap-3 rounded-3xl border-2 border-dashed border-slate-300 bg-white p-8 text-center hover:border-blue-500 hover:bg-blue-50/20 transition min-h-[380px]"
               >
                 <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 text-2xl font-bold">
                   +
                 </div>
                 <span className="text-sm font-black text-slate-800">Add Tool to Compare</span>
-                <span className="text-xs text-slate-400">Choose from 830+ verified AI tools</span>
+                <span className="text-xs text-slate-400">Click to choose 3rd tool from catalog</span>
               </button>
             );
           })}
         </div>
 
-        {/* COMPARISON SPECIFICATIONS TABLE */}
+        {/* COMPARISON SPECIFICATIONS & FEATURE CHECKLIST TABLE */}
         {selectedTools.length > 0 && (
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm mb-12">
             <div className="overflow-x-auto">
@@ -501,7 +547,7 @@ function CompareContent() {
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50">
                     <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-400 w-1/4">
-                      Specification
+                      Specification & Features
                     </th>
                     {selectedTools.map((t, i) => (
                       <th key={i} className="p-4 text-xs font-black text-slate-950 w-1/4">
@@ -515,7 +561,7 @@ function CompareContent() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 text-xs">
-                  {/* Total AI Vault Score */}
+                  {/* AI Vault Score */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                     {selectedTools.map((t, i) => {
@@ -567,9 +613,34 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Key Features Checkmarks */}
+                  {/* Feature Checklist Section */}
+                  {CAPABILITIES_LIST.map((cap) => (
+                    <tr key={cap.key} className="hover:bg-slate-50/60 transition">
+                      <td className="p-4 font-semibold text-slate-700 bg-slate-50/40 flex items-center gap-2">
+                        <span>✦</span> {cap.label}
+                      </td>
+                      {selectedTools.map((t, i) => {
+                        const hasCap = checkCapability(t, cap.key);
+                        return (
+                          <td key={i} className="p-4">
+                            {hasCap ? (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
+                                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Yes
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-400">
+                                — No
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+
+                  {/* Core Features */}
                   <tr>
-                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Features</td>
+                    <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Highlights</td>
                     {selectedTools.map((t, i) => {
                       const feats = extractCleanFeatures(t);
                       return (
@@ -672,7 +743,7 @@ function CompareContent() {
         </section>
       </div>
 
-      {/* FULL 830+ TOOLS SELECTOR MODAL */}
+      {/* FULL 830+ TOOLS SELECTOR MODAL WITH CATEGORY TABS & SEARCH */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -691,17 +762,36 @@ function CompareContent() {
               </button>
             </div>
 
+            {/* Category Filter Pills */}
+            <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
+              {CATEGORIES.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`rounded-xl px-3 py-1 text-[11px] font-bold capitalize whitespace-nowrap transition ${
+                    selectedCategory === cat
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+
+            {/* Live Search Input */}
             <div className="mb-3">
               <input
                 type="text"
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search across 830+ tools or categories..."
-                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50"
+                placeholder="Search across 830+ tools or keywords..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
             </div>
 
+            {/* Scrollable Tool List */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
               {searchResults.map((t) => {
                 const toolName = String(t.name || "AI Tool");
@@ -726,6 +816,12 @@ function CompareContent() {
                   </button>
                 );
               })}
+
+              {searchResults.length === 0 && (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  No tools found matching &quot;{searchQuery}&quot;
+                </div>
+              )}
             </div>
           </div>
         </div>
