@@ -1,4 +1,3 @@
-// app/compare/page.tsx
 "use client";
 
 import { Suspense, useEffect, useState, useMemo } from "react";
@@ -16,11 +15,13 @@ type ToolRecord = {
   name?: string | null;
   description?: string | null;
   overview?: string | null;
+  tagline?: string | null;
   category?: string | null;
   pricing?: string | null;
   pricing_model?: string | null;
   score?: number | string | null;
   neural_score?: number | string | null;
+  ai_vault_score?: number | null;
   logo_url?: string | null;
   logo?: string | null;
   website_url?: string | null;
@@ -47,7 +48,7 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
     return tool.features.slice(0, 3);
   }
 
-  const rawText = String(tool.overview || tool.description || "");
+  const rawText = String(tool.overview || tool.description || tool.tagline || "");
   const sentences = rawText
     .split(/[.!?\n]+/)
     .map((s) => s.trim())
@@ -111,7 +112,8 @@ function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] 
 
 // 3. Sub-Metric Rating Engine (0 to 10 scale)
 function getSubMetrics(tool: ToolRecord) {
-  const base = typeof tool.score === "number" ? tool.score : 85;
+  const rawScore = getToolScore(tool);
+  const base = typeof rawScore === "number" ? rawScore : 85;
   const speed = Math.min(9.9, Math.max(8.0, Number((base / 10 - 0.2 + ((tool.name?.length || 5) % 5) * 0.1).toFixed(1))));
   const accuracy = Math.min(9.8, Math.max(8.2, Number((base / 10 - 0.1 + ((tool.name?.length || 4) % 4) * 0.1).toFixed(1))));
   const value = Math.min(9.9, Math.max(8.4, Number((base / 10 + 0.1 - ((tool.name?.length || 3) % 3) * 0.1).toFixed(1))));
@@ -155,10 +157,14 @@ function CompareContent() {
       try {
         setLoading(true);
         const supabase = getSupabase();
+        // Fetch all 830+ tools without row limitations
         const { data, error } = await supabase
           .from("ai_tools")
           .select("*")
-          .order("name", { ascending: true });
+          .not("slug", "is", null)
+          .order("name", { ascending: true })
+          .limit(1500);
+
         if (error) throw error;
         setAllTools((data as ToolRecord[]) || []);
       } catch (err) {
@@ -234,25 +240,26 @@ function CompareContent() {
     updateComparisonUrl(next);
   };
 
+  // Full Search & Filter across all 830+ tools
   const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return allTools.slice(0, 8);
+    if (!searchQuery.trim()) return allTools;
     const q = searchQuery.toLowerCase();
-    return allTools
-      .filter(
-        (t) =>
-          (t.name || "").toLowerCase().includes(q) ||
-          (t.category || "").toLowerCase().includes(q)
-      )
-      .slice(0, 8);
+    return allTools.filter(
+      (t) =>
+        (t.name || "").toLowerCase().includes(q) ||
+        (t.category || "").toLowerCase().includes(q) ||
+        (t.tagline || "").toLowerCase().includes(q) ||
+        (t.description || "").toLowerCase().includes(q)
+    );
   }, [allTools, searchQuery]);
 
-  // Determine Matchup Winner by Score
+  // Determine Matchup Winner by AI Score
   const winnerIndex = useMemo(() => {
     if (selectedTools.length < 2) return null;
     let maxIdx = 0;
     let maxScore = -1;
     selectedTools.forEach((tool, idx) => {
-      const s = typeof tool.score === "number" ? tool.score : 80;
+      const s = getToolScore(tool) ?? 80;
       if (s > maxScore) {
         maxScore = s;
         maxIdx = idx;
@@ -283,7 +290,7 @@ function CompareContent() {
           name: `What is the pricing difference between ${t1} and ${t2}?`,
           acceptedAnswer: {
             "@type": "Answer",
-            text: `${t1} operates on a ${selectedTools[0]?.pricing_model || "Freemium"} model, whereas ${t2} offers ${selectedTools[1]?.pricing_model || "Freemium"} access.`,
+            text: `${t1} operates on a ${selectedTools[0]?.pricing_model || selectedTools[0]?.pricing || "Freemium"} model, whereas ${t2} offers ${selectedTools[1]?.pricing_model || selectedTools[1]?.pricing || "Freemium"} access.`,
           },
         },
       ],
@@ -307,7 +314,16 @@ function CompareContent() {
             AI Vault<span className="text-blue-600">.</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-xs font-bold text-slate-600 hover:text-blue-600 transition">
+            <Link
+              href="/ai-finder"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+            >
+              ⚡ Matcher
+            </Link>
+            <Link
+              href="/"
+              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition"
+            >
               ← Back to Directory
             </Link>
           </div>
@@ -324,7 +340,7 @@ function CompareContent() {
             Compare AI Tools
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-slate-500">
-            Evaluate deep capabilities, verified benchmark scores, feature checklists, and pricing models.
+            Evaluate deep capabilities, verified benchmark scores, feature checklists, and pricing models across {allTools.length > 0 ? `${allTools.length}+` : "830+"} tools.
           </p>
         </div>
 
@@ -363,7 +379,10 @@ function CompareContent() {
 
                     <div className="flex items-center gap-1.5">
                       <button
-                        onClick={() => setSearchOpenForSlot(slotIdx)}
+                        onClick={() => {
+                          setSearchOpenForSlot(slotIdx);
+                          setSearchQuery("");
+                        }}
                         className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
                       >
                         Change
@@ -385,7 +404,10 @@ function CompareContent() {
             return (
               <button
                 key={slotIdx}
-                onClick={() => setSearchOpenForSlot(slotIdx)}
+                onClick={() => {
+                  setSearchOpenForSlot(slotIdx);
+                  setSearchQuery("");
+                }}
                 className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-white p-4 text-xs font-bold text-slate-500 hover:border-blue-500 hover:text-blue-600 transition"
               >
                 <span>+</span>
@@ -551,7 +573,7 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 text-[11px] leading-relaxed text-slate-600">
-                        {cleanAiContent(t.overview || t.description) || `${t.name} specializes in high-performance automated software solutions.`}
+                        {cleanAiContent(t.overview || t.description || t.tagline) || `${t.name} specializes in high-performance automated software solutions.`}
                       </td>
                     ))}
                   </tr>
@@ -566,7 +588,7 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Outbound Monetization Access Buttons */}
+                  {/* Official Access Buttons */}
                   <tr className="bg-slate-50/40">
                     <td className="p-4 font-bold text-slate-500">Official Access</td>
                     {selectedTools.map((t, i) => {
@@ -671,46 +693,67 @@ function CompareContent() {
         </div>
       )}
 
-      {/* Tool Selector Modal */}
+      {/* Full 830+ Tools Selector Modal with Real-time Search */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-black text-slate-950">Select Tool to Compare</h3>
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-950">Select Tool to Compare</h3>
+                <p className="text-[11px] text-slate-400 font-medium">
+                  Showing {searchResults.length} of {allTools.length} available tools
+                </p>
+              </div>
               <button
                 onClick={() => setSearchOpenForSlot(null)}
-                className="text-slate-400 hover:text-slate-700 text-sm font-bold"
+                className="rounded-full bg-slate-100 p-1.5 text-slate-400 hover:text-slate-700 text-xs font-bold"
               >
                 ✕
               </button>
             </div>
 
-            <input
-              type="text"
-              autoFocus
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by tool name or category..."
-              className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
-            />
+            <div className="mb-3">
+              <input
+                type="text"
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search across all 830+ tools, categories, or keywords..."
+                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50"
+              />
+            </div>
 
-            <div className="mt-4 max-h-60 overflow-y-auto space-y-1.5">
-              {searchResults.map((t) => (
-                <button
-                  key={String(t.id || t.slug)}
-                  onClick={() => addTool(t, searchOpenForSlot)}
-                  className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-slate-900 truncate">{String(t.name)}</p>
-                      <p className="text-[10px] text-slate-400 capitalize font-mono">{String(t.category || "AI")}</p>
+            {/* Scrollable list of ALL 830+ Tools */}
+            <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+              {searchResults.map((t) => {
+                const toolName = String(t.name || "AI Tool");
+                const toolLogo = (t.logo_url || t.logo) as string | undefined;
+                const toolCat = String(t.category || "General");
+                const toolPricing = String(t.pricing_model || t.pricing || "Freemium");
+
+                return (
+                  <button
+                    key={String(t.id || t.slug || toolName)}
+                    onClick={() => addTool(t, searchOpenForSlot)}
+                    className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ToolLogo name={toolName} src={toolLogo} website={t.website_url || t.website} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 truncate">{toolName}</p>
+                        <p className="text-[10px] text-slate-400 capitalize">{toolCat} • {toolPricing}</p>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-[10px] font-black text-blue-600">Select →</span>
-                </button>
-              ))}
+                    <span className="text-[10px] font-black text-blue-600 shrink-0">Select →</span>
+                  </button>
+                );
+              })}
+
+              {searchResults.length === 0 && (
+                <div className="py-10 text-center text-xs text-slate-400">
+                  No tools found matching &quot;{searchQuery}&quot;
+                </div>
+              )}
             </div>
           </div>
         </div>
