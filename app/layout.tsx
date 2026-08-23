@@ -1,30 +1,30 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import Script from "next/script";
 import Footer from "@/components/Footer";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.aivault.pp.ua"),
   title: "AI Vault — AI Intelligence Directory & Decision Engine",
   description:
-    "Search, compare, and explore verified AI software platforms across productivity, coding, marketing, and creative industries.",
-  metadataBase: new URL("https://www.aivault.pp.ua"),
+    "Search, compare, and explore 830+ verified AI software platforms across productivity, coding, marketing, and creative industries.",
   icons: {
     icon: [
-      { url: "/icon.png" },
-      { url: "/favicon.png", type: "image/png" },
-      { url: "/logo.png" },
+      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      { url: "/logo.png", type: "image/png" },
     ],
+    shortcut: ["/icon.png"],
     apple: [
       { url: "/apple-icon.png" },
       { url: "/logo.png" },
     ],
-    shortcut: ["/icon.png"],
   },
   openGraph: {
     title: "AI Vault — AI Intelligence Engine",
     description:
-      "Search & compare 800+ verified AI tools across productivity, coding, and marketing.",
+      "Search & compare 830+ verified AI tools across productivity, coding, and marketing.",
     url: "https://www.aivault.pp.ua",
     siteName: "AI Vault",
     images: [
