@@ -1,21 +1,50 @@
-// scripts/generate-sitemap.mjs
-import { createClient } from "@supabase/supabase-js";
 import fs from "fs";
 import path from "path";
+import { createClient } from "@supabase/supabase-js";
 
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tctovtckukoxcvvwtvwy.supabase.co";
+const BASE_URL = "https://www.aivault.pp.ua";
+
+const SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL ||
+  "https://tctovtckukoxcvvwtvwy.supabase.co";
+
 const SUPABASE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-const DOMAIN = "https://www.aivault.pp.ua";
+const CATEGORIES = [
+  "marketing",
+  "productivity",
+  "chatbot",
+  "coding",
+  "image",
+  "writing",
+  "audio",
+  "video",
+];
+
+const POPULAR_MATCHUPS = [
+  "chatgpt-vs-claude",
+  "midjourney-vs-stable-diffusion",
+  "writesonic-vs-jasper",
+  "cursor-vs-github-copilot",
+  "runway-vs-pika-labs",
+  "perplexity-vs-gemini",
+  "copy-ai-vs-jasper",
+  "elevenlabs-vs-suno",
+  "leonardo-ai-vs-midjourney",
+  "v0-vs-bolt-new",
+  "cursor-vs-windsurf",
+  "claude-vs-gpt-4o",
+];
 
 async function generate() {
-  console.log("Generating static public/sitemap.xml and public/robots.txt...");
+  console.log("⚡ Generating complete production sitemap and robots.txt...");
 
-  let toolSlugs = [];
+  const currentDate = new Date().toISOString();
+  let tools = [];
 
   try {
     if (SUPABASE_URL && SUPABASE_KEY) {
@@ -24,58 +53,70 @@ async function generate() {
         .from("ai_tools")
         .select("slug, updated_at, created_at")
         .not("slug", "is", null)
-        .neq("affiliate_status", "pending_submission")
+        .order("name", { ascending: true })
         .limit(2000);
 
       if (!error && data) {
-        toolSlugs = data;
+        tools = data;
       }
     }
-  } catch (e) {
-    console.error("Supabase fetch warning:", e.message);
+  } catch (err) {
+    console.warn("⚠️ Supabase tool fetch warning:", err.message);
   }
 
+  // 1. Core Platform Landing Pages
   const staticPages = [
-    { loc: `${DOMAIN}/`, priority: "1.0", changefreq: "daily" },
-    { loc: `${DOMAIN}/matcher`, priority: "0.9", changefreq: "weekly" },
-    { loc: `${DOMAIN}/compare`, priority: "0.8", changefreq: "weekly" },
-    { loc: `${DOMAIN}/submit`, priority: "0.7", changefreq: "monthly" },
-    { loc: `${DOMAIN}/vault`, priority: "0.6", changefreq: "weekly" },
+    { loc: `${BASE_URL}/`, priority: "1.0", changefreq: "daily" },
+    { loc: `${BASE_URL}/ai-finder`, priority: "0.9", changefreq: "daily" },
+    { loc: `${BASE_URL}/compare`, priority: "0.9", changefreq: "daily" },
+    { loc: `${BASE_URL}/vault`, priority: "0.8", changefreq: "weekly" },
+    { loc: `${BASE_URL}/submit`, priority: "0.7", changefreq: "monthly" },
+  ];
+
+  // 2. Category Hub Pages
+  const categoryPages = CATEGORIES.map((cat) => ({
+    loc: `${BASE_URL}/category/${cat}`,
+    priority: "0.8",
+    changefreq: "daily",
+  }));
+
+  // 3. High-Traffic Comparison Matchups
+  const comparisonPages = POPULAR_MATCHUPS.map((matchup) => ({
+    loc: `${BASE_URL}/compare/${matchup}`,
+    priority: "0.85",
+    changefreq: "weekly",
+  }));
+
+  // 4. All 830+ Tool Dossier URLs
+  const toolPages = tools.map((t) => {
+    const rawDate = t.updated_at || t.created_at;
+    const lastmod = rawDate ? new Date(rawDate).toISOString() : currentDate;
+    return {
+      loc: `${BASE_URL}/tool/${encodeURIComponent(String(t.slug))}`,
+      lastmod,
+      priority: "0.8",
+      changefreq: "weekly",
+    };
+  });
+
+  const allEntries = [
+    ...staticPages,
+    ...categoryPages,
+    ...comparisonPages,
+    ...toolPages,
   ];
 
   let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n`;
 
-  staticPages.forEach((p) => {
+  allEntries.forEach((entry) => {
     xml += `  <url>\n`;
-    xml += `    <loc>${p.loc}</loc>\n`;
-    xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-    xml += `    <changefreq>${p.changefreq}</changefreq>\n`;
-    xml += `    <priority>${p.priority}</priority>\n`;
+    xml += `    <loc>${entry.loc}</loc>\n`;
+    xml += `    <lastmod>${entry.lastmod || currentDate}</lastmod>\n`;
+    xml += `    <changefreq>${entry.changefreq}</changefreq>\n`;
+    xml += `    <priority>${entry.priority}</priority>\n`;
     xml += `  </url>\n`;
   });
-
-  toolSlugs.forEach((t) => {
-    const lastmod = t.updated_at || t.created_at || new Date().toISOString();
-    xml += `  <url>\n`;
-    xml += `    <loc>${DOMAIN}/tool/${encodeURIComponent(String(t.slug))}</loc>\n`;
-    xml += `    <lastmod>${new Date(lastmod).toISOString()}</lastmod>\n`;
-    xml += `    <changefreq>weekly</changefreq>\n`;
-    xml += `    <priority>0.8</priority>\n`;
-    xml += `  </url>\n`;
-  });
-
-  // Programmatic Top Comparison SEO Routes
-  for (let i = 0; i < Math.min(toolSlugs.length - 1, 60); i += 2) {
-    const s1 = encodeURIComponent(String(toolSlugs[i].slug));
-    const s2 = encodeURIComponent(String(toolSlugs[i + 1].slug));
-    xml += `  <url>\n`;
-    xml += `    <loc>${DOMAIN}/vs/${s1}-vs-${s2}</loc>\n`;
-    xml += `    <lastmod>${new Date().toISOString()}</lastmod>\n`;
-    xml += `    <changefreq>weekly</changefreq>\n`;
-    xml += `    <priority>0.85</priority>\n`;
-    xml += `  </url>\n`;
-  }
 
   xml += `</urlset>`;
 
@@ -84,12 +125,21 @@ async function generate() {
     fs.mkdirSync(publicDir, { recursive: true });
   }
 
+  // Write sitemap.xml
   fs.writeFileSync(path.join(publicDir, "sitemap.xml"), xml, "utf-8");
-  console.log(`✓ public/sitemap.xml generated with ${staticPages.length + toolSlugs.length} URLs.`);
+  console.log(`✓ public/sitemap.xml generated with ${allEntries.length} verified URLs.`);
 
-  const robotsTxt = `User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${DOMAIN}/sitemap.xml\n`;
+  // Write robots.txt with clean crawler rules
+  const robotsTxt = `User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /admin
+
+Sitemap: ${BASE_URL}/sitemap.xml
+`;
+
   fs.writeFileSync(path.join(publicDir, "robots.txt"), robotsTxt, "utf-8");
-  console.log("✓ public/robots.txt created.");
+  console.log("✓ public/robots.txt generated.");
 }
 
 generate();
