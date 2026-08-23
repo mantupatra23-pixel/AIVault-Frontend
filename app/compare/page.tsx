@@ -42,7 +42,7 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
 
-// 1. Benchmark Monthly Activity Bars Component
+// 1. Benchmark Monthly Activity Bars Generator
 function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   const seed = (name.charCodeAt(0) || 5) + (name.charCodeAt(name.length - 1) || 7);
   const months = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -77,29 +77,29 @@ function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   );
 }
 
-// 2. Circular Radial Score Ring Component
+// 2. Circular Radial Score Ring
 function ScoreRing({ score }: { score: number }) {
-  const circumference = 2 * Math.PI * 36;
+  const circumference = 2 * Math.PI * 30;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="relative flex items-center justify-center">
-      <svg className="w-18 h-18 transform -rotate-90">
+      <svg className="w-16 h-16 transform -rotate-90">
         <circle
-          cx="36"
-          cy="36"
-          r="30"
+          cx="32"
+          cy="32"
+          r="26"
           className="text-slate-100"
-          strokeWidth="6"
+          strokeWidth="5"
           stroke="currentColor"
           fill="transparent"
         />
         <circle
-          cx="36"
-          cy="36"
-          r="30"
+          cx="32"
+          cy="32"
+          r="26"
           className="text-blue-600 transition-all duration-1000 ease-out"
-          strokeWidth="6"
+          strokeWidth="5"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
@@ -108,7 +108,7 @@ function ScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-base font-black text-slate-900 leading-none">{score}</span>
+        <span className="text-sm font-black text-slate-900 leading-none">{score}</span>
         <span className="text-[8px] font-bold text-slate-400 uppercase">/100</span>
       </div>
     </div>
@@ -127,9 +127,10 @@ const CAPABILITIES_LIST = [
 ];
 
 function checkCapability(tool: ToolRecord, capKey: string): boolean {
-  const pricing = (tool.pricing_model || tool.pricing || "").toLowerCase();
-  const desc = (tool.description || tool.overview || tool.tagline || "").toLowerCase();
-  const cat = (tool.category || "").toLowerCase();
+  const pricing = String(tool.pricing_model || tool.pricing || "").toLowerCase();
+  const desc = String(tool.description || tool.overview || tool.tagline || "").toLowerCase();
+  const cat = String(tool.category || "").toLowerCase();
+  const rawScore = Number(tool.score ?? 80);
 
   switch (capKey) {
     case "api":
@@ -145,7 +146,7 @@ function checkCapability(tool: ToolRecord, capKey: string): boolean {
     case "export":
       return true;
     case "security":
-      return pricing.includes("paid") || desc.includes("enterprise") || desc.includes("security") || (tool.score ?? 80) > 85;
+      return pricing.includes("paid") || desc.includes("enterprise") || desc.includes("security") || rawScore > 85;
     default:
       return true;
   }
@@ -345,7 +346,6 @@ function CompareContent() {
     updateComparisonUrl(next);
   };
 
-  // Full Search & Filter across all 830+ tools
   const searchResults = useMemo(() => {
     return allTools.filter((t) => {
       const matchesCategory =
@@ -417,7 +417,7 @@ function CompareContent() {
           </p>
         </div>
 
-        {/* TOP HERO SLOTS (SELECTED TOOLS + "+ ADD TOOL" SLOTS) */}
+        {/* TOP HERO SLOTS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -445,7 +445,6 @@ function CompareContent() {
                   )}
 
                   <div>
-                    {/* Header Row */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3 min-w-0">
                         <ToolLogo name={name} src={logo} website={current.website_url || current.website} size="md" />
@@ -478,7 +477,6 @@ function CompareContent() {
                       </div>
                     </div>
 
-                    {/* Radial Score + Rating Stars */}
                     <div className="my-5 flex items-center justify-around rounded-2xl border border-slate-100 bg-slate-50/50 p-4">
                       <ScoreRing score={score} />
                       <div className="text-left space-y-1">
@@ -490,10 +488,8 @@ function CompareContent() {
                       </div>
                     </div>
 
-                    {/* Monthly Benchmark Mini Chart */}
                     <BenchmarkMiniChart score={score} name={name} />
 
-                    {/* Tier Badges */}
                     <div className="mt-4 flex items-center gap-2">
                       <span className="flex-1 text-center rounded-xl bg-emerald-50 border border-emerald-200/60 py-1.5 text-[11px] font-black text-emerald-700">
                         {pricing}
@@ -504,7 +500,6 @@ function CompareContent() {
                     </div>
                   </div>
 
-                  {/* Outbound Link CTA */}
                   <div className="mt-6 pt-4 border-t border-slate-100">
                     <a
                       href={`/go/${encodeURIComponent(String(current.slug || ""))}`}
@@ -519,7 +514,6 @@ function CompareContent() {
               );
             }
 
-            {/* Empty Slot Placeholder to Add More Tools */}
             return (
               <button
                 key={slotIdx}
@@ -561,7 +555,6 @@ function CompareContent() {
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 text-xs">
-                  {/* AI Vault Score */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
                     {selectedTools.map((t, i) => {
@@ -574,7 +567,6 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Benchmark Ratings */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Benchmark Ratings</td>
                     {selectedTools.map((t, i) => {
@@ -613,7 +605,7 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Feature Checklist Section */}
+                  {/* Feature Checklist */}
                   {CAPABILITIES_LIST.map((cap) => (
                     <tr key={cap.key} className="hover:bg-slate-50/60 transition">
                       <td className="p-4 font-semibold text-slate-700 bg-slate-50/40 flex items-center gap-2">
@@ -638,7 +630,6 @@ function CompareContent() {
                     </tr>
                   ))}
 
-                  {/* Core Features */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Highlights</td>
                     {selectedTools.map((t, i) => {
@@ -658,7 +649,6 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Pros & Cons */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pros & Cons</td>
                     {selectedTools.map((t, i) => {
@@ -680,7 +670,6 @@ function CompareContent() {
                     })}
                   </tr>
 
-                  {/* Best For Audience */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Best For</td>
                     {selectedTools.map((t, i) => (
@@ -690,7 +679,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Summary */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
@@ -700,7 +688,6 @@ function CompareContent() {
                     ))}
                   </tr>
 
-                  {/* Deployment Platform */}
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
@@ -715,7 +702,7 @@ function CompareContent() {
           </div>
         )}
 
-        {/* PEOPLE ALSO COMPARED MATCHUPS */}
+        {/* POPULAR MATCHUPS */}
         <section className="mt-16 mb-12">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-lg font-black text-slate-950">People Also Compared</h2>
@@ -743,7 +730,7 @@ function CompareContent() {
         </section>
       </div>
 
-      {/* FULL 830+ TOOLS SELECTOR MODAL WITH CATEGORY TABS & SEARCH */}
+      {/* MODAL */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
@@ -762,7 +749,6 @@ function CompareContent() {
               </button>
             </div>
 
-            {/* Category Filter Pills */}
             <div className="flex gap-1.5 overflow-x-auto pb-2 mb-3 scrollbar-none">
               {CATEGORIES.map((cat) => (
                 <button
@@ -779,7 +765,6 @@ function CompareContent() {
               ))}
             </div>
 
-            {/* Live Search Input */}
             <div className="mb-3">
               <input
                 type="text"
@@ -791,7 +776,6 @@ function CompareContent() {
               />
             </div>
 
-            {/* Scrollable Tool List */}
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
               {searchResults.map((t) => {
                 const toolName = String(t.name || "AI Tool");
@@ -816,12 +800,6 @@ function CompareContent() {
                   </button>
                 );
               })}
-
-              {searchResults.length === 0 && (
-                <div className="py-10 text-center text-xs text-slate-400">
-                  No tools found matching &quot;{searchQuery}&quot;
-                </div>
-              )}
             </div>
           </div>
         </div>
