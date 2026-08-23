@@ -15,6 +15,7 @@
     "@supabase/supabase-js": "^2.108.1",
     "@tailwindcss/typography": "^0.5.19",
     "cheerio": "^1.2.0",
+    "googleapis": "^176.0.0",
     "next": "16.2.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
