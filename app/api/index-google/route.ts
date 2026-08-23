@@ -1,10 +1,9 @@
-// app/api/index-google/route.ts
 import { NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // 60s timeout for Vercel execution
+export const maxDuration = 60;
 
 const BASE_URL = "https://www.aivault.pp.ua";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
@@ -30,7 +29,6 @@ export async function GET(request: Request) {
     const authHeader = request.headers.get("authorization");
     const secret = searchParams.get("secret");
 
-    // Cron / Manual trigger security check
     if (
       process.env.CRON_SECRET &&
       secret !== process.env.CRON_SECRET &&
@@ -49,28 +47,24 @@ export async function GET(request: Request) {
       );
     }
 
-    // Format multiline private key correctly for Vercel
     const privateKey = rawPrivateKey.replace(/\\n/g, "\n");
 
-    const jwtClient = new google.auth.JWT(
-      clientEmail,
-      undefined,
-      privateKey,
-      ["https://www.googleapis.com/auth/indexing"],
-      undefined
-    );
+    const jwtClient = new google.auth.JWT({
+      email: clientEmail,
+      key: privateKey,
+      scopes: ["https://www.googleapis.com/auth/indexing"],
+    });
 
     await jwtClient.authorize();
     const indexing = google.indexing({ version: "v3", auth: jwtClient });
 
-    // Fetch tools from Supabase (Sort by latest first to prioritize new tools)
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     const { data: tools, error: dbError } = await supabase
       .from("ai_tools")
       .select("slug")
       .not("slug", "is", null)
       .order("created_at", { ascending: false, nullsFirst: false })
-      .limit(180); // Daily Google limit safe quota
+      .limit(180);
 
     if (dbError || !tools) {
       return NextResponse.json({ error: "Database error", detail: dbError }, { status: 500 });
