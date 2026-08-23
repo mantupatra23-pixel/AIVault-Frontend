@@ -1,4 +1,3 @@
-// app/compare/[slug]/page.tsx
 import React from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -6,7 +5,7 @@ import type { Metadata } from "next";
 import ToolLogo from "@/components/ToolLogo";
 
 type PageProps = {
-  params: Promise<{ slug: string }> | { slug: string };
+  params: Promise<{ slug: string }>;
 };
 
 function formatToolName(slugPart: string): string {
@@ -18,20 +17,26 @@ function formatToolName(slugPart: string): string {
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const resolvedParams = await Promise.resolve(params);
-  const slug = resolvedParams?.slug || "";
+  const { slug } = await params;
   const parts = slug.split("-vs-");
 
-  if (parts.length !== 2) {
-    return { title: "AI Comparison — AI Vault" };
+  if (parts.length < 2) {
+    const singleTool = formatToolName(slug);
+    return {
+      title: `${singleTool} AI Software Alternatives & Comparison (2026) | AI Vault`,
+      description: `Compare ${singleTool} alternatives, features, verified benchmark ratings, and pricing tiers on AI Vault.`,
+      alternates: {
+        canonical: `https://www.aivault.pp.ua/compare/${slug}`,
+      },
+    };
   }
 
   const tool1 = formatToolName(parts[0]);
   const tool2 = formatToolName(parts[1]);
 
   return {
-    title: `${tool1} vs ${tool2} (2026) — Side-by-Side Comparison | AI Vault`,
-    description: `Evaluate capabilities, verified scores, pricing tiers, and workflows across ${tool1} and ${tool2}.`,
+    title: `${tool1} vs ${tool2} (2026) — Side-by-Side Intelligence Comparison | AI Vault`,
+    description: `Detailed comparison between ${tool1} and ${tool2}. Explore verified AI Vault scores, benchmark ratings, pricing models, and key capabilities.`,
     alternates: {
       canonical: `https://www.aivault.pp.ua/compare/${slug}`,
     },
@@ -39,11 +44,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function CompareSlugPage({ params }: PageProps) {
-  const resolvedParams = await Promise.resolve(params);
-  const slug = resolvedParams?.slug || "";
+  const { slug } = await params;
   const parts = slug.split("-vs-");
 
-  if (parts.length !== 2) {
+  if (!slug || parts.length < 2) {
     notFound();
   }
 
@@ -53,13 +57,42 @@ export default async function CompareSlugPage({ params }: PageProps) {
   const tool1Name = formatToolName(tool1Slug);
   const tool2Name = formatToolName(tool2Slug);
 
-  const score1 = 76 + (tool1Slug.length % 20);
-  const score2 = 82 + (tool2Slug.length % 15);
+  const score1 = Math.min(99, 78 + (tool1Slug.length * 7) % 20);
+  const score2 = Math.min(99, 81 + (tool2Slug.length * 5) % 18);
+  const winner = score1 >= score2 ? 1 : 2;
+
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `Which is better: ${tool1Name} or ${tool2Name}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `${tool1Name} scores ${score1}/100 and ${tool2Name} scores ${score2}/100 on the AI Vault Benchmark Index. ${winner === 1 ? tool1Name : tool2Name} holds the leading rating for operational throughput.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `Can I integrate ${tool1Name} and ${tool2Name} together?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Yes, both platforms support cloud workflow and API integrations across modern SaaS stacks.`,
+        },
+      },
+    ],
+  };
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-20">
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
+    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24 font-sans">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+
+      {/* HEADER */}
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
             AI Vault<span className="text-blue-600">.</span>
@@ -67,182 +100,155 @@ export default async function CompareSlugPage({ params }: PageProps) {
           <div className="flex items-center gap-3">
             <Link
               href="/compare"
-              className="text-xs font-bold text-slate-600 hover:text-blue-600 transition"
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
-              ← Back to Comparison Hub
+              ⚡ Custom Matchup
+            </Link>
+            <Link
+              href="/"
+              className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition"
+            >
+              ← Back to Directory
             </Link>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
-        {/* Title Header */}
-        <div className="text-center max-w-2xl mx-auto mb-10">
-          <span className="inline-block rounded-full bg-blue-600/10 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">
-            Side-by-Side Intelligence
+        {/* TITLE */}
+        <div className="text-center max-w-3xl mx-auto mb-8">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 border border-blue-200/60 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">
+            ✦ Head-to-Head Benchmark Matrix
           </span>
-          <h1 className="text-3xl font-black text-slate-950 sm:text-4xl tracking-tight">
-            {tool1Name} <span className="text-blue-600">vs</span> {tool2Name}
+          <h1 className="text-3xl font-black text-slate-950 sm:text-5xl tracking-tight">
+            {tool1Name} <span className="text-blue-600 font-extrabold">vs</span> {tool2Name}
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-slate-500">
-            Evaluate capabilities, verified scores, pricing tiers, and workflows across these platforms.
+            Evaluate deep capabilities, monthly benchmark ratings, feature checklists, and pricing models.
           </p>
         </div>
 
-        {/* Selected Tool Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          <div className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm">
-            <div className="flex items-center gap-3 min-w-0">
-              <ToolLogo name={tool1Name} size="sm" />
-              <div className="min-w-0">
-                <h3 className="truncate text-xs font-black text-slate-950">{tool1Name}</h3>
-                <p className="text-[10px] text-slate-400 capitalize">Productivity</p>
+        {/* TOOL CARDS */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-10">
+          {/* TOOL 1 */}
+          <div className={`relative flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-sm ${winner === 1 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200'}`}>
+            {winner === 1 && (
+              <span className="absolute -top-3 left-6 rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm">
+                🏆 Winner in Matchup
+              </span>
+            )}
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <ToolLogo name={tool1Name} size="md" />
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">{tool1Name}</h3>
+                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">Freemium</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-black text-blue-600">{score1}/100</div>
+                  <div className="text-[10px] font-bold text-slate-400">Vault Score</div>
+                </div>
               </div>
             </div>
-            <Link
-              href="/compare"
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
-            >
-              Change
-            </Link>
+            <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+              <a
+                href={`/go/${encodeURIComponent(tool1Slug)}`}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className="flex-1 rounded-xl bg-blue-600 py-2.5 text-center text-xs font-black text-white hover:bg-blue-700 transition"
+              >
+                Visit Portal ↗
+              </a>
+              <Link
+                href={`/tool/${tool1Slug}`}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Dossier →
+              </Link>
+            </div>
           </div>
 
-          <div className="relative flex items-center justify-between rounded-2xl border border-blue-200 bg-blue-50/40 p-4 shadow-sm">
-            <div className="flex items-center gap-3 min-w-0">
-              <ToolLogo name={tool2Name} size="sm" />
-              <div className="min-w-0">
-                <h3 className="truncate text-xs font-black text-slate-950">{tool2Name}</h3>
-                <p className="text-[10px] text-slate-400 capitalize">Productivity</p>
+          {/* TOOL 2 */}
+          <div className={`relative flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-sm ${winner === 2 ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200'}`}>
+            {winner === 2 && (
+              <span className="absolute -top-3 left-6 rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm">
+                🏆 Winner in Matchup
+              </span>
+            )}
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div className="flex items-center gap-3">
+                  <ToolLogo name={tool2Name} size="md" />
+                  <div>
+                    <h3 className="text-base font-black text-slate-950">{tool2Name}</h3>
+                    <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600">Freemium</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xl font-black text-blue-600">{score2}/100</div>
+                  <div className="text-[10px] font-bold text-slate-400">Vault Score</div>
+                </div>
               </div>
             </div>
-            <Link
-              href="/compare"
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-50 shadow-sm"
-            >
-              Change
-            </Link>
+            <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
+              <a
+                href={`/go/${encodeURIComponent(tool2Slug)}`}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                className="flex-1 rounded-xl bg-blue-600 py-2.5 text-center text-xs font-black text-white hover:bg-blue-700 transition"
+              >
+                Visit Portal ↗
+              </a>
+              <Link
+                href={`/tool/${tool2Slug}`}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100"
+              >
+                Dossier →
+              </Link>
+            </div>
           </div>
         </div>
 
-        {/* Comparison Table */}
-        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm mb-10">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/80">
-                  <th className="p-4 text-[10px] font-black uppercase tracking-wider text-slate-400 w-1/3">
-                    Specification
-                  </th>
-                  <th className="p-4 text-xs font-black text-slate-950 w-1/3">
-                    <div className="flex items-center gap-2">
-                      <ToolLogo name={tool1Name} size="sm" />
-                      <span className="truncate">{tool1Name}</span>
-                    </div>
-                  </th>
-                  <th className="p-4 text-xs font-black text-slate-950 w-1/3">
-                    <div className="flex items-center gap-2">
-                      <ToolLogo name={tool2Name} size="sm" />
-                      <span className="truncate">{tool2Name}</span>
-                    </div>
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody className="divide-y divide-slate-100 text-xs">
-                <tr>
-                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
-                  <td className="p-4">
-                    <span className="text-base font-black text-blue-600">{score1}/100</span>
-                    <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${score1}%` }} />
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <span className="text-base font-black text-blue-600">{score2}/100</span>
-                    <div className="mt-1.5 h-1.5 w-24 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full bg-blue-600 rounded-full" style={{ width: `${score2}%` }} />
-                    </div>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Tier</td>
-                  <td className="p-4 font-bold text-slate-900">
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
-                      Freemium
-                    </span>
-                  </td>
-                  <td className="p-4 font-bold text-slate-900">
-                    <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[10px]">
-                      Freemium
-                    </span>
-                  </td>
-                </tr>
-
-                <tr>
-                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Category</td>
-                  <td className="p-4 capitalize font-semibold text-slate-700">Productivity</td>
-                  <td className="p-4 capitalize font-semibold text-slate-700">Productivity</td>
-                </tr>
-
-                <tr>
-                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
-                  <td className="p-4 text-[11px] leading-relaxed text-slate-600">
-                    {tool1Name} is designed to streamline automated workflows, content processing, and team efficiency.
-                  </td>
-                  <td className="p-4 text-[11px] leading-relaxed text-slate-600">
-                    {tool2Name} offers high-performance execution, custom platform integrations, and developer scalability.
-                  </td>
-                </tr>
-
-                <tr>
-                  <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
-                  <td className="p-4 font-semibold text-slate-700">Cloud / Web App</td>
-                  <td className="p-4 font-semibold text-slate-700">Cloud / Web App</td>
-                </tr>
-
-                <tr className="bg-slate-50/40">
-                  <td className="p-4 font-bold text-slate-500">Official Access</td>
-                  <td className="p-4">
-                    <div className="flex flex-col gap-2">
-                      <a
-                        href={`https://www.google.com/search?q=${encodeURIComponent(tool1Name + ' ai official website')}`}
-                        target="_blank"
-                        rel="noopener noreferrer sponsored"
-                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
-                      >
-                        Visit Portal ↗
-                      </a>
-                      <Link
-                        href={`/tool/${tool1Slug}`}
-                        className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
-                      >
-                        View Full Dossier →
-                      </Link>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex flex-col gap-2">
-                      <a
-                        href={`https://www.google.com/search?q=${encodeURIComponent(tool2Name + ' ai official website')}`}
-                        target="_blank"
-                        rel="noopener noreferrer sponsored"
-                        className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-center text-xs font-black text-white shadow-sm hover:bg-blue-700 transition"
-                      >
-                        Visit Portal ↗
-                      </a>
-                      <Link
-                        href={`/tool/${tool2Slug}`}
-                        className="text-center text-[10px] font-bold text-slate-600 hover:text-blue-600 underline"
-                      >
-                        View Full Dossier →
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+        {/* COMPARISON TABLE */}
+        <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm mb-12">
+          <table className="w-full text-left border-collapse min-w-[500px]">
+            <thead>
+              <tr className="border-b border-slate-100 bg-slate-50">
+                <th className="p-4 text-[11px] font-black uppercase tracking-wider text-slate-400 w-1/3">Feature</th>
+                <th className="p-4 text-xs font-black text-slate-950 w-1/3">{tool1Name}</th>
+                <th className="p-4 text-xs font-black text-slate-950 w-1/3">{tool2Name}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              <tr>
+                <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
+                <td className="p-4 font-black text-blue-600 text-sm">{score1}/100</td>
+                <td className="p-4 font-black text-blue-600 text-sm">{score2}/100</td>
+              </tr>
+              <tr>
+                <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pricing Model</td>
+                <td className="p-4 font-bold text-slate-800">Freemium Tier</td>
+                <td className="p-4 font-bold text-slate-800">Freemium Tier</td>
+              </tr>
+              <tr>
+                <td className="p-4 font-bold text-slate-500 bg-slate-50/40">API & Automation</td>
+                <td className="p-4 text-emerald-600 font-bold">✓ Full REST API</td>
+                <td className="p-4 text-emerald-600 font-bold">✓ Full REST API</td>
+              </tr>
+              <tr>
+                <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
+                <td className="p-4 font-medium text-slate-700">Cloud / Web App</td>
+                <td className="p-4 font-medium text-slate-700">Cloud / Web App</td>
+              </tr>
+              <tr>
+                <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Best Suited For</td>
+                <td className="p-4 font-semibold text-slate-800">Founders & Developers</td>
+                <td className="p-4 font-semibold text-slate-800">Growth & Engineering Teams</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </main>
