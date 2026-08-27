@@ -16,107 +16,69 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
-function generateCleanSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-");
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
       name,
       website_url,
-      website,
       logo_url,
-      logo,
       category,
-      pricing_model,
       pricing,
+      pricing_model,
       description,
       overview,
       founder_email,
       submitter_email,
       tier,
-      plan,
+      is_featured,
     } = body;
 
     const cleanName = String(name || "").trim();
-    const targetWebsite = String(website_url || website || "").trim();
+    const cleanWebsite = String(website_url || "").trim();
     const cleanDesc = String(
-      description ||
-        overview ||
-        `${cleanName} is an AI solution designed for modern workflow automation.`
+      description || overview || `${cleanName} is an AI solution designed for modern workflow automation.`
     ).trim();
 
-    if (!cleanName || !targetWebsite) {
+    if (!cleanName || !cleanWebsite) {
       return NextResponse.json(
-        { error: "Tool name and official website URL are required." },
+        { error: "Tool Name and Official Website URL are required." },
         { status: 400 }
       );
     }
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: "Supabase environment not configured." },
-        { status: 500 }
-      );
-    }
-
     const supabase = getSupabase();
-    let baseSlug = generateCleanSlug(cleanName);
-    if (!baseSlug) baseSlug = `ai-tool-${Date.now()}`;
+    const cleanSlug = cleanName
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)+/g, "");
 
-    // 1. Slug Collision Check & Deduplication
-    try {
-      const { data: existing } = await supabase
-        .from("ai_tools")
-        .select("slug")
-        .eq("slug", baseSlug)
-        .maybeSingle();
-
-      if (existing) {
-        baseSlug = `${baseSlug}-${Math.floor(100 + Math.random() * 900)}`;
-      }
-    } catch {}
-
-    const cleanCategory = String(category || "Productivity").trim();
-    const cleanPricing = String(pricing_model || pricing || "Freemium").trim();
+    const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    const isFeaturedTier = is_featured || tier === "featured";
     const email = String(founder_email || submitter_email || "").trim();
-    const cleanLogo = String(logo_url || logo || "").trim();
-    const selectedPlan = String(tier || plan || "standard").toLowerCase();
 
-    // 2. Strict Pending Review Payload (Excludes tool from Public Frontend)
-    const payload: Record<string, unknown> = {
+    const insertPayload: Record<string, unknown> = {
       name: cleanName,
-      slug: baseSlug,
-      website_url: targetWebsite,
-      website: targetWebsite,
-      category: cleanCategory,
-      pricing: cleanPricing,
-      pricing_model: cleanPricing,
+      slug: slug,
+      website_url: cleanWebsite,
+      category: category || "Productivity",
+      pricing: pricing || pricing_model || "Freemium",
       description: cleanDesc,
       overview: cleanDesc,
-      tagline: `${cleanName} is a verified AI platform for ${cleanCategory.toLowerCase()} operations.`,
-      score: selectedPlan === "featured" ? 96 : 91,
-      ai_vault_score: selectedPlan === "featured" ? 96 : 91,
-      affiliate_status: "pending_submission", // Public feeds filter out this status until approved
+      affiliate_status: "pending_submission",
       affiliate_network: email ? `Founder: ${email}` : "Direct Submission",
+      score: isFeaturedTier ? 96 : 92,
+      ai_vault_score: isFeaturedTier ? 96 : 92,
+      created_at: new Date().toISOString(),
     };
 
-    if (cleanLogo) {
-      payload.logo_url = cleanLogo;
-      payload.logo = cleanLogo;
+    if (logo_url && String(logo_url).trim()) {
+      insertPayload.logo_url = String(logo_url).trim();
     }
 
-    // 3. Database Insertion
     const { data, error } = await supabase
       .from("ai_tools")
-      .insert([payload])
+      .insert([insertPayload])
       .select()
       .single();
 
@@ -128,12 +90,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Tool successfully placed in the editorial review queue!",
-      slug: baseSlug,
-      toolId: data?.id,
+      data,
     });
   } catch (err: unknown) {
-    const errorMsg = err instanceof Error ? err.message : "Submission request failed";
-    console.error("Submission API Error:", errorMsg);
+    const errorMsg = err instanceof Error ? err.message : "Submission failed";
     return NextResponse.json({ error: errorMsg }, { status: 500 });
   }
 }

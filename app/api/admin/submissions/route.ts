@@ -16,47 +16,25 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
-// GET: Fetch all pending submissions waiting for Admin Review
 export async function GET() {
   try {
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: "Supabase environment credentials missing." },
-        { status: 500 }
-      );
-    }
-
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
-      .or("affiliate_status.eq.pending_submission,is_approved.eq.false")
+      .eq("affiliate_status", "pending_submission")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-
-    return NextResponse.json({
-      success: true,
-      submissions: data || [],
-      count: data?.length || 0,
-    });
+    return NextResponse.json({ success: true, submissions: data || [] });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Failed to fetch pending submissions";
-    console.error("Admin submissions GET error:", msg);
+    const msg = err instanceof Error ? err.message : "Fetch error";
     return NextResponse.json({ error: msg, submissions: [] }, { status: 500 });
   }
 }
 
-// POST: Moderate (Approve / Reject) or Direct-Submit Tools
 export async function POST(req: NextRequest) {
   try {
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
-      return NextResponse.json(
-        { error: "Supabase environment credentials missing." },
-        { status: 500 }
-      );
-    }
-
     const body = await req.json();
     const {
       id,
@@ -66,43 +44,28 @@ export async function POST(req: NextRequest) {
       logo_url,
       category,
       pricing,
-      pricing_model,
       description,
       overview,
+      founder_email,
+      submitter_email,
       is_featured,
       tier,
     } = body;
 
     const supabase = getSupabase();
 
-    // 1. APPROVE ACTION: Publish tool live to Public Frontend
+    // 1. Admin Moderation (Approve)
     if (action === "approve" && id) {
-      const updatePayload: Record<string, unknown> = {
-        affiliate_status: "direct",
-        is_approved: true,
-      };
-
       const { error } = await supabase
         .from("ai_tools")
-        .update(updatePayload)
+        .update({ affiliate_status: "direct" })
         .eq("id", id);
 
-      if (error) {
-        // Fallback without is_approved column if not present in schema
-        const fallback = await supabase
-          .from("ai_tools")
-          .update({ affiliate_status: "direct" })
-          .eq("id", id);
-        if (fallback.error) throw fallback.error;
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: "Tool successfully approved and published live!",
-      });
+      if (error) throw error;
+      return NextResponse.json({ success: true, message: "Tool approved and published live!" });
     }
 
-    // 2. REJECT / DELETE ACTION: Permanently remove submission
+    // 2. Admin Moderation (Reject / Delete)
     if ((action === "reject" || action === "delete") && id) {
       const { error } = await supabase
         .from("ai_tools")
@@ -110,18 +73,14 @@ export async function POST(req: NextRequest) {
         .eq("id", id);
 
       if (error) throw error;
-
-      return NextResponse.json({
-        success: true,
-        message: "Tool submission rejected and permanently removed.",
-      });
+      return NextResponse.json({ success: true, message: "Tool submission removed." });
     }
 
-    // 3. DIRECT SUBMISSION HANDLER (Validation & Queue Insertion)
+    // 3. New Tool Submission
     const cleanName = String(name || "").trim();
     const cleanWebsite = String(website_url || "").trim();
     const cleanDesc = String(
-      description || overview || `${cleanName} is an AI solution for modern operations.`
+      description || overview || `${cleanName} is an AI solution designed for modern workflow automation.`
     ).trim();
 
     if (!cleanName || !cleanWebsite) {
@@ -138,18 +97,19 @@ export async function POST(req: NextRequest) {
 
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
     const isFeaturedTier = is_featured || tier === "featured";
+    const email = String(founder_email || submitter_email || "").trim();
 
+    // Clean payload matching exact Supabase schema (NO pricing_model column)
     const insertPayload: Record<string, unknown> = {
       name: cleanName,
       slug: slug,
       website_url: cleanWebsite,
-      website: cleanWebsite,
       category: category || "Productivity",
-      pricing: pricing || pricing_model || "Freemium",
-      pricing_model: pricing || pricing_model || "Freemium",
+      pricing: pricing || "Freemium",
       description: cleanDesc,
       overview: cleanDesc,
       affiliate_status: "pending_submission",
+      affiliate_network: email ? `Founder: ${email}` : "Direct Submission",
       score: isFeaturedTier ? 96 : 92,
       ai_vault_score: isFeaturedTier ? 96 : 92,
       created_at: new Date().toISOString(),
@@ -157,7 +117,6 @@ export async function POST(req: NextRequest) {
 
     if (logo_url && String(logo_url).trim()) {
       insertPayload.logo_url = String(logo_url).trim();
-      insertPayload.logo = String(logo_url).trim();
     }
 
     const { data, error } = await supabase
@@ -167,18 +126,17 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) {
-      console.error("Supabase submission error:", error.message);
+      console.error("Supabase insert error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({
       success: true,
-      message: "Tool submitted successfully to editorial review queue!",
+      message: "Tool successfully placed in the editorial review queue!",
       data,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Submission request failed";
-    console.error("Admin submissions POST error:", msg);
+    const msg = err instanceof Error ? err.message : "Submission failed";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
