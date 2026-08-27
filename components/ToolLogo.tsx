@@ -32,12 +32,13 @@ const PIXEL_MAP: Record<string, number> = {
   xl: 80,
 };
 
-// Verified Authentic AI Domains Directory
 const DOMAIN_MAP: Record<string, string> = {
   deepseek: "deepseek.com",
   cursor: "cursor.com",
   claude: "anthropic.com",
   "claude-3-5-sonnet": "anthropic.com",
+  "claude-3-sonnet": "anthropic.com",
+  "claude-3-opus": "anthropic.com",
   lovable: "lovable.dev",
   "bolt-new": "bolt.new",
   bolt: "bolt.new",
@@ -48,6 +49,7 @@ const DOMAIN_MAP: Record<string, string> = {
   elevenlabs: "elevenlabs.io",
   suno: "suno.com",
   runway: "runwayml.com",
+  "runway-gen-3": "runwayml.com",
   "kling-ai": "klingai.com",
   kling: "klingai.com",
   v0: "v0.dev",
@@ -65,14 +67,8 @@ const DOMAIN_MAP: Record<string, string> = {
   recraft: "recraft.ai",
   manus: "manus.im",
   reka: "reka.ai",
-  meilisearch: "meilisearch.com",
   unsloth: "unsloth.ai",
   firecrawl: "firecrawl.dev",
-  modelscope: "modelscope.cn",
-  venice: "venice.ai",
-  chutes: "chutes.ai",
-  jan: "jan.ai",
-  pollinations: "pollinations.ai",
   huggingface: "huggingface.co",
   anthropic: "anthropic.com",
   stability: "stability.ai",
@@ -82,13 +78,12 @@ const DOMAIN_MAP: Record<string, string> = {
   cohere: "cohere.com",
 };
 
-// Dynamic Brand Gradient Palettes for Synthetic / Missing Logos
 const BRAND_GRADIENTS = [
-  { bg: "from-[#051a0e] via-[#082917] to-[#041209]", border: "border-[#00FF66]/50", text: "text-[#00FF66]", glow: "shadow-[0_0_12px_rgba(0,255,102,0.25)]" },
-  { bg: "from-[#081528] via-[#0c2445] to-[#050f1d]", border: "border-[#38bdf8]/50", text: "text-[#38bdf8]", glow: "shadow-[0_0_12px_rgba(56,189,248,0.25)]" },
-  { bg: "from-[#1a0826] via-[#2d0e42] to-[#12041b]", border: "border-[#c084fc]/50", text: "text-[#c084fc]", glow: "shadow-[0_0_12px_rgba(192,132,252,0.25)]" },
-  { bg: "from-[#241404] via-[#3d2307] to-[#170c02]", border: "border-[#fbbf24]/50", text: "text-[#fbbf24]", glow: "shadow-[0_0_12px_rgba(251,191,36,0.25)]" },
-  { bg: "from-[#220712] via-[#3d0d21] to-[#17040b]", border: "border-[#f43f5e]/50", text: "text-[#f43f5e]", glow: "shadow-[0_0_12px_rgba(244,63,94,0.25)]" },
+  { bg: "from-[#051a0e] via-[#082917] to-[#041209]", border: "border-[#00FF66]/50", text: "text-[#00FF66]" },
+  { bg: "from-[#081528] via-[#0c2445] to-[#050f1d]", border: "border-[#38bdf8]/50", text: "text-[#38bdf8]" },
+  { bg: "from-[#1a0826] via-[#2d0e42] to-[#12041b]", border: "border-[#c084fc]/50", text: "text-[#c084fc]" },
+  { bg: "from-[#241404] via-[#3d2307] to-[#170c02]", border: "border-[#fbbf24]/50", text: "text-[#fbbf24]" },
+  { bg: "from-[#220712] via-[#3d0d21] to-[#17040b]", border: "border-[#f43f5e]/50", text: "text-[#f43f5e]" },
 ];
 
 function extractCleanDomain(
@@ -102,8 +97,7 @@ function extractCleanDomain(
   }
 
   if (nameInput) {
-    const n = nameInput.toLowerCase().replace(/[^a-z0-9-]/g, "").trim();
-    if (DOMAIN_MAP[n]) return DOMAIN_MAP[n];
+    const n = nameInput.toLowerCase().trim();
     if (n.includes("claude")) return "anthropic.com";
     if (n.includes("deepseek")) return "deepseek.com";
     if (n.includes("cursor")) return "cursor.com";
@@ -114,6 +108,8 @@ function extractCleanDomain(
     if (n.includes("runway")) return "runwayml.com";
     if (n.includes("lovable")) return "lovable.dev";
     if (n.includes("bolt")) return "bolt.new";
+    if (n.includes("chatgpt") || n.includes("openai")) return "openai.com";
+    if (n.includes("gemini")) return "google.com";
   }
 
   if (websiteInput && typeof websiteInput === "string") {
@@ -125,8 +121,7 @@ function extractCleanDomain(
         host.includes(".") &&
         !host.includes("example.com") &&
         !host.includes("localhost") &&
-        !host.includes("vercel.app") &&
-        !host.includes("google.com")
+        !host.includes("vercel.app")
       ) {
         return host;
       }
@@ -167,7 +162,6 @@ export function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
-  // Deterministic theme selection based on name
   const theme = useMemo(() => {
     let hash = 0;
     for (let i = 0; i < cleanName.length; i++) {
@@ -177,26 +171,18 @@ export function ToolLogo({
     return BRAND_GRADIENTS[idx];
   }, [cleanName]);
 
-  // Multi-tier Fallback with strict 404 validation (no grey globes)
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
-    // 1. Direct valid database image
-    if (
-      directLogo &&
-      typeof directLogo === "string" &&
-      directLogo.trim().startsWith("http") &&
-      !directLogo.includes("placeholder")
-    ) {
+    if (directLogo && typeof directLogo === "string" && directLogo.trim().startsWith("http")) {
       list.push(directLogo.trim());
     }
 
-    // 2. Strict Unavatar & Clearbit (Returns 404 instead of grey globe)
     if (domain) {
+      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
       list.push(`https://unavatar.io/${domain}?fallback=false`);
       list.push(`https://logo.clearbit.com/${domain}`);
-      // Google S2 API without generic globe fallback
-      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
+      list.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
     }
 
     return list;
@@ -222,12 +208,11 @@ export function ToolLogo({
   const dimensionClass = !isNumericSize ? (SIZE_MAP[size as string] || SIZE_MAP.md) : "";
   const pixelSize = isNumericSize ? size : (PIXEL_MAP[size as string] || 44);
 
-  // High-End Cyberpunk Monogram Card (Replaces the ugly grey globe)
   if (loadFailed || !candidateUrls[currentIndex]) {
     return (
       <div
         style={isNumericSize ? { width: size, height: size } : undefined}
-        className={`flex shrink-0 items-center justify-center bg-gradient-to-br ${theme.bg} border ${theme.border} ${theme.text} ${theme.glow} select-none font-black tracking-tight transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+        className={`flex shrink-0 items-center justify-center bg-gradient-to-br ${theme.bg} border ${theme.border} ${theme.text} select-none font-black tracking-tight ${dimensionClass} ${className}`}
       >
         <span>{initials}</span>
       </div>
@@ -237,7 +222,7 @@ export function ToolLogo({
   return (
     <div
       style={isNumericSize ? { width: size, height: size } : undefined}
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/90 bg-white p-1 shadow-sm transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/90 bg-white p-1.5 shadow-sm ${dimensionClass} ${className}`}
     >
       <img
         src={candidateUrls[currentIndex]}
