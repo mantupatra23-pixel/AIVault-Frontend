@@ -19,9 +19,9 @@ export type ToolLogoProps = {
 const SIZE_MAP: Record<string, string> = {
   xs: "h-6 w-6 text-[9px] rounded-md",
   sm: "h-8 w-8 text-xs rounded-lg",
-  md: "h-11 w-11 text-sm font-bold rounded-xl",
-  lg: "h-16 w-16 text-xl font-bold rounded-2xl",
-  xl: "h-20 w-20 text-2xl font-bold rounded-3xl",
+  md: "h-11 w-11 text-sm font-black rounded-xl",
+  lg: "h-16 w-16 text-xl font-black rounded-2xl",
+  xl: "h-20 w-20 text-2xl font-black rounded-3xl",
 };
 
 const PIXEL_MAP: Record<string, number> = {
@@ -32,6 +32,7 @@ const PIXEL_MAP: Record<string, number> = {
   xl: 80,
 };
 
+// Verified Authentic AI Domains Directory
 const DOMAIN_MAP: Record<string, string> = {
   deepseek: "deepseek.com",
   cursor: "cursor.com",
@@ -39,13 +40,16 @@ const DOMAIN_MAP: Record<string, string> = {
   "claude-3-5-sonnet": "anthropic.com",
   lovable: "lovable.dev",
   "bolt-new": "bolt.new",
+  bolt: "bolt.new",
   midjourney: "midjourney.com",
   "flux-ai": "blackforestlabs.ai",
+  flux: "blackforestlabs.ai",
   perplexity: "perplexity.ai",
   elevenlabs: "elevenlabs.io",
   suno: "suno.com",
   runway: "runwayml.com",
   "kling-ai": "klingai.com",
+  kling: "klingai.com",
   v0: "v0.dev",
   windsurf: "codeium.com",
   chatgpt: "openai.com",
@@ -53,8 +57,39 @@ const DOMAIN_MAP: Record<string, string> = {
   groq: "groq.com",
   gemini: "google.com",
   "github-copilot": "github.com",
+  jasper: "jasper.ai",
+  writesonic: "writesonic.com",
+  "copy-ai": "copy.ai",
+  leonardo: "leonardo.ai",
+  udio: "udio.com",
+  recraft: "recraft.ai",
+  manus: "manus.im",
+  reka: "reka.ai",
+  meilisearch: "meilisearch.com",
+  unsloth: "unsloth.ai",
+  firecrawl: "firecrawl.dev",
+  modelscope: "modelscope.cn",
+  venice: "venice.ai",
+  chutes: "chutes.ai",
+  jan: "jan.ai",
+  pollinations: "pollinations.ai",
   huggingface: "huggingface.co",
+  anthropic: "anthropic.com",
+  stability: "stability.ai",
+  replicate: "replicate.com",
+  fal: "fal.ai",
+  mistral: "mistral.ai",
+  cohere: "cohere.com",
 };
+
+// Dynamic Brand Gradient Palettes for Synthetic / Missing Logos
+const BRAND_GRADIENTS = [
+  { bg: "from-[#051a0e] via-[#082917] to-[#041209]", border: "border-[#00FF66]/50", text: "text-[#00FF66]", glow: "shadow-[0_0_12px_rgba(0,255,102,0.25)]" },
+  { bg: "from-[#081528] via-[#0c2445] to-[#050f1d]", border: "border-[#38bdf8]/50", text: "text-[#38bdf8]", glow: "shadow-[0_0_12px_rgba(56,189,248,0.25)]" },
+  { bg: "from-[#1a0826] via-[#2d0e42] to-[#12041b]", border: "border-[#c084fc]/50", text: "text-[#c084fc]", glow: "shadow-[0_0_12px_rgba(192,132,252,0.25)]" },
+  { bg: "from-[#241404] via-[#3d2307] to-[#170c02]", border: "border-[#fbbf24]/50", text: "text-[#fbbf24]", glow: "shadow-[0_0_12px_rgba(251,191,36,0.25)]" },
+  { bg: "from-[#220712] via-[#3d0d21] to-[#17040b]", border: "border-[#f43f5e]/50", text: "text-[#f43f5e]", glow: "shadow-[0_0_12px_rgba(244,63,94,0.25)]" },
+];
 
 function extractCleanDomain(
   websiteInput?: string | null,
@@ -90,7 +125,8 @@ function extractCleanDomain(
         host.includes(".") &&
         !host.includes("example.com") &&
         !host.includes("localhost") &&
-        !host.includes("vercel.app")
+        !host.includes("vercel.app") &&
+        !host.includes("google.com")
       ) {
         return host;
       }
@@ -131,19 +167,36 @@ export function ToolLogo({
     return (sanitized.slice(0, 2) || "AI").toUpperCase();
   }, [cleanName]);
 
+  // Deterministic theme selection based on name
+  const theme = useMemo(() => {
+    let hash = 0;
+    for (let i = 0; i < cleanName.length; i++) {
+      hash = cleanName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const idx = Math.abs(hash) % BRAND_GRADIENTS.length;
+    return BRAND_GRADIENTS[idx];
+  }, [cleanName]);
+
+  // Multi-tier Fallback with strict 404 validation (no grey globes)
   const candidateUrls = useMemo(() => {
     const list: string[] = [];
 
-    // 1. Direct DB Logo URL
-    if (directLogo && typeof directLogo === "string" && directLogo.trim().startsWith("http")) {
+    // 1. Direct valid database image
+    if (
+      directLogo &&
+      typeof directLogo === "string" &&
+      directLogo.trim().startsWith("http") &&
+      !directLogo.includes("placeholder")
+    ) {
       list.push(directLogo.trim());
     }
 
-    // 2. High-Res Google S2 Favicon API
+    // 2. Strict Unavatar & Clearbit (Returns 404 instead of grey globe)
     if (domain) {
-      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
-      list.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+      list.push(`https://unavatar.io/${domain}?fallback=false`);
       list.push(`https://logo.clearbit.com/${domain}`);
+      // Google S2 API without generic globe fallback
+      list.push(`https://www.google.com/s2/favicons?domain=${domain}&sz=128`);
     }
 
     return list;
@@ -169,13 +222,14 @@ export function ToolLogo({
   const dimensionClass = !isNumericSize ? (SIZE_MAP[size as string] || SIZE_MAP.md) : "";
   const pixelSize = isNumericSize ? size : (PIXEL_MAP[size as string] || 44);
 
+  // High-End Cyberpunk Monogram Card (Replaces the ugly grey globe)
   if (loadFailed || !candidateUrls[currentIndex]) {
     return (
       <div
         style={isNumericSize ? { width: size, height: size } : undefined}
-        className={`flex shrink-0 items-center justify-center bg-[#0a0f0d] border border-[#00FF66]/40 text-[#00FF66] shadow-[0_0_10px_rgba(0,255,102,0.15)] select-none font-black tracking-tight ${dimensionClass} ${className}`}
+        className={`flex shrink-0 items-center justify-center bg-gradient-to-br ${theme.bg} border ${theme.border} ${theme.text} ${theme.glow} select-none font-black tracking-tight transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
       >
-        {initials}
+        <span>{initials}</span>
       </div>
     );
   }
@@ -183,7 +237,7 @@ export function ToolLogo({
   return (
     <div
       style={isNumericSize ? { width: size, height: size } : undefined}
-      className={`relative flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/90 bg-white p-1.5 shadow-sm ${dimensionClass} ${className}`}
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden border border-slate-200/90 bg-white p-1 shadow-sm transition-transform group-hover:scale-105 ${dimensionClass} ${className}`}
     >
       <img
         src={candidateUrls[currentIndex]}
