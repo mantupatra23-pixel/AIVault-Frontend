@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 
 import { createClient } from "@supabase/supabase-js";
@@ -17,9 +16,11 @@ type ToolRecord = {
   name?: string | null;
   description?: string | null;
   overview?: string | null;
+  tagline?: string | null;
   category?: string | null;
   pricing?: string | null;
   pricing_type?: string | null;
+  pricing_model?: string | null;
   score?: number | string | null;
   ai_vault_score?: number | string | null;
   logo_url?: string | null;
@@ -40,10 +41,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const CATEGORIES = [
   { name: "All", icon: "⚡" },
-  { name: "Marketing", icon: "📈" },
+  { name: "Coding", icon: "💻" },
   { name: "Productivity", icon: "🚀" },
   { name: "Chatbot", icon: "🤖" },
-  { name: "Coding", icon: "💻" },
+  { name: "Marketing", icon: "📈" },
   { name: "Image", icon: "🎨" },
   { name: "Writing", icon: "✍️" },
   { name: "Audio", icon: "🎵" },
@@ -56,11 +57,44 @@ const SORT_OPTIONS = [
   { label: "Name (A-Z)", value: "name" },
 ];
 
+// Curated Real High-Traffic Matchups for Google SEO
+const CURATED_MATCHUPS = [
+  {
+    nameA: "DeepSeek",
+    slugA: "deepseek",
+    nameB: "Claude 3.5 Sonnet",
+    slugB: "claude",
+    category: "Reasoning & LLM",
+  },
+  {
+    nameA: "Cursor",
+    slugA: "cursor",
+    nameB: "Bolt.new",
+    slugB: "bolt-new",
+    category: "AI Code IDE",
+  },
+  {
+    nameA: "Midjourney",
+    slugA: "midjourney",
+    nameB: "Flux.1",
+    slugB: "flux-ai",
+    category: "Image Generation",
+  },
+  {
+    nameA: "Perplexity AI",
+    slugA: "perplexity",
+    nameB: "DeepSeek",
+    slugB: "deepseek",
+    category: "Search & Research",
+  },
+];
+
 function isToolFeatured(tool: ToolRecord): boolean {
   return (
     tool.is_featured === true ||
     tool.featured === true ||
-    tool.affiliate_status === "featured"
+    tool.affiliate_status === "featured" ||
+    ["deepseek", "cursor", "claude", "lovable"].includes(String(tool.slug || "").toLowerCase())
   );
 }
 
@@ -68,15 +102,14 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
   const name = String(tool.name || "AI Tool");
   const slug = String(tool.slug || "").trim();
   const category = String(tool.category || "AI Tool");
-  const pricing = String(tool.pricing_type || tool.pricing || "Freemium");
+  const pricing = String(tool.pricing_type || tool.pricing_model || tool.pricing || "Freemium");
   const featured = isToolFeatured(tool);
   const website = String(tool.website_url || tool.website || "");
 
-  const rawDesc = String(tool.description || tool.overview || "")
+  const rawDesc = String(tool.tagline || tool.overview || tool.description || "")
     .replace(/I will provide an overview[^.]*\.\s*/gi, "")
     .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
-    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "")
-    .replace(/I had the opportunity to analyze[^.]*\.\s*/gi, "");
+    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "");
 
   const desc =
     cleanAiContent(rawDesc) ||
@@ -165,7 +198,7 @@ function ToolCard({ tool }: { tool: ToolRecord }) {
         )}
         <div className="flex items-center justify-between text-[10px] font-bold">
           <span className="text-slate-400 uppercase tracking-wider">
-            {featured ? "★ Sponsored Partner" : "Verified Tool"}
+            {featured ? "★ Verified Frontier" : "Verified Tool"}
           </span>
           <span className="text-blue-600 group-hover:translate-x-0.5 transition-transform">
             Explore →
@@ -200,7 +233,12 @@ function HomeContent() {
     async function loadCatalog() {
       try {
         setLoading(true);
-        const { data, error } = await supabase.from("ai_tools").select("*");
+        const { data, error } = await supabase
+          .from("ai_tools")
+          .select("*")
+          .not("slug", "is", null)
+          .order("score", { ascending: false });
+
         if (error) throw error;
         setTools((data as ToolRecord[]) || []);
       } catch (err) {
@@ -226,7 +264,7 @@ function HomeContent() {
         }
 
         if (selectedPricing !== "All") {
-          const p = (t.pricing_type || t.pricing || "").toLowerCase();
+          const p = (t.pricing_type || t.pricing_model || t.pricing || "").toLowerCase();
           if (
             selectedPricing === "Free" &&
             (!p.includes("free") || p.includes("freemium"))
@@ -240,7 +278,7 @@ function HomeContent() {
         if (search.trim()) {
           const query = search.toLowerCase();
           const name = (t.name || "").toLowerCase();
-          const desc = (t.description || t.overview || "").toLowerCase();
+          const desc = (t.description || t.overview || t.tagline || "").toLowerCase();
           const cat = (t.category || "").toLowerCase();
           return (
             name.includes(query) ||
@@ -265,25 +303,17 @@ function HomeContent() {
       });
   }, [tools, selectedCat, selectedPricing, search, sortBy]);
 
+  // Real Top 3 Trending Spotlight (DeepSeek, Cursor, Claude)
   const spotlightTools = useMemo(() => {
-    const explicitlyFeatured = tools.filter(
-      (t) => isToolFeatured(t) && t.affiliate_status !== "pending_submission"
-    );
-    if (explicitlyFeatured.length > 0) return explicitlyFeatured.slice(0, 3);
-    return tools.slice(0, 3);
-  }, [tools]);
+    const prioritySlugs = ["deepseek", "cursor", "claude", "lovable", "perplexity"];
+    const prioritized = prioritySlugs
+      .map((s) => tools.find((t) => (t.slug || "").toLowerCase() === s))
+      .filter((t): t is ToolRecord => Boolean(t));
 
-  const popularComparisons = useMemo(() => {
-    const valid = tools.filter(
-      (t) => t.slug && t.affiliate_status !== "pending_submission"
-    );
-    const pairs: { toolA: ToolRecord; toolB: ToolRecord }[] = [];
-    for (let i = 0; i < Math.min(valid.length - 1, 8); i += 2) {
-      if (valid[i] && valid[i + 1]) {
-        pairs.push({ toolA: valid[i], toolB: valid[i + 1] });
-      }
+    if (prioritized.length >= 3) {
+      return prioritized.slice(0, 3);
     }
-    return pairs;
+    return tools.slice(0, 3);
   }, [tools]);
 
   useEffect(() => {
@@ -302,18 +332,18 @@ function HomeContent() {
   };
 
   return (
-    <div className="text-slate-900">
+    <div className="text-slate-900 bg-[#FAFBFD] min-h-screen">
       {/* Google AdSense Crawler Initialization Script */}
       <Script
         id="adsense-init"
         async
-        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-5180387791450326"
+        src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-518587791488826"
         crossOrigin="anonymous"
         strategy="afterInteractive"
       />
 
-      {/* Top Navbar with Official AI Vault 3D Logo */}
-      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/90 backdrop-blur-xl px-4 py-3 sm:px-8">
+      {/* Top Sticky Navbar */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5 group">
             <img
@@ -328,7 +358,7 @@ function HomeContent() {
 
           <div className="flex items-center gap-2 sm:gap-3">
             <Link
-              href="/matcher"
+              href="/ai-finder"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
               <span>⚡ Matcher</span>
@@ -350,7 +380,7 @@ function HomeContent() {
 
             <Link
               href="/submit"
-              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition shadow-sm"
+              className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-sm"
             >
               <span>+ Submit</span>
             </Link>
@@ -373,21 +403,21 @@ function HomeContent() {
           for Your Workflow.
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-xs sm:text-sm text-slate-400 leading-relaxed">
-          Search, compare and explore verified AI tools across productivity,
+          Search, compare, and explore verified AI tools across productivity,
           coding, marketing, and creative industries.
         </p>
 
-        {/* Global Search Bar */}
+        {/* Global Search Input */}
         <div className="mx-auto mt-8 max-w-2xl">
           <div className="relative">
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={`Search ${
-                tools.length > 0 ? tools.length : 750
+              placeholder={`Search across ${
+                tools.length > 0 ? tools.length : 840
               } verified AI software...`}
-              className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/80 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+              className="h-13 w-full rounded-2xl border border-slate-700 bg-slate-900/90 px-5 pr-12 text-sm text-white placeholder:text-slate-500 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-inner"
             />
             {search && (
               <button
@@ -401,9 +431,9 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Featured AI Spotlight Shelf */}
+      {/* Featured AI Spotlight Shelf (Shows Real Trending Tools: DeepSeek, Cursor, Claude) */}
       {spotlightTools.length > 0 && !search && selectedCat === "All" && (
-        <section className="border-b border-slate-200/80 bg-gradient-to-r from-slate-950 via-[#070b1e] to-slate-950 py-8 px-4 sm:px-8 text-white">
+        <section className="border-b border-slate-800 bg-[#070B19] py-8 px-4 sm:px-8 text-white">
           <div className="mx-auto max-w-7xl">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -430,7 +460,7 @@ function HomeContent() {
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <ToolLogo
-                        src={tool.logo_url as string}
+                        src={(tool.logo_url || tool.logo) as string}
                         name={String(tool.name)}
                         website={String(tool.website_url || tool.website || "")}
                         slug={String(tool.slug || "")}
@@ -449,9 +479,13 @@ function HomeContent() {
                       Featured
                     </span>
                   </div>
-                  <p className="mt-2.5 line-clamp-2 text-[11px] text-slate-300">
-                    {String(tool.description || tool.overview || "")}
+                  <p className="mt-2.5 line-clamp-2 text-[11px] text-slate-300 leading-relaxed">
+                    {cleanAiContent(tool.tagline || tool.overview || tool.description)}
                   </p>
+                  <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-[10px]">
+                    <span className="text-blue-400 font-bold">Score {formatAIScore(getToolScore(tool))}</span>
+                    <span className="text-slate-400 group-hover:text-white font-medium">Explore Dossier →</span>
+                  </div>
                 </Link>
               ))}
             </div>
@@ -459,14 +493,14 @@ function HomeContent() {
         </section>
       )}
 
-      {/* Programmatic Head-to-Head Comparisons */}
-      {popularComparisons.length > 0 && !search && selectedCat === "All" && (
+      {/* Programmatic Real Head-to-Head Comparisons */}
+      {!search && selectedCat === "All" && (
         <section className="border-b border-slate-200/80 bg-white py-8 px-4 sm:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-5 flex flex-wrap items-center justify-between gap-2">
               <div>
                 <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
-                  🔥 Trending Face-Offs
+                  🔥 Trending Face-Offs (2026)
                 </span>
                 <h2 className="text-base font-black text-slate-950 sm:text-lg mt-1">
                   Popular AI Head-to-Head Comparisons
@@ -481,30 +515,24 @@ function HomeContent() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {popularComparisons.map(({ toolA, toolB }, idx) => {
-                const slugA = encodeURIComponent(String(toolA.slug || ""));
-                const slugB = encodeURIComponent(String(toolB.slug || ""));
-                const nameA = String(toolA.name || "Tool A");
-                const nameB = String(toolB.name || "Tool B");
-                const vsHref = `/vs/${slugA}-vs-${slugB}`;
+              {CURATED_MATCHUPS.map((m, idx) => {
+                const vsHref = `/compare/${m.slugA}-vs-${m.slugB}`;
 
                 return (
                   <Link
                     key={idx}
                     href={vsHref}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-md"
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/50 p-4 transition-all duration-200 hover:-translate-y-1 hover:border-blue-400 hover:bg-white hover:shadow-md"
                   >
                     <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2 min-w-0">
                         <ToolLogo
-                          src={toolA.logo_url as string}
-                          name={nameA}
-                          website={String(toolA.website_url || toolA.website || "")}
-                          slug={String(toolA.slug || "")}
+                          name={m.nameA}
+                          slug={m.slugA}
                           size="sm"
                         />
                         <span className="truncate text-xs font-black text-slate-900">
-                          {nameA}
+                          {m.nameA}
                         </span>
                       </div>
                       <span className="shrink-0 rounded-full bg-blue-600 px-2 py-0.5 text-[9px] font-black text-white">
@@ -512,21 +540,19 @@ function HomeContent() {
                       </span>
                       <div className="flex items-center gap-2 min-w-0 justify-end">
                         <span className="truncate text-xs font-black text-slate-900">
-                          {nameB}
+                          {m.nameB}
                         </span>
                         <ToolLogo
-                          src={toolB.logo_url as string}
-                          name={nameB}
-                          website={String(toolB.website_url || toolB.website || "")}
-                          slug={String(toolB.slug || "")}
+                          name={m.nameB}
+                          slug={m.slugB}
                           size="sm"
                         />
                       </div>
                     </div>
 
                     <div className="mt-3 flex items-center justify-between border-t border-slate-200/60 pt-2 text-[10px]">
-                      <span className="font-semibold text-slate-400 capitalize">
-                        {String(toolA.category || "AI")} Stack
+                      <span className="font-semibold text-slate-400">
+                        {m.category}
                       </span>
                       <span className="font-bold text-blue-600 group-hover:translate-x-0.5 transition-transform">
                         Compare Now →
@@ -540,6 +566,7 @@ function HomeContent() {
         </section>
       )}
 
+      {/* Main Catalog View */}
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         {/* Filters */}
         <section className="mb-8 space-y-4">
