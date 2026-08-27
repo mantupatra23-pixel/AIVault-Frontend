@@ -1,5 +1,4 @@
-// app/api/admin/submissions/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -13,25 +12,51 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
+function getSupabase() {
+  return createClient(SUPABASE_URL, SUPABASE_KEY);
+}
+
+// GET: Fetch all pending submissions waiting for Admin Review
 export async function GET() {
   try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      return NextResponse.json(
+        { error: "Supabase environment credentials missing." },
+        { status: 500 }
+      );
+    }
+
+    const supabase = getSupabase();
     const { data, error } = await supabase
       .from("ai_tools")
       .select("*")
-      .eq("affiliate_status", "pending_submission")
+      .or("affiliate_status.eq.pending_submission,is_approved.eq.false")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
-    return NextResponse.json({ success: true, submissions: data || [] });
+
+    return NextResponse.json({
+      success: true,
+      submissions: data || [],
+      count: data?.length || 0,
+    });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Fetch error";
+    const msg = err instanceof Error ? err.message : "Failed to fetch pending submissions";
+    console.error("Admin submissions GET error:", msg);
     return NextResponse.json({ error: msg, submissions: [] }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+// POST: Moderate (Approve / Reject) or Direct-Submit Tools
+export async function POST(req: NextRequest) {
   try {
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      return NextResponse.json(
+        { error: "Supabase environment credentials missing." },
+        { status: 500 }
+      );
+    }
+
     const body = await req.json();
     const {
       id,
@@ -41,80 +66,119 @@ export async function POST(req: Request) {
       logo_url,
       category,
       pricing,
+      pricing_model,
       description,
+      overview,
       is_featured,
+      tier,
     } = body;
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supabase = getSupabase();
 
-    // 1. Admin Moderation Actions
+    // 1. APPROVE ACTION: Publish tool live to Public Frontend
     if (action === "approve" && id) {
+      const updatePayload: Record<string, unknown> = {
+        affiliate_status: "direct",
+        is_approved: true,
+      };
+
       const { error } = await supabase
         .from("ai_tools")
-        .update({ affiliate_status: "direct" })
+        .update(updatePayload)
         .eq("id", id);
-      if (error) throw error;
-      return NextResponse.json({ success: true });
+
+      if (error) {
+        // Fallback without is_approved column if not present in schema
+        const fallback = await supabase
+          .from("ai_tools")
+          .update({ affiliate_status: "direct" })
+          .eq("id", id);
+        if (fallback.error) throw fallback.error;
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Tool successfully approved and published live!",
+      });
     }
 
-    if (action === "reject" && id) {
+    // 2. REJECT / DELETE ACTION: Permanently remove submission
+    if ((action === "reject" || action === "delete") && id) {
       const { error } = await supabase
         .from("ai_tools")
         .delete()
         .eq("id", id);
+
       if (error) throw error;
-      return NextResponse.json({ success: true });
+
+      return NextResponse.json({
+        success: true,
+        message: "Tool submission rejected and permanently removed.",
+      });
     }
 
-    // 2. User Tool Submission Validation
-    if (!name || !website_url || !description) {
+    // 3. DIRECT SUBMISSION HANDLER (Validation & Queue Insertion)
+    const cleanName = String(name || "").trim();
+    const cleanWebsite = String(website_url || "").trim();
+    const cleanDesc = String(
+      description || overview || `${cleanName} is an AI solution for modern operations.`
+    ).trim();
+
+    if (!cleanName || !cleanWebsite) {
       return NextResponse.json(
-        { error: "Required fields missing (Name, Website, Description)." },
+        { error: "Tool Name and Official Website URL are required." },
         { status: 400 }
       );
     }
 
-    const cleanSlug = String(name)
+    const cleanSlug = cleanName
       .toLowerCase()
-      .trim()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)+/g, "");
 
     const slug = `${cleanSlug}-${Date.now().toString().slice(-4)}`;
+    const isFeaturedTier = is_featured || tier === "featured";
 
-    // Exact confirmed columns in ai_tools schema (pricing_type removed)
-    const payload: Record<string, unknown> = {
-      name: String(name).trim(),
+    const insertPayload: Record<string, unknown> = {
+      name: cleanName,
       slug: slug,
-      website_url: String(website_url).trim(),
+      website_url: cleanWebsite,
+      website: cleanWebsite,
       category: category || "Productivity",
-      pricing: pricing || "Freemium",
-      description: String(description).trim(),
-      overview: String(description).trim(),
+      pricing: pricing || pricing_model || "Freemium",
+      pricing_model: pricing || pricing_model || "Freemium",
+      description: cleanDesc,
+      overview: cleanDesc,
       affiliate_status: "pending_submission",
-      score: is_featured ? 96 : 92,
-      ai_vault_score: is_featured ? 96 : 92,
+      score: isFeaturedTier ? 96 : 92,
+      ai_vault_score: isFeaturedTier ? 96 : 92,
       created_at: new Date().toISOString(),
     };
 
     if (logo_url && String(logo_url).trim()) {
-      payload.logo_url = String(logo_url).trim();
+      insertPayload.logo_url = String(logo_url).trim();
+      insertPayload.logo = String(logo_url).trim();
     }
 
     const { data, error } = await supabase
       .from("ai_tools")
-      .insert([payload])
+      .insert([insertPayload])
       .select()
       .single();
 
     if (error) {
-      console.error("Supabase insert error:", error);
+      console.error("Supabase submission error:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true, data });
+    return NextResponse.json({
+      success: true,
+      message: "Tool submitted successfully to editorial review queue!",
+      data,
+    });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Submission failed";
+    const msg = err instanceof Error ? err.message : "Submission request failed";
+    console.error("Admin submissions POST error:", msg);
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
