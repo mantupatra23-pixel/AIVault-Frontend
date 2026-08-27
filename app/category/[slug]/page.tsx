@@ -5,10 +5,10 @@ import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import ToolLogo from "@/components/ToolLogo";
 import { cleanAiContent } from "@/lib/content-quality";
-import { getToolScore, formatAIScore } from "@/lib/score";
+import { getToolScore, formatAIScore, getScoreBarWidth } from "@/lib/score";
 
-// 30 minute ISR cache revalidation for daily new tool indexing
-export const revalidate = 1800;
+// 1 Hour ISR cache revalidation for high-speed Googlebot indexing
+export const revalidate = 3600;
 
 type PageProps = {
   params: Promise<{ slug: string }>;
@@ -24,6 +24,7 @@ type ToolRecord = {
   category?: string | null;
   pricing?: string | null;
   pricing_model?: string | null;
+  pricing_type?: string | null;
   score?: number | string | null;
   neural_score?: number | string | null;
   ai_vault_score?: number | null;
@@ -35,7 +36,6 @@ type ToolRecord = {
   pros?: string[] | string | null;
   cons?: string[] | string | null;
   created_at?: string | null;
-  updated_at?: string | null;
   [key: string]: unknown;
 };
 
@@ -50,30 +50,74 @@ function getSupabase() {
   return createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
+const CATEGORY_MAP: Record<
+  string,
+  { name: string; icon: string; headline: string; description: string; query: string }
+> = {
+  coding: {
+    name: "Coding & Dev",
+    icon: "💻",
+    headline: "Best AI Coding Assistants & Autonomous Engineers (2026)",
+    description: "Explore top AI coding tools, autonomous agents, and IDE extensions for full-stack developers, terminal automation, and code generation.",
+    query: "coding",
+  },
+  productivity: {
+    name: "Productivity & Ops",
+    icon: "🚀",
+    headline: "Top AI Productivity Software & Pipeline Accelerators",
+    description: "Discover verified AI workflow automation platforms, smart workspace assistants, and real-time operational execution hubs.",
+    query: "productivity",
+  },
+  chatbot: {
+    name: "Chatbots & LLMs",
+    icon: "🤖",
+    headline: "Frontier Conversational AI & Advanced Reasoning Engines",
+    description: "Compare benchmarked frontier LLMs, conversational assistants, and reasoning models for enterprise and personal intelligence.",
+    query: "chatbot",
+  },
+  marketing: {
+    name: "Marketing & SEO",
+    icon: "📈",
+    headline: "High-ROI AI Marketing & Growth Automation Platforms",
+    description: "Find verified AI tools for automated ad creative generation, multi-channel outreach, SEO optimization, and audience analytics.",
+    query: "marketing",
+  },
+  image: {
+    name: "Image & Graphic Design",
+    icon: "🎨",
+    headline: "Leading AI Image Generators & Generative Art Models",
+    description: "State-of-the-art diffusion models, photorealistic image synthesis, visual asset designers, and commercial graphic generators.",
+    query: "image",
+  },
+  writing: {
+    name: "Writing & Copywriting",
+    icon: "✍️",
+    headline: "Top AI Writing Assistants & Long-Form Copy Platforms",
+    description: "Tools for drafting high-converting copy, technical documentation, newsletters, and programmatic content workflows.",
+    query: "writing",
+  },
+  audio: {
+    name: "Audio & Voice AI",
+    icon: "🎵",
+    headline: "High-Fidelity AI Voice Cloning & Audio Engines",
+    description: "Synthesize photorealistic speech, multilingual dubbing, custom sound effects, and full musical composition.",
+    query: "audio",
+  },
+  video: {
+    name: "Video Generation",
+    icon: "🎬",
+    headline: "Cutting-Edge Generative Video & Cinematic AI Suites",
+    description: "Generate cinematic videos, video-to-video transformations, and automated marketing clips from text prompts.",
+    query: "video",
+  },
+};
+
 function formatCategoryTitle(slug: string): string {
   if (!slug) return "AI Software";
   return decodeURIComponent(slug)
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
-}
-
-const ALL_CATEGORIES = [
-  { slug: "coding", title: "Coding & Dev" },
-  { slug: "marketing", title: "Marketing & SEO" },
-  { slug: "productivity", title: "Productivity & Ops" },
-  { slug: "chatbot", title: "AI Agents & Chatbots" },
-  { slug: "image", title: "Image & Graphic Design" },
-  { slug: "writing", title: "Writing & Copywriting" },
-  { slug: "audio", title: "Audio & Voice AI" },
-  { slug: "video", title: "Video Generation" },
-];
-
-function isRecentlyAdded(dateStr?: string | null): boolean {
-  if (!dateStr) return false;
-  const toolDate = new Date(dateStr).getTime();
-  const now = new Date().getTime();
-  return (now - toolDate) / (1000 * 60 * 60 * 24) <= 7;
 }
 
 function extractCleanFeatures(tool: ToolRecord): string[] {
@@ -87,12 +131,12 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
     .filter((s) => s.length > 15 && s.length < 120);
 
   if (sentences.length >= 2) return sentences.slice(0, 3);
-  return ["Automated Workflow Engine", "Real-Time Cloud Processing", "REST API & Webhook Connectivity"];
+  return ["Workflow Automation Pipeline", "REST API & Webhook Connectivity", "Real-Time Cloud Processing Engine"];
 }
 
 function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] } {
-  const pricing = String(tool.pricing_model || tool.pricing || "").toLowerCase();
-  let pros = ["Fast response latency & 99.9% uptime", "Intuitive dashboard with zero setup curve"];
+  const pricing = String(tool.pricing_model || tool.pricing_type || tool.pricing || "").toLowerCase();
+  let pros = ["Fast response latency & high uptime", "Intuitive dashboard with zero setup curve"];
   let cons = ["Advanced enterprise tier requires custom quote"];
 
   if (pricing.includes("free")) {
@@ -103,18 +147,23 @@ function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] 
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params;
-  const categoryTitle = formatCategoryTitle(slug);
+  const cleanSlug = decodeURIComponent(slug || "").trim().toLowerCase();
+  const info = CATEGORY_MAP[cleanSlug] || {
+    name: formatCategoryTitle(cleanSlug),
+    headline: `Best ${formatCategoryTitle(cleanSlug)} AI Tools in 2026`,
+    description: `Explore top verified ${formatCategoryTitle(cleanSlug)} software platforms in 2026. Compare pricing plans, benchmark ratings, and core features.`,
+  };
 
   return {
-    title: `Best ${categoryTitle} AI Tools in 2026 — Verified Reviews & Pricing | AI Vault`,
-    description: `Explore the top verified ${categoryTitle} software platforms in 2026. Compare pricing plans, benchmark ratings, core features, and pros/cons.`,
+    title: `${info.headline} | AI Vault`,
+    description: info.description,
     alternates: {
-      canonical: `https://www.aivault.pp.ua/category/${slug}`,
+      canonical: `https://www.aivault.pp.ua/category/${cleanSlug}`,
     },
     openGraph: {
-      title: `Best ${categoryTitle} AI Tools in 2026 — AI Vault`,
-      description: `Compare top-ranked ${categoryTitle} platforms with verified benchmark scores.`,
-      url: `https://www.aivault.pp.ua/category/${slug}`,
+      title: `${info.name} AI Directory (2026) | AI Vault`,
+      description: info.description,
+      url: `https://www.aivault.pp.ua/category/${cleanSlug}`,
       type: "website",
     },
   };
@@ -122,8 +171,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function CategoryPage({ params }: PageProps) {
   const { slug } = await params;
-  const cleanSlug = decodeURIComponent(slug).trim().toLowerCase();
+  const cleanSlug = decodeURIComponent(slug || "").trim().toLowerCase();
   const categoryTitle = formatCategoryTitle(cleanSlug);
+
+  const info = CATEGORY_MAP[cleanSlug] || {
+    name: categoryTitle,
+    icon: "⚡",
+    headline: `Top ${categoryTitle} AI Solutions (2026)`,
+    description: `Discover verified software architectures and AI models tailored for ${categoryTitle.toLowerCase()} operations.`,
+    query: cleanSlug.split("-")[0],
+  };
 
   const supabase = getSupabase();
   let tools: ToolRecord[] = [];
@@ -132,10 +189,10 @@ export default async function CategoryPage({ params }: PageProps) {
     const { data } = await supabase
       .from("ai_tools")
       .select("*")
-      .ilike("category", `%${cleanSlug}%`)
+      .ilike("category", `%${info.query}%`)
       .not("slug", "is", null)
       .order("score", { ascending: false })
-      .limit(100);
+      .limit(60);
 
     if (data && data.length > 0) {
       tools = data as ToolRecord[];
@@ -144,6 +201,7 @@ export default async function CategoryPage({ params }: PageProps) {
         .from("ai_tools")
         .select("*")
         .not("slug", "is", null)
+        .order("score", { ascending: false })
         .limit(30);
       tools = (fallback.data as ToolRecord[]) || [];
     }
@@ -155,42 +213,70 @@ export default async function CategoryPage({ params }: PageProps) {
     notFound();
   }
 
+  const spotlightTools = tools.slice(0, 3);
   const toolCount = tools.length;
 
-  // Rich FAQ & ItemList Schema for Google Search Snippets
+  // Google JSON-LD Structured Schema
   const richSchema = {
     "@context": "https://schema.org",
     "@graph": [
       {
-        "@type": "ItemList",
-        "name": `Best ${categoryTitle} AI Tools in 2026`,
-        "description": `Verified rankings of top ${categoryTitle} software platforms`,
-        "numberOfItems": toolCount,
-        "itemListElement": tools.slice(0, 15).map((t, idx) => ({
-          "@type": "ListItem",
-          "position": idx + 1,
-          "name": t.name,
-          "url": `https://www.aivault.pp.ua/tool/${t.slug}`,
-        })),
+        "@type": "CollectionPage",
+        name: info.headline,
+        description: info.description,
+        url: `https://www.aivault.pp.ua/category/${cleanSlug}`,
+        mainEntity: {
+          "@type": "ItemList",
+          numberOfItems: toolCount,
+          itemListElement: tools.slice(0, 15).map((t, idx) => ({
+            "@type": "ListItem",
+            position: idx + 1,
+            name: t.name,
+            url: `https://www.aivault.pp.ua/tool/${t.slug}`,
+          })),
+        },
       },
       {
         "@type": "FAQPage",
-        "mainEntity": [
+        mainEntity: [
           {
             "@type": "Question",
-            "name": `What are the best ${categoryTitle} AI tools in 2026?`,
-            "acceptedAnswer": {
+            name: `What are the best ${info.name} AI tools in 2026?`,
+            acceptedAnswer: {
               "@type": "Answer",
-              "text": `The top verified ${categoryTitle} AI tools include ${tools.slice(0, 3).map((t) => t.name).join(", ")}. These tools provide benchmarked performance, API support, and transparent pricing.`,
+              text: `The top verified ${info.name} AI tools include ${spotlightTools.map((t) => t.name).join(", ")}. These tools provide benchmarked output reliability, API connectivity, and transparent pricing.`,
             },
           },
           {
             "@type": "Question",
-            "name": `Are there free ${categoryTitle} AI tools available?`,
-            "acceptedAnswer": {
+            name: `Are there free ${info.name} AI platforms available?`,
+            acceptedAnswer: {
               "@type": "Answer",
-              "text": `Yes, many ${categoryTitle} platforms offer freemium tiers that let users explore core AI generation features without upfront subscription fees.`,
+              text: `Yes, many ${info.name} platforms provide free or freemium tiers that let users explore core AI generation and automation workflows without upfront fees.`,
             },
+          },
+        ],
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: "https://www.aivault.pp.ua",
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: "Categories",
+            item: "https://www.aivault.pp.ua/#categories",
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: info.name,
+            item: `https://www.aivault.pp.ua/category/${cleanSlug}`,
           },
         ],
       },
@@ -198,312 +284,309 @@ export default async function CategoryPage({ params }: PageProps) {
   };
 
   return (
-    <main className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-24 font-sans">
+    <main className="min-h-screen bg-[#FAFBFD] text-slate-900 pb-28 font-sans">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(richSchema) }}
       />
 
-      {/* STICKY HEADER */}
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 sm:px-8">
+      {/* HEADER */}
+      <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
-            AI Vault<span className="text-blue-600">.</span>
+          <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
+            <img src="/logo.png" alt="AI Vault" className="h-7 w-7 object-contain" />
+            <span>AI Vault<span className="text-blue-600">.</span></span>
           </Link>
-          <div className="flex items-center gap-3">
+
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/ai-finder"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
               ⚡ Matcher
             </Link>
             <Link
               href="/compare"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
               ⚖️ Compare
             </Link>
             <Link
               href="/"
-              className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 transition"
             >
-              ← All Directory
+              ← Back to Catalog
             </Link>
           </div>
         </div>
       </header>
 
-      {/* HERO SECTION */}
-      <section className="border-b border-slate-200 bg-white py-12 px-4 sm:px-6">
-        <div className="mx-auto max-w-4xl text-center">
-          <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200/60 px-3.5 py-1 text-[11px] font-black uppercase tracking-wider text-blue-600 mb-4">
-            ✦ Category Index • 2026 Directory
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
+        {/* BREADCRUMB */}
+        <div className="mb-6 flex items-center gap-2 text-[11px] font-bold text-slate-400">
+          <Link href="/" className="hover:text-blue-600">Directory</Link>
+          <span>/</span>
+          <span className="text-slate-900 capitalize">{info.name}</span>
+        </div>
+
+        {/* HERO SECTION */}
+        <section className="mb-12 rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 shadow-sm text-center max-w-5xl mx-auto">
+          <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-4 py-1.5 text-[11px] font-black uppercase tracking-wider text-blue-600 mb-4">
+            <span>{info.icon}</span>
+            <span>Category Intelligence Index</span>
           </div>
-          <h1 className="text-3xl font-black text-slate-950 sm:text-5xl tracking-tight">
-            Best <span className="text-blue-600">{toolCount}</span> {categoryTitle} Tools in 2026
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-950 tracking-tight">
+            Best <span className="text-blue-600">{toolCount}</span> {info.name} Tools in 2026
           </h1>
-          <p className="mt-4 text-xs sm:text-sm text-slate-600 leading-relaxed max-w-3xl mx-auto">
-            Explore verified {categoryTitle.toLowerCase()} AI software platforms, frameworks, and APIs. Compare transparent pricing models, benchmark scores, user reviews, and instant alternatives.
+          <p className="mt-4 text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
+            {info.description}
           </p>
+
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            <span className="rounded-full bg-slate-100 px-3.5 py-1 text-xs font-bold text-slate-700">
+              📊 {toolCount} Verified Platforms
+            </span>
+            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-3.5 py-1 text-xs font-bold text-emerald-700">
+              ✓ Daily Benchmarks Verified
+            </span>
+          </div>
 
           {/* CATEGORY CHIPS */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-            {ALL_CATEGORIES.map((c) => (
+            {Object.entries(CATEGORY_MAP).map(([key, item]) => (
               <Link
-                key={c.slug}
-                href={`/category/${c.slug}`}
+                key={key}
+                href={`/category/${key}`}
                 className={`rounded-xl px-3.5 py-1.5 text-xs font-bold transition ${
-                  c.slug === cleanSlug
+                  key === cleanSlug
                     ? "bg-slate-950 text-white shadow"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                {c.title}
+                <span>{item.icon} {item.name}</span>
               </Link>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* TOOL LISTING FEED */}
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6 space-y-8">
-        {tools.map((tool, index) => {
-          const isNew = isRecentlyAdded(tool.created_at);
-          const toolScore = getToolScore(tool) ?? 88;
-          const pricingModel = String(tool.pricing_model || tool.pricing || "Freemium");
-          const features = extractCleanFeatures(tool);
-          const { pros, cons } = extractProsAndCons(tool);
-          const reviewCount = (tool.name.charCodeAt(0) * 149) % 800 + 45;
-
-          return (
-            <article
-              key={tool.slug || index}
-              className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm transition hover:shadow-md"
-            >
-              {/* CARD HEADER */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-100">
-                <div className="flex items-start gap-4">
-                  <ToolLogo
-                    name={tool.name}
-                    src={(tool.logo_url || tool.logo) as string}
-                    website={tool.website_url || tool.website}
-                    size="lg"
-                  />
-                  <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                      <h2 className="text-xl font-black text-slate-950">{tool.name}</h2>
-                      <span className="rounded-full bg-blue-50 border border-blue-200/60 px-2.5 py-0.5 text-[10px] font-black text-blue-600 uppercase">
-                        Rank #{index + 1}
-                      </span>
-                      {isNew && (
-                        <span className="rounded-full bg-emerald-50 border border-emerald-200/60 px-2 py-0.5 text-[10px] font-black text-emerald-600 uppercase">
-                          ✨ New
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500 line-clamp-2">
-                      {tool.tagline || tool.overview || `${tool.name} platform for automated ${categoryTitle.toLowerCase()} workflows.`}
-                    </p>
-                    <div className="mt-2.5 flex items-center gap-3 text-xs">
-                      <div className="flex text-amber-400">{"★".repeat(5)}</div>
-                      <span className="font-bold text-slate-900">4.9 / 5.0</span>
-                      <span className="text-slate-400">({reviewCount} reviews)</span>
-                      <span className="text-blue-600 font-bold">• Score {formatAIScore(toolScore)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex sm:flex-col gap-2 shrink-0">
-                  <a
-                    href={`/go/${encodeURIComponent(tool.slug)}`}
-                    target="_blank"
-                    rel="noopener noreferrer sponsored"
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-700 shadow-sm transition"
-                  >
-                    Visit Website ↗
-                  </a>
-                  <Link
-                    href={`/tool/${tool.slug}`}
-                    className="flex-1 sm:flex-none inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
-                  >
-                    Full Dossier →
-                  </Link>
-                </div>
-              </div>
-
-              {/* MULTI-TIER PRICING BREAKDOWN */}
-              <div className="py-6">
-                <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
-                  {tool.name} Pricing Plans & Tiers
-                </h3>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
-                    <div className="text-xs font-black text-slate-900">Free / Starter</div>
-                    <div className="mt-1 text-lg font-black text-slate-950">$0</div>
-                    <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                      Access basic features, shared cloud capacity, and community support.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-blue-200 bg-blue-50/30 p-4">
-                    <div className="text-xs font-black text-blue-900">Pro / Creator</div>
-                    <div className="mt-1 text-lg font-black text-blue-600">
-                      {pricingModel.toLowerCase().includes("free") ? "$19" : "$29"}
-                      <span className="text-xs font-normal text-slate-500">/mo</span>
-                    </div>
-                    <p className="mt-1.5 text-[11px] text-slate-600 leading-normal">
-                      Full high-speed generation, priority API tokens, and zero watermark exports.
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
-                    <div className="text-xs font-black text-slate-900">Enterprise / API</div>
-                    <div className="mt-1 text-lg font-black text-slate-950">Custom</div>
-                    <p className="mt-1.5 text-[11px] text-slate-500 leading-normal">
-                      Dedicated cloud cluster, custom SLAs, volume rate limits, and SOC2 compliance.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* SSR ACCORDIONS */}
-              <div className="space-y-2 border-t border-slate-100 pt-4">
-                <details className="group rounded-xl border border-slate-200 bg-slate-50/30 px-4 py-3 transition">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-800">
-                    <span>What is {tool.name}?</span>
-                    <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
-                  </summary>
-                  <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                    {cleanAiContent(tool.overview || tool.description || tool.tagline) || `${tool.name} is a verified AI software platform engineered for high-throughput ${categoryTitle.toLowerCase()} workloads.`}
-                  </p>
-                </details>
-
-                <details className="group rounded-xl border border-slate-200 bg-slate-50/30 px-4 py-3 transition">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-800">
-                    <span>{tool.name} Core Capabilities & Features</span>
-                    <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
-                  </summary>
-                  <ul className="mt-2.5 space-y-1.5 text-xs text-slate-600">
-                    {features.map((f, idx) => (
-                      <li key={idx} className="flex items-center gap-2">
-                        <span className="text-blue-600 font-bold">✓</span> {f}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-
-                <details className="group rounded-xl border border-slate-200 bg-slate-50/30 px-4 py-3 transition">
-                  <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-800">
-                    <span>{tool.name} Pros & Cons Analysis</span>
-                    <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
-                  </summary>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                    <div className="space-y-1">
-                      {pros.map((p, idx) => (
-                        <p key={idx} className="text-emerald-700 font-medium">
-                          + {p}
-                        </p>
-                      ))}
-                    </div>
-                    <div className="space-y-1">
-                      {cons.map((c, idx) => (
-                        <p key={idx} className="text-rose-600 font-medium">
-                          − {c}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                </details>
-              </div>
-
-              {/* CARD FOOTER */}
-              <div className="mt-5 pt-4 border-t border-slate-100 flex items-center justify-between">
-                <Link
-                  href={`/compare?tools=${encodeURIComponent(tool.slug)}`}
-                  className="text-xs font-bold text-blue-600 hover:underline"
-                >
-                  ⚖️ Compare {tool.name} against alternatives →
-                </Link>
-                <a
-                  href={`/go/${encodeURIComponent(tool.slug)}`}
-                  target="_blank"
-                  rel="noopener noreferrer sponsored"
-                  className="text-xs font-black text-slate-700 hover:text-blue-600"
-                >
-                  Try {tool.name} Free ↗
-                </a>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      {/* AUTHORITY GUIDE & FAQ */}
-      <section className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
-        <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm space-y-8">
-          <div>
-            <h2 className="text-2xl font-black text-slate-950">
-              What are {categoryTitle} AI Tools?
+        {/* TOP PODIUM SPOTLIGHT (TOP 3 RATED) */}
+        {spotlightTools.length > 0 && (
+          <section className="mb-14">
+            <h2 className="text-base font-black text-slate-950 mb-4 flex items-center gap-2">
+              🏆 Top Rated in {info.name}
             </h2>
-            <p className="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed">
-              {categoryTitle} AI software platforms utilize specialized machine learning models and deterministic automation pipelines to solve end-to-end industry problems. By integrating autonomous workflows, teams reduce manual execution time while scaling throughput and computational accuracy.
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+              {spotlightTools.map((tool, idx) => {
+                const score = getToolScore(tool) ?? 95;
+                const pricing = String(tool.pricing_model || tool.pricing_type || tool.pricing || "Freemium");
+                return (
+                  <div
+                    key={tool.slug}
+                    className={`relative flex flex-col justify-between rounded-3xl border bg-white p-6 shadow-sm transition hover:-translate-y-1 ${
+                      idx === 0 ? "border-blue-500 ring-2 ring-blue-500/20 shadow-blue-50" : "border-slate-200"
+                    }`}
+                  >
+                    <span className="absolute -top-3 left-6 rounded-full bg-blue-600 px-3 py-0.5 text-[10px] font-black uppercase tracking-wider text-white shadow-sm">
+                      #{idx + 1} Best Rated
+                    </span>
+
+                    <div>
+                      <div className="flex items-center justify-between gap-3 mb-4 mt-1">
+                        <ToolLogo
+                          name={tool.name}
+                          src={tool.logo_url || tool.logo}
+                          website={tool.website_url || tool.website}
+                          slug={tool.slug}
+                          size="md"
+                        />
+                        <div className="text-right">
+                          <span className="text-base font-black text-blue-600">{formatAIScore(score)}</span>
+                          <span className="block text-[9px] font-bold text-slate-400 uppercase">Score</span>
+                        </div>
+                      </div>
+
+                      <h3 className="text-base font-black text-slate-950 truncate mb-1">
+                        {tool.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4">
+                        {cleanAiContent(tool.tagline || tool.overview || tool.description)}
+                      </p>
+                    </div>
+
+                    <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                      <span className="rounded-md bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-700">
+                        {pricing}
+                      </span>
+                      <Link
+                        href={`/tool/${tool.slug}`}
+                        className="text-xs font-black text-blue-600 hover:underline"
+                      >
+                        Explore Dossier →
+                      </Link>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {/* FULL DIRECTORY GRID WITH FEATURES & PROS/CONS */}
+        <section className="mb-14 space-y-6">
+          <h2 className="text-base font-black text-slate-950">
+            All {info.name} Tools ({tools.length})
+          </h2>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {tools.map((tool, index) => {
+              const score = getToolScore(tool) ?? 92;
+              const barWidth = getScoreBarWidth(score);
+              const pricing = String(tool.pricing_model || tool.pricing_type || tool.pricing || "Freemium");
+              const features = extractCleanFeatures(tool);
+              const { pros, cons } = extractProsAndCons(tool);
+
+              return (
+                <article
+                  key={tool.slug || index}
+                  className="rounded-3xl border border-slate-200/90 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md flex flex-col justify-between"
+                >
+                  <div>
+                    {/* CARD TOP */}
+                    <div className="flex items-start justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <ToolLogo
+                          name={tool.name}
+                          src={tool.logo_url || tool.logo}
+                          website={tool.website_url || tool.website}
+                          slug={tool.slug}
+                          size="md"
+                        />
+                        <div className="min-w-0">
+                          <h3 className="text-base font-black text-slate-950 truncate">
+                            {tool.name}
+                          </h3>
+                          <span className="rounded-md bg-slate-50 border border-slate-200 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                            {pricing}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-base font-black text-blue-600">{formatAIScore(score)}</span>
+                        <span className="block text-[9px] font-bold text-slate-400 uppercase">Score</span>
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed mb-4">
+                      {cleanAiContent(tool.tagline || tool.overview || tool.description)}
+                    </p>
+
+                    {/* CORE FEATURES BULLETS */}
+                    <ul className="space-y-1 mb-4 text-[11px] text-slate-700 bg-slate-50/60 p-3 rounded-2xl border border-slate-100">
+                      {features.map((f, idx) => (
+                        <li key={idx} className="flex items-center gap-2">
+                          <span className="text-blue-600 font-black">✓</span>
+                          <span className="truncate">{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* PROS & CONS */}
+                    <div className="grid grid-cols-2 gap-2 text-[10px] mb-4">
+                      <div className="space-y-1">
+                        {pros.map((p, idx) => (
+                          <p key={idx} className="text-emerald-700 font-medium truncate">
+                            + {p}
+                          </p>
+                        ))}
+                      </div>
+                      <div className="space-y-1">
+                        {cons.map((c, idx) => (
+                          <p key={idx} className="text-rose-600 font-medium truncate">
+                            − {c}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    {/* SCORE BAR */}
+                    <div className="border-t border-slate-100 pt-3 mb-3">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                        <div
+                          className="h-full bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 rounded-full"
+                          style={{ width: barWidth }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* ACTIONS */}
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`/go/${encodeURIComponent(tool.slug)}`}
+                        target="_blank"
+                        rel="noopener noreferrer sponsored"
+                        className="flex-1 rounded-xl bg-blue-600 py-2.5 text-center text-xs font-black text-white hover:bg-blue-700 shadow-sm transition"
+                      >
+                        Visit Portal ↗
+                      </a>
+                      <Link
+                        href={`/tool/${tool.slug}`}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
+                      >
+                        Dossier →
+                      </Link>
+                      <Link
+                        href={`/compare?tools=${encodeURIComponent(tool.slug)}`}
+                        className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-xs font-bold text-slate-700 hover:text-blue-600 transition"
+                        title="Compare against others"
+                      >
+                        ⚖️
+                      </Link>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* AUTHORITY FAQ & SUMMARY SECTION */}
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-10 shadow-sm space-y-6">
+          <div>
+            <h2 className="text-xl font-black text-slate-950">
+              Frequently Asked Questions about {info.name} AI Tools
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Everything you need to know about evaluating and integrating {info.name.toLowerCase()} software.
             </p>
           </div>
 
-          <div>
-            <h3 className="text-lg font-black text-slate-950">
-              Key Advantages of Using Verified {categoryTitle} Software
-            </h3>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-                <div className="text-blue-600 font-black text-sm mb-1">01. Cost Reduction</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Eliminate overhead by deploying automated intelligence engines that replace fragmented manual tooling.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-                <div className="text-blue-600 font-black text-sm mb-1">02. API Scalability</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Seamlessly connect REST endpoints, webhooks, and modern SDKs into production SaaS environments.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4 border border-slate-100">
-                <div className="text-blue-600 font-black text-sm mb-1">03. Rapid Iteration</div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  Generate, evaluate, and benchmark deliverables in real-time with continuous quality control.
-                </p>
-              </div>
-            </div>
-          </div>
+          <div className="space-y-3">
+            <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4" open>
+              <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-900">
+                <span>How are {info.name} tools ranked on AI Vault?</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+              </summary>
+              <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                Rankings are determined by our neural evaluation index, which continuously benchmarks generation latency, API reliability, user satisfaction, and pricing transparency across production environments.
+              </p>
+            </details>
 
-          <div>
-            <h3 className="text-lg font-black text-slate-950 mb-4">
-              Frequently Asked Questions about {categoryTitle}
-            </h3>
-            <div className="space-y-3">
-              <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4" open>
-                <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-900">
-                  <span>What are the best {categoryTitle} AI tools in 2026?</span>
-                  <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
-                </summary>
-                <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                  The top rated platforms are curated based on benchmark performance, user satisfaction, and pricing reliability. You can review head-to-head score metrics directly above.
-                </p>
-              </details>
-
-              <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
-                <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-900">
-                  <span>How can I choose the right platform for my team?</span>
-                  <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
-                </summary>
-                <p className="mt-2 text-xs leading-relaxed text-slate-600">
-                  Use the AI Vault interactive matcher to filter by specific constraints such as deployment target, team budget tier, and required API integrations.
-                </p>
-              </details>
-            </div>
+            <details className="group rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+              <summary className="flex cursor-pointer list-none items-center justify-between text-xs font-bold text-slate-900">
+                <span>Can I compare multiple {info.name} tools side-by-side?</span>
+                <span className="text-slate-400 group-open:rotate-180 transition-transform">▾</span>
+              </summary>
+              <p className="mt-2 text-xs leading-relaxed text-slate-600">
+                Yes. Click the ⚖️ button on any tool card or use our Compare Matrix to evaluate feature matrices, monthly pricing plans, and performance benchmarks side-by-side.
+              </p>
+            </details>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </main>
   );
 }
