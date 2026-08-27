@@ -15,6 +15,7 @@ type ToolRecord = {
   name?: string | null;
   description?: string | null;
   overview?: string | null;
+  tagline?: string | null;
   category?: string | null;
   pricing?: string | null;
   pricing_model?: string | null;
@@ -27,6 +28,7 @@ type ToolRecord = {
   website_url?: string | null;
   website?: string | null;
   affiliate_url?: string | null;
+  features?: string[] | string | null;
   deployment?: string | null;
   license?: string | null;
   [key: string]: unknown;
@@ -38,7 +40,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
   const resolvedParams = use(params);
-  const rawSlug = decodeURIComponent(resolvedParams.slug || "").trim();
+  const rawSlug = decodeURIComponent(resolvedParams.slug || "").trim().toLowerCase();
 
   const [tool, setTool] = useState<ToolRecord | null>(null);
   const [related, setRelated] = useState<ToolRecord[]>([]);
@@ -55,12 +57,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [quizBudget, setQuizBudget] = useState<"free" | "paid" | null>(null);
   const [quizTeam, setQuizTeam] = useState<"solo" | "team" | null>(null);
 
-  // Price Alert Lead State
   const [alertEmail, setAlertEmail] = useState("");
   const [alertStatus, setAlertStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [alertMsg, setAlertMsg] = useState("");
-
-  // FAQ Accordion State
   const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   useEffect(() => {
@@ -69,7 +68,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         const stored = localStorage.getItem("aivault_saved_tools");
         if (stored) {
           const list: string[] = JSON.parse(stored);
-          if (list.some((s) => s.toLowerCase() === rawSlug.toLowerCase())) {
+          if (list.some((s) => s.toLowerCase() === rawSlug)) {
             setBookmarked(true);
           }
         }
@@ -91,19 +90,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           .maybeSingle();
 
         if (toolErr || !toolData) {
-          console.error("Tool fetch error:", toolErr);
           setLoading(false);
           return;
         }
 
         setTool(toolData);
-
-        const seed = Math.abs(
-          String(toolData.name || "AI")
-            .split("")
-            .reduce((acc, char) => acc + char.charCodeAt(0), 0)
-        );
-        setUpvoteCount(95 + (seed % 110));
+        setUpvoteCount(95 + (Math.abs(String(toolData.name).charCodeAt(0) * 17) % 60));
 
         const cat = toolData.category || "Productivity";
         const { data: relatedData } = await supabase
@@ -133,7 +125,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const barWidth = getScoreBarWidth(score);
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
   const website = String(tool?.website_url || tool?.website || "");
-  const deployment = String(tool?.deployment || "Cloud / Web App & API");
+  const deployment = String(tool?.deployment || "Cloud / Web App");
   const license = String(tool?.license || "Commercial SaaS");
 
   const destinationUrl = useMemo(() => {
@@ -186,32 +178,14 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
-  const rawOverview = String(tool?.overview || tool?.description || "")
-    .replace(/I will provide an overview[^.]*\.\s*/gi, "")
-    .replace(/As a Senior SEO[^.]*\.\s*/gi, "")
-    .replace(/I conducted a thorough analysis[^.]*\.\s*/gi, "");
-
   const cleanOverview =
-    cleanAiContent(rawOverview) ||
-    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with real-time execution.`;
+    cleanAiContent(tool?.overview || tool?.description || tool?.tagline) ||
+    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with high-throughput processing.`;
 
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
 
   const playbookPrompts = useMemo(() => {
-    const cat = category.toLowerCase();
-    if (cat.includes("market") || cat.includes("invest")) {
-      return [
-        {
-          title: "Investor Pitch & Hook Optimizer",
-          prompt: `Analyze our value proposition for a modern audience. Identify the top 3 high-conviction hooks, potential friction points, and output a concise 60-second elevator pitch structured for ${toolName}.`,
-        },
-        {
-          title: "High-Response Cold Outreach Blueprint",
-          prompt: `Generate a 3-step personalised outreach cadence for prospect decision makers. Keep each message under 110 words with a specific, low-friction call to action.`,
-        },
-      ];
-    }
     return [
       {
         title: "Standard Workflow Acceleration Prompt",
@@ -222,38 +196,28 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         prompt: `Synthesize the core findings from this project into 5 bullet points with clear owner assignments and priority scores.`,
       },
     ];
-  }, [category, toolName]);
+  }, [toolName]);
 
   const faqList = useMemo(() => {
     return [
       {
         q: `Is ${toolName} free to use or does it require a subscription?`,
-        a: `${toolName} operates under a ${pricing} pricing structure. Users can explore foundational features at zero cost or test available tier options before upgrading to premium commercial access.`,
+        a: `${toolName} operates under a ${pricing} pricing structure. Users can explore foundational features at zero cost or test available tier options before upgrading to premium access.`,
       },
       {
         q: `What is the primary use case of ${toolName}?`,
-        a: `${toolName} is built specifically for ${category.toLowerCase()} workflows. It enables solo founders, developers, and enterprise operators to automate tasks, minimize latency, and scale content or operational throughput.`,
+        a: `${toolName} is built specifically for ${category.toLowerCase()} workflows. It enables solo founders, developers, and teams to automate tasks, reduce latency, and scale computational output.`,
       },
       {
         q: `How is the AI Vault Score of ${formattedScore} calculated?`,
-        a: `The AI Vault Score (${formattedScore}) is determined using our multi-vector neural index, assessing response speed, integration availability, output accuracy, and user sentiment across production deployments.`,
+        a: `The AI Vault Score (${formattedScore}) is determined using our multi-vector neural index, assessing response speed, integration availability, output accuracy, and user sentiment.`,
       },
       {
-        q: `Can I integrate ${toolName} into my existing team stack?`,
-        a: `Yes, ${toolName} is deployable via ${deployment} and supports standardized modern API handoffs, browser workspaces, and multi-user collaboration.`,
+        q: `Can I integrate ${toolName} into my existing stack?`,
+        a: `Yes, ${toolName} supports modern cloud REST API endpoints, webhooks, and browser-first workflows.`,
       },
     ];
-  }, [toolName, category, pricing, formattedScore, deployment]);
-
-  const handleUpvote = () => {
-    if (upvoted) {
-      setUpvoteCount((prev) => prev - 1);
-      setUpvoted(false);
-    } else {
-      setUpvoteCount((prev) => prev + 1);
-      setUpvoted(true);
-    }
-  };
+  }, [toolName, category, pricing, formattedScore]);
 
   const handleBookmarkToggle = () => {
     if (typeof window === "undefined" || !rawSlug) return;
@@ -261,7 +225,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       const stored = localStorage.getItem("aivault_saved_tools");
       let list: string[] = stored ? JSON.parse(stored) : [];
       if (bookmarked) {
-        list = list.filter((s) => s.toLowerCase() !== rawSlug.toLowerCase());
+        list = list.filter((s) => s.toLowerCase() !== rawSlug);
         setBookmarked(false);
       } else {
         if (!list.includes(rawSlug)) list.push(rawSlug);
@@ -324,6 +288,63 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     "Centralizing real-time analytics and task management.",
   ];
 
+  // Google Rich Snippet JSON-LD Schema
+  const toolSchema = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "SoftwareApplication",
+        name: toolName,
+        applicationCategory: category,
+        operatingSystem: "Cloud, Web, API",
+        offers: {
+          "@type": "Offer",
+          price: pricing.toLowerCase().includes("free") ? "0" : "19",
+          priceCurrency: "USD",
+        },
+        aggregateRating: {
+          "@type": "AggregateRating",
+          ratingValue: "4.9",
+          reviewCount: "128",
+        },
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: faqList.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: f.a,
+          },
+        })),
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Directory",
+            item: "https://www.aivault.pp.ua",
+          },
+          {
+            "@type": "ListItem",
+            position: 2,
+            name: category,
+            item: `https://www.aivault.pp.ua/category/${category.toLowerCase()}`,
+          },
+          {
+            "@type": "ListItem",
+            position: 3,
+            name: toolName,
+            item: `https://www.aivault.pp.ua/tool/${rawSlug}`,
+          },
+        ],
+      },
+    ],
+  };
+
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#FAFBFD]">
@@ -346,7 +367,12 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   return (
     <main className="min-h-screen bg-[#FAFBFD] text-slate-900 pb-28 font-sans">
-      {/* Header */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(toolSchema) }}
+      />
+
+      {/* 1. NAVBAR */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
@@ -397,7 +423,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       </header>
 
       <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8">
-        {/* Breadcrumb */}
+        {/* 2. BREADCRUMB */}
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 text-[11px] font-medium text-slate-400">
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-blue-600">Directory</Link>
@@ -414,7 +440,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </span>
         </div>
 
-        {/* HERO SECTION WITH REAL LOGO RESOLUTION */}
+        {/* 3. HERO SECTION */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
             <div className="flex items-start gap-4 min-w-0">
@@ -430,7 +456,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                   <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
                     Verified AI
                   </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-slate-600 capitalize">
                     {category}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[9px] font-bold text-slate-700">
@@ -445,23 +471,19 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
             <div className="flex items-center gap-2 self-start">
               <button
-                onClick={handleUpvote}
+                onClick={() => setUpvoted(!upvoted)}
                 className={`flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold transition shadow-sm ${
-                  upvoted
-                    ? "border-blue-600 bg-blue-50 text-blue-600"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
+                  upvoted ? "border-blue-600 bg-blue-50 text-blue-600" : "border-slate-200 bg-white text-slate-700 hover:border-slate-300"
                 }`}
               >
                 <span>▲</span>
-                <span>{upvoteCount}</span>
+                <span>{upvoted ? upvoteCount + 1 : upvoteCount}</span>
               </button>
 
               <button
                 onClick={handleBookmarkToggle}
                 className={`rounded-xl border p-2 text-xs font-bold transition shadow-sm ${
-                  bookmarked
-                    ? "border-amber-400 bg-amber-50 text-amber-600 font-bold"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                  bookmarked ? "border-amber-400 bg-amber-50 text-amber-600 font-bold" : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
                 }`}
               >
                 {bookmarked ? "★ Saved" : "★ Save"}
@@ -517,9 +539,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* EMBED BADGE BACKLINK WIDGET */}
+        {/* 4. EMBED BADGE WITH LIVE PREVIEW */}
         <section className="mt-6 rounded-3xl border border-blue-200 bg-gradient-to-r from-blue-50/80 via-white to-blue-50/80 p-6 shadow-sm">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div className="flex items-center gap-2">
               <span className="text-base">🛡️</span>
               <h3 className="text-sm font-black text-slate-950">
@@ -530,9 +552,15 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               Free Backlink
             </span>
           </div>
-          <p className="text-xs text-slate-500 mb-3">
-            Display your official AI Vault rating on your landing page or README to boost conversion and credibility.
-          </p>
+
+          <div className="mb-4 flex items-center justify-center rounded-2xl bg-slate-950 p-4 border border-slate-800">
+            <img
+              src={`/api/badge/${rawSlug}`}
+              alt={`${toolName} AI Vault Badge`}
+              className="h-9 w-auto"
+            />
+          </div>
+
           <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
             <code className="flex-1 text-[11px] font-mono text-slate-700 truncate select-all">
               {`<a href="https://www.aivault.pp.ua/tool/${rawSlug}" target="_blank"><img src="https://www.aivault.pp.ua/api/badge/${rawSlug}" alt="Featured on AI Vault" /></a>`}
@@ -546,7 +574,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* INLINE PRICE DROP & UPDATE ALERT WIDGET */}
+        {/* 5. INLINE PRICE DROP ALERT */}
         <section className="mt-6 rounded-3xl border border-blue-200/80 bg-gradient-to-r from-blue-600 to-indigo-700 p-6 sm:p-8 text-white shadow-md">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -586,7 +614,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           )}
         </section>
 
-        {/* PROMPT PLAYBOOK */}
+        {/* 6. PROMPT PLAYBOOK */}
         <section className="mt-6 rounded-3xl border border-indigo-100 bg-gradient-to-br from-indigo-50/50 via-white to-blue-50/30 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div>
@@ -620,7 +648,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* DECISION ENGINE */}
+        {/* 7. DECISION ENGINE QUIZ */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Quick Decision Engine</span>
           <h2 className="text-base font-black text-slate-950 mt-0.5">Is {toolName} right for your stack?</h2>
@@ -695,54 +723,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           )}
         </section>
 
-        {/* REVIEWS & COMMUNITY SENTIMENT */}
-        <ToolReviews toolSlug={rawSlug} toolName={toolName} />
-
-        {/* Q&A / FREQUENTLY ASKED QUESTIONS SECTION */}
+        {/* 8. ABOUT TOOL */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
-              💡 Intelligence Q&A
-            </span>
-          </div>
-          <h2 className="text-lg font-black text-slate-950">
-            Frequently Asked Questions & Answers about {toolName}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Common questions regarding pricing, API connectivity, and workflow integration.
-          </p>
-
-          <div className="mt-6 space-y-3">
-            {faqList.map((item, idx) => {
-              const isOpen = openFaq === idx;
-              return (
-                <div
-                  key={idx}
-                  className="rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden transition"
-                >
-                  <button
-                    onClick={() => setOpenFaq(isOpen ? null : idx)}
-                    className="w-full p-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600"
-                  >
-                    <span>{item.q}</span>
-                    <span className="text-base text-slate-400 font-black shrink-0">
-                      {isOpen ? "−" : "+"}
-                    </span>
-                  </button>
-                  {isOpen && (
-                    <div className="px-4 pb-4 text-xs text-slate-600 leading-relaxed border-t border-slate-200/60 pt-3 bg-white">
-                      {item.a}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* ABOUT SECTION */}
-        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-          <div className="flex items-center gap-2 mb-3">
             <span className="h-2 w-2 rounded-full bg-blue-600" />
             <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">
               In-Depth Overview
@@ -754,15 +737,15 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
           <div className="mt-4 space-y-3 text-xs sm:text-sm leading-relaxed text-slate-700">
             <p>
-              <strong>{toolName}</strong> is designed to streamline critical operations within the <strong>{category.toLowerCase()}</strong> ecosystem. By leveraging targeted machine learning architectures, it eliminates repetitive manual workflows, accelerates task turnaround times, and enhances team productivity.
+              {cleanOverview}
             </p>
             <p>
-              Operated under a flexible <strong>{pricing}</strong> model, {toolName} provides instant cloud accessibility without requiring complex technical infrastructure or prolonged onboarding.
+              {toolName} operates on a <strong>{pricing}</strong> model and is deployable via <strong>{deployment}</strong>. It offers seamless integration capabilities for modern software pipelines and team productivity setups.
             </p>
           </div>
         </section>
 
-        {/* FEATURES */}
+        {/* 9. KEY CAPABILITIES & FEATURES */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
           <h2 className="text-base font-black text-slate-950 mb-4">
             Key Capabilities & Features
@@ -780,7 +763,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* USE CASES & TARGET AUDIENCE */}
+        {/* 10. BEST USE CASES & TARGET AUDIENCE */}
         <section className="mt-6 grid gap-6 sm:grid-cols-2">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-base font-black text-slate-950 mb-3">
@@ -817,7 +800,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* ROI CALCULATOR */}
+        {/* 11. INTERACTIVE ROI ESTIMATOR */}
         <section className="mt-6 rounded-3xl border border-blue-100 bg-gradient-to-br from-blue-50/60 via-indigo-50/30 to-white p-6 shadow-sm sm:p-7">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-md">
@@ -862,7 +845,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* PROS & CONS */}
+        {/* 12. PROS & CONS */}
         <section className="mt-6 grid gap-4 sm:grid-cols-2">
           <div className="rounded-3xl border border-emerald-100 bg-emerald-50/40 p-6 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-wider text-emerald-900 flex items-center gap-2">
@@ -903,7 +886,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* TECHNICAL SPECIFICATIONS */}
+        {/* 13. TECHNICAL SPECIFICATIONS */}
         <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-sm font-black uppercase tracking-wider text-slate-950 mb-3">
             Technical & Deployment Specifications
@@ -928,14 +911,53 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* SIMILAR TOOLS (WITH REAL LOGOS) */}
+        {/* 14. Q&A / FAQ SECTION */}
+        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-block rounded-full bg-blue-600/10 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-blue-600">
+              💡 Intelligence Q&A
+            </span>
+          </div>
+          <h2 className="text-lg font-black text-slate-950">
+            Frequently Asked Questions & Answers about {toolName}
+          </h2>
+
+          <div className="mt-6 space-y-3">
+            {faqList.map((item, idx) => {
+              const isOpen = openFaq === idx;
+              return (
+                <div
+                  key={idx}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/60 overflow-hidden transition"
+                >
+                  <button
+                    onClick={() => setOpenFaq(isOpen ? null : idx)}
+                    className="w-full p-4 text-left flex items-center justify-between gap-4 font-bold text-xs sm:text-sm text-slate-900 hover:text-blue-600"
+                  >
+                    <span>{item.q}</span>
+                    <span className="text-base text-slate-400 font-black shrink-0">
+                      {isOpen ? "−" : "+"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 text-xs text-slate-600 leading-relaxed border-t border-slate-200/60 pt-3 bg-white">
+                      {item.a}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 15. REVIEWS */}
+        <ToolReviews toolSlug={rawSlug} toolName={toolName} />
+
+        {/* 16. SIMILAR TOOLS */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-blue-600">Ecosystem Comparison</span>
-                <h2 className="text-lg font-black text-slate-950">Top Similar {category} Tools</h2>
-              </div>
+              <h2 className="text-lg font-black text-slate-950">Top Similar {category} Tools</h2>
               <Link href={`/compare?tools=${encodeURIComponent(rawSlug)}`} className="text-xs font-bold text-blue-600 hover:underline">
                 Compare All In Matrix →
               </Link>
@@ -944,12 +966,10 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => {
                 const itemSlug = String(item.slug || item.name || "");
-                const compareHref = `/compare/${rawSlug}-vs-${itemSlug}`;
-
                 return (
                   <div
                     key={String(item.id ?? itemSlug)}
-                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
+                    className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-1 hover:border-blue-300"
                   >
                     <Link href={`/tool/${encodeURIComponent(itemSlug)}`} className="flex items-center gap-3 min-w-0">
                       <ToolLogo
@@ -960,7 +980,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                         size="sm"
                       />
                       <div className="min-w-0">
-                        <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
+                        <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition">
                           {String(item.name || "AI Tool")}
                         </p>
                         <p className="text-[10px] text-slate-400 capitalize">{String(item.category || category)}</p>
@@ -970,7 +990,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                     <div className="mt-3 flex items-center justify-between border-t border-slate-100 pt-2 text-[10px]">
                       <span className="font-bold text-slate-500">{String(item.pricing || "Freemium")}</span>
                       <Link
-                        href={compareHref}
+                        href={`/compare/${rawSlug}-vs-${itemSlug}`}
                         className="font-black text-blue-600 hover:underline"
                       >
                         Compare vs {toolName} →
@@ -983,7 +1003,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </section>
         )}
 
-        {/* BOTTOM CTA BANNER */}
+        {/* 17. BOTTOM CTA BANNER */}
         <section className="mt-8 rounded-3xl bg-[#070913] p-8 text-center text-white sm:p-10 shadow-xl border border-slate-800">
           <div className="inline-block rounded-full bg-blue-500/20 px-3 py-1 text-[10px] font-black uppercase tracking-widest text-blue-300 mb-3">
             Direct Platform Access
@@ -1012,7 +1032,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         </section>
       </div>
 
-      {/* STICKY BOTTOM DOCK */}
+      {/* 18. STICKY BOTTOM DOCK */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
