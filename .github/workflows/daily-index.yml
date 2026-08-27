@@ -1,0 +1,19 @@
+name: Daily Automated Google & IndexNow Push
+
+on:
+  schedule:
+    # Runs everyday at 00:00 UTC (5:30 AM IST)
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  index-catalog:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Google Indexing API
+        run: |
+          curl -s -X GET "https://www.aivault.pp.ua/api/index-google" || echo "Google index API triggered"
+
+      - name: Trigger IndexNow Search Push
+        run: |
+          curl -s -X GET "https://www.aivault.pp.ua/api/indexnow" || echo "IndexNow triggered"
