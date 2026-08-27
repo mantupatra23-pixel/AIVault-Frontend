@@ -48,6 +48,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const [upvoteCount, setUpvoteCount] = useState(140);
   const [bookmarked, setBookmarked] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [badgeCopied, setBadgeCopied] = useState(false);
   const [weeklyHours, setWeeklyHours] = useState(14);
   const [copiedPromptIndex, setCopiedPromptIndex] = useState<number | null>(null);
 
@@ -108,8 +109,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
         const { data: relatedData } = await supabase
           .from("ai_tools")
           .select("*")
-          .ilike("category", cat)
+          .ilike("category", `%${cat.split(" ")[0]}%`)
           .neq("slug", rawSlug)
+          .order("score", { ascending: false })
           .limit(6);
 
         setRelated(relatedData || []);
@@ -130,7 +132,8 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const formattedScore = formatAIScore(score);
   const barWidth = getScoreBarWidth(score);
   const logo = (tool?.logo_url || tool?.logo) as string | undefined;
-  const deployment = String(tool?.deployment || "Cloud / Web App");
+  const website = String(tool?.website_url || tool?.website || "");
+  const deployment = String(tool?.deployment || "Cloud / Web App & API");
   const license = String(tool?.license || "Commercial SaaS");
 
   const destinationUrl = useMemo(() => {
@@ -190,7 +193,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   const cleanOverview =
     cleanAiContent(rawOverview) ||
-    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows.`;
+    `${toolName} is a verified AI software platform designed to optimize ${category.toLowerCase()} workflows with real-time execution.`;
 
   const estimatedHoursSaved = Math.round(weeklyHours * 0.45 * 10) / 10;
   const estimatedMonthlySavings = Math.round(estimatedHoursSaved * 4 * 35);
@@ -278,6 +281,15 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
     }
   };
 
+  const handleCopyBadge = () => {
+    const embedCode = `<a href="https://www.aivault.pp.ua/tool/${rawSlug}" target="_blank"><img src="https://www.aivault.pp.ua/api/badge/${rawSlug}" alt="Featured on AI Vault" /></a>`;
+    if (typeof window !== "undefined") {
+      navigator.clipboard.writeText(embedCode);
+      setBadgeCopied(true);
+      setTimeout(() => setBadgeCopied(false), 2000);
+    }
+  };
+
   const handleCopyPrompt = (text: string, index: number) => {
     if (typeof window !== "undefined") {
       navigator.clipboard.writeText(text);
@@ -289,32 +301,32 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   const featuresList = [
     {
       title: "Intelligent Pipeline Automation",
-      desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`
+      desc: `Automates complex ${category.toLowerCase()} operational steps with minimal latency.`,
     },
     {
       title: "Immediate Workspace Deployment",
-      desc: "Instant cloud accessibility without complex installations or server configurations."
+      desc: "Instant cloud accessibility without complex installations or server configurations.",
     },
     {
       title: "High-Throughput Processing",
-      desc: "Handles large data inputs and parallel execution without performance degradation."
+      desc: "Handles large data inputs and parallel execution without performance degradation.",
     },
     {
       title: "Actionable Intelligence & Exports",
-      desc: "Generates clean, structured outputs ready for production use and team handoffs."
-    }
+      desc: "Generates clean, structured outputs ready for production use and team handoffs.",
+    },
   ];
 
   const useCasesList = [
     `Eliminating repetitive manual hours in ${category.toLowerCase()} routines.`,
     "Accelerating operational turnarounds for founders, creators, and teams.",
     "Scaling output volume without needing additional specialized headcount.",
-    "Centralizing real-time analytics and task management."
+    "Centralizing real-time analytics and task management.",
   ];
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#fafbfc]">
+      <main className="flex min-h-screen items-center justify-center bg-[#FAFBFD]">
         <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-blue-600" />
       </main>
     );
@@ -322,7 +334,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
 
   if (!tool) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafbfc] px-4 text-center">
+      <main className="flex min-h-screen flex-col items-center justify-center bg-[#FAFBFD] px-4 text-center">
         <h1 className="text-2xl font-black text-slate-900">AI Tool Not Found</h1>
         <p className="mt-2 text-xs text-slate-500">The requested tool record could not be loaded.</p>
         <Link href="/" className="mt-5 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white shadow-md">
@@ -333,17 +345,18 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
   }
 
   return (
-    <main className="min-h-screen bg-[#fafbfc] text-slate-900 pb-28">
+    <main className="min-h-screen bg-[#FAFBFD] text-slate-900 pb-28 font-sans">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-5xl items-center justify-between">
-          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
-            AI Vault<span className="text-blue-600">.</span>
+          <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
+            <img src="/logo.png" alt="AI Vault" className="h-7 w-7 object-contain" />
+            <span>AI Vault<span className="text-blue-600">.</span></span>
           </Link>
 
           <div className="flex items-center gap-2 sm:gap-2.5">
             <Link
-              href="/matcher"
+              href="/ai-finder"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:border-blue-300 hover:text-blue-600 transition"
             >
               <span>⚡ Matcher</span>
@@ -363,13 +376,6 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               <span>★ Vault</span>
             </Link>
 
-            <Link
-              href="/submit"
-              className="inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 px-3 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition"
-            >
-              <span>+ Submit</span>
-            </Link>
-
             <button
               onClick={handleCopyLink}
               className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition"
@@ -381,7 +387,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
               href={destinationUrl}
               onClick={handleOutboundClick}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener noreferrer sponsored"
               className="inline-flex items-center gap-1 rounded-xl bg-blue-600 px-4 py-1.5 text-xs font-black text-white shadow-sm shadow-blue-500/20 transition hover:bg-blue-700"
             >
               Visit Website ↗
@@ -396,7 +402,9 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-blue-600">Directory</Link>
             <span>/</span>
-            <Link href={`/?cat=${encodeURIComponent(category)}`} className="hover:text-blue-600 capitalize">{category}</Link>
+            <Link href={`/category/${encodeURIComponent(category.toLowerCase())}`} className="hover:text-blue-600 capitalize">
+              {category}
+            </Link>
             <span>/</span>
             <span className="font-semibold text-slate-700">{toolName}</span>
           </div>
@@ -406,11 +414,17 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </span>
         </div>
 
-        {/* HERO SECTION */}
+        {/* HERO SECTION WITH REAL LOGO RESOLUTION */}
         <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-start justify-between">
             <div className="flex items-start gap-4 min-w-0">
-              <ToolLogo name={toolName} src={logo} size="lg" />
+              <ToolLogo
+                name={toolName}
+                src={logo}
+                website={website}
+                slug={rawSlug}
+                size="lg"
+              />
               <div className="min-w-0">
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
                   <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-blue-600">
@@ -470,7 +484,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">Category</p>
-              <p className="mt-1 text-sm font-black text-slate-900">{category}</p>
+              <p className="mt-1 text-sm font-black text-slate-900 capitalize">{category}</p>
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3.5">
               <p className="text-[9px] font-bold uppercase text-slate-400">Deployment</p>
@@ -500,6 +514,35 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 />
               </div>
             )}
+          </div>
+        </section>
+
+        {/* EMBED BADGE BACKLINK WIDGET */}
+        <section className="mt-6 rounded-3xl border border-blue-200 bg-gradient-to-r from-blue-50/80 via-white to-blue-50/80 p-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-base">🛡️</span>
+              <h3 className="text-sm font-black text-slate-950">
+                Embed {toolName} Verification Badge on Your Site
+              </h3>
+            </div>
+            <span className="self-start sm:self-auto text-[10px] font-bold text-blue-600 bg-blue-100/60 px-2.5 py-1 rounded-full uppercase">
+              Free Backlink
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 mb-3">
+            Display your official AI Vault rating on your landing page or README to boost conversion and credibility.
+          </p>
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-2">
+            <code className="flex-1 text-[11px] font-mono text-slate-700 truncate select-all">
+              {`<a href="https://www.aivault.pp.ua/tool/${rawSlug}" target="_blank"><img src="https://www.aivault.pp.ua/api/badge/${rawSlug}" alt="Featured on AI Vault" /></a>`}
+            </code>
+            <button
+              onClick={handleCopyBadge}
+              className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition"
+            >
+              {badgeCopied ? "✓ Copied" : "Copy Code"}
+            </button>
           </div>
         </section>
 
@@ -563,7 +606,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 <div>
                   <h3 className="text-xs font-black text-slate-900">{item.title}</h3>
                   <p className="mt-2 text-xs font-mono text-slate-600 bg-slate-50 p-2.5 rounded-xl leading-relaxed border border-slate-100">
-                    "{item.prompt}"
+                    &quot;{item.prompt}&quot;
                   </p>
                 </div>
                 <button
@@ -785,7 +828,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                 How much time can {toolName} save you?
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Adjust your team's weekly hours spent on {category.toLowerCase()} tasks:
+                Adjust your team&apos;s weekly hours spent on {category.toLowerCase()} tasks:
               </p>
 
               <div className="mt-4">
@@ -885,7 +928,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
           </div>
         </section>
 
-        {/* SIMILAR TOOLS */}
+        {/* SIMILAR TOOLS (WITH REAL LOGOS) */}
         {related.length > 0 && (
           <section className="mt-8">
             <div className="mb-4 flex items-center justify-between">
@@ -901,7 +944,7 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {related.map((item) => {
                 const itemSlug = String(item.slug || item.name || "");
-                const compareHref = `/compare?tools=${encodeURIComponent(rawSlug)},${encodeURIComponent(itemSlug)}`;
+                const compareHref = `/compare/${rawSlug}-vs-${itemSlug}`;
 
                 return (
                   <div
@@ -909,7 +952,13 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
                     className="group flex flex-col justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-blue-300"
                   >
                     <Link href={`/tool/${encodeURIComponent(itemSlug)}`} className="flex items-center gap-3 min-w-0">
-                      <ToolLogo name={String(item.name || "AI Tool")} src={item.logo_url as string} size="sm" />
+                      <ToolLogo
+                        name={String(item.name || "AI Tool")}
+                        src={(item.logo_url || item.logo) as string}
+                        website={String(item.website_url || item.website || "")}
+                        slug={itemSlug}
+                        size="sm"
+                      />
                       <div className="min-w-0">
                         <p className="truncate text-xs font-bold text-slate-950 group-hover:text-blue-600 transition-colors">
                           {String(item.name || "AI Tool")}
@@ -967,7 +1016,13 @@ export default function ToolPage({ params }: { params: Promise<{ slug: string }>
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur-xl px-4 py-3 shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
           <div className="hidden sm:flex items-center gap-3 min-w-0">
-            <ToolLogo name={toolName} src={logo} size="sm" />
+            <ToolLogo
+              name={toolName}
+              src={logo}
+              website={website}
+              slug={rawSlug}
+              size="sm"
+            />
             <div className="min-w-0">
               <p className="truncate text-xs font-bold text-slate-900">{toolName}</p>
               <p className="text-[10px] text-slate-400">{category} • {pricing}</p>
