@@ -10,7 +10,6 @@ const SUPABASE_KEY =
   process.env.SUPABASE_ANON_KEY ||
   "";
 
-const HOST = "www.aivault.pp.ua";
 const KEY = "aivaultindexnowkey2026";
 
 export async function GET() {
@@ -20,44 +19,45 @@ export async function GET() {
       .from("ai_tools")
       .select("slug")
       .not("slug", "is", null)
-      .limit(300);
+      .limit(100);
 
+    const host = "www.aivault.pp.ua";
     const urlList = [
-      `https://${HOST}`,
-      `https://${HOST}/compare`,
-      `https://${HOST}/ai-finder`,
-      `https://${HOST}/category/coding`,
-      `https://${HOST}/category/productivity`,
-      `https://${HOST}/category/chatbot`,
-      `https://${HOST}/category/marketing`,
-      `https://${HOST}/category/image`,
-      `https://${HOST}/compare/deepseek-vs-claude`,
-      `https://${HOST}/compare/cursor-vs-bolt-new`,
-      `https://${HOST}/compare/midjourney-vs-flux-ai`,
-      `https://${HOST}/compare/perplexity-vs-deepseek`,
-      ...(tools || []).map((t) => `https://${HOST}/tool/${t.slug}`),
+      `https://${host}/`,
+      `https://${host}/compare`,
+      `https://${host}/ai-finder`,
+      `https://${host}/category/coding`,
+      `https://${host}/category/productivity`,
+      `https://${host}/category/chatbot`,
+      `https://${host}/category/marketing`,
+      `https://${host}/compare/deepseek-vs-claude`,
+      `https://${host}/compare/cursor-vs-bolt-new`,
+      `https://${host}/compare/midjourney-vs-flux-ai`,
+      `https://${host}/compare/perplexity-vs-deepseek`,
+      ...(tools || []).map((t) => `https://${host}/tool/${t.slug}`),
     ];
 
-    const res = await fetch("https://api.indexnow.org/indexnow", {
+    // Push directly to Bing IndexNow Gateway
+    const res = await fetch("https://www.bing.com/indexnow", {
       method: "POST",
       headers: { "Content-Type": "application/json; charset=utf-8" },
       body: JSON.stringify({
-        host: HOST,
+        host: host,
         key: KEY,
-        keyLocation: `https://${HOST}/${KEY}.txt`,
-        urlList: urlList.slice(0, 300),
+        keyLocation: `https://${host}/aivaultindexnowkey2026.txt`,
+        urlList: urlList,
       }),
     });
 
     return NextResponse.json({
       success: true,
-      message: `Pushed ${urlList.length} URLs to Bing & Yandex IndexNow`,
-      indexNowStatus: res.status,
+      message: `Pushed ${urlList.length} URLs to Bing & IndexNow Engine`,
+      indexNowStatus: res.status, // 200 = Success, 202 = Accepted
       totalUrls: urlList.length,
     });
   } catch (err: unknown) {
     return NextResponse.json(
-      { success: false, error: err instanceof Error ? err.message : "IndexNow push failed" },
+      { success: false, error: err instanceof Error ? err.message : "Submission failed" },
       { status: 500 }
     );
   }
