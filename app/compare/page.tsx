@@ -19,6 +19,7 @@ type ToolRecord = {
   category?: string | null;
   pricing?: string | null;
   pricing_model?: string | null;
+  pricing_type?: string | null;
   score?: number | string | null;
   neural_score?: number | string | null;
   ai_vault_score?: number | null;
@@ -27,6 +28,7 @@ type ToolRecord = {
   website_url?: string | null;
   website?: string | null;
   affiliate_url?: string | null;
+  affiliate_status?: string | null;
   deployment?: string | null;
   license?: string | null;
   features?: string[] | string | null;
@@ -37,39 +39,37 @@ type ToolRecord = {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-function getSupabase() {
-  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-}
-
-// 1. Benchmark Monthly Activity Bars Generator
 function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   const seed = (name.charCodeAt(0) || 5) + (name.charCodeAt(name.length - 1) || 7);
   const months = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  
+
   const barHeights = useMemo(() => {
     return months.map((_, i) => {
-      const variation = ((seed * (i + 1) * 19) % 30) - 15;
-      return Math.min(96, Math.max(35, score + variation));
+      const variation = ((seed * (i + 1) * 19) % 24) - 12;
+      return Math.min(96, Math.max(45, score + variation));
     });
   }, [score, seed]);
 
   return (
     <div className="w-full rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-1.5">
         <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Benchmark Activity</span>
         <span className="text-[10px] font-bold text-blue-600">Peak {Math.max(...barHeights)}%</span>
       </div>
-      <div className="flex items-end justify-between gap-1.5 h-14 pt-2 px-1">
+      <div className="flex items-end justify-between gap-1.5 h-12 pt-1 px-1">
         {barHeights.map((h, idx) => (
           <div key={idx} className="flex-1 flex flex-col items-center gap-1 group">
-            <div className="w-full bg-slate-200 rounded-t-md overflow-hidden h-10 flex items-end">
-              <div 
-                className="w-full bg-blue-600 group-hover:bg-blue-500 rounded-t-md transition-all duration-500"
+            <div className="w-full bg-slate-200 rounded-t-md overflow-hidden h-9 flex items-end">
+              <div
+                className={`w-full rounded-t-md transition-all duration-500 ${
+                  idx === 5 ? "bg-blue-600" : "bg-blue-400 group-hover:bg-blue-500"
+                }`}
                 style={{ height: `${h}%` }}
               />
             </div>
-            <span className="text-[9px] font-bold text-slate-400">{months[idx]}</span>
+            <span className="text-[8px] font-bold text-slate-400">{months[idx]}</span>
           </div>
         ))}
       </div>
@@ -77,29 +77,28 @@ function BenchmarkMiniChart({ score, name }: { score: number; name: string }) {
   );
 }
 
-// 2. Circular Radial Score Ring
 function ScoreRing({ score }: { score: number }) {
-  const circumference = 2 * Math.PI * 30;
+  const circumference = 2 * Math.PI * 26;
   const strokeDashoffset = circumference - (score / 100) * circumference;
 
   return (
     <div className="relative flex items-center justify-center">
-      <svg className="w-16 h-16 transform -rotate-90">
+      <svg className="w-14 h-14 transform -rotate-90">
         <circle
-          cx="32"
-          cy="32"
-          r="26"
+          cx="28"
+          cy="28"
+          r="23"
           className="text-slate-100"
-          strokeWidth="5"
+          strokeWidth="4.5"
           stroke="currentColor"
           fill="transparent"
         />
         <circle
-          cx="32"
-          cy="32"
-          r="26"
+          cx="28"
+          cy="28"
+          r="23"
           className="text-blue-600 transition-all duration-1000 ease-out"
-          strokeWidth="5"
+          strokeWidth="4.5"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
@@ -108,14 +107,13 @@ function ScoreRing({ score }: { score: number }) {
         />
       </svg>
       <div className="absolute flex flex-col items-center justify-center">
-        <span className="text-sm font-black text-slate-900 leading-none">{score}</span>
-        <span className="text-[8px] font-bold text-slate-400 uppercase">/100</span>
+        <span className="text-xs font-black text-slate-900 leading-none">{score}</span>
+        <span className="text-[7px] font-bold text-slate-400 uppercase">/100</span>
       </div>
     </div>
   );
 }
 
-// 3. Feature Capability Checklist Definition
 const CAPABILITIES_LIST = [
   { key: "api", label: "API & Webhook Access" },
   { key: "cloud", label: "Cloud & Web Deployment" },
@@ -127,32 +125,31 @@ const CAPABILITIES_LIST = [
 ];
 
 function checkCapability(tool: ToolRecord, capKey: string): boolean {
-  const pricing = String(tool.pricing_model || tool.pricing || "").toLowerCase();
+  const pricing = String(tool.pricing_model || tool.pricing_type || tool.pricing || "").toLowerCase();
   const desc = String(tool.description || tool.overview || tool.tagline || "").toLowerCase();
   const cat = String(tool.category || "").toLowerCase();
   const rawScore = Number(tool.score ?? 80);
 
   switch (capKey) {
     case "api":
-      return desc.includes("api") || desc.includes("webhook") || cat.includes("code") || cat.includes("dev");
+      return desc.includes("api") || desc.includes("webhook") || cat.includes("code") || cat.includes("dev") || rawScore > 90;
     case "cloud":
       return true;
     case "freeTier":
       return pricing.includes("free") || pricing.includes("freemium");
     case "collaboration":
-      return desc.includes("team") || desc.includes("share") || desc.includes("collaborat") || true;
+      return desc.includes("team") || desc.includes("share") || desc.includes("workspace") || true;
     case "automation":
-      return desc.includes("automat") || desc.includes("workflow") || desc.includes("agent") || true;
+      return desc.includes("automat") || desc.includes("pipeline") || desc.includes("agent") || true;
     case "export":
       return true;
     case "security":
-      return pricing.includes("paid") || desc.includes("enterprise") || desc.includes("security") || rawScore > 85;
+      return pricing.includes("paid") || desc.includes("enterprise") || rawScore > 88;
     default:
       return true;
   }
 }
 
-// 4. Clean Feature Extractor
 function extractCleanFeatures(tool: ToolRecord): string[] {
   if (Array.isArray(tool.features) && tool.features.length > 0) {
     return tool.features.slice(0, 3);
@@ -162,18 +159,7 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
   const sentences = rawText
     .split(/[.!?\n]+/)
     .map((s) => s.trim())
-    .filter((s) => {
-      if (s.length < 15 || s.length > 120) return false;
-      const lower = s.toLowerCase();
-      return (
-        !lower.startsWith("i have") &&
-        !lower.startsWith("we will") &&
-        !lower.startsWith("with the") &&
-        !lower.startsWith("however") &&
-        !lower.includes("product hunt") &&
-        !lower.includes("alternatives")
-      );
-    });
+    .filter((s) => s.length > 15 && s.length < 120);
 
   if (sentences.length >= 2) return sentences.slice(0, 3);
 
@@ -184,39 +170,28 @@ function extractCleanFeatures(tool: ToolRecord): string[] {
   if (cat.includes("chat") || cat.includes("agent")) {
     return ["Autonomous Multi-Step Reasoning", "Contextual Prompt Memory", "Custom Webhook Integrations"];
   }
-  if (cat.includes("market") || cat.includes("seo")) {
-    return ["Programmatic Content Engine", "Audience Intent Tracking", "Campaign Analytics & Insights"];
-  }
-  return ["Workflow Automation Pipeline", "API & Web App Automation", "Real-time Intelligence Engine"];
+  return ["Workflow Automation Pipeline", "REST API & Webhooks", "Real-Time Cloud Engine"];
 }
 
-// 5. Pros and Cons Dynamic Generator
 function extractProsAndCons(tool: ToolRecord): { pros: string[]; cons: string[] } {
   const cat = (tool.category || "").toLowerCase();
-  const pricing = (tool.pricing_model || tool.pricing || "").toLowerCase();
+  const pricing = (tool.pricing_model || tool.pricing_type || tool.pricing || "").toLowerCase();
 
   let pros = ["Fast response latency & 99.9% uptime", "Intuitive interface with zero setup curve"];
   let cons = ["Advanced enterprise tier requires custom quotes"];
 
   if (cat.includes("code") || cat.includes("dev")) {
-    pros = ["High code accuracy on modern frameworks", "Direct Git & IDE integration"];
+    pros = ["High code accuracy on modern frameworks", "Direct Git & terminal integrations"];
     cons = ["Context token limits on massive monorepos"];
-  } else if (cat.includes("writ") || cat.includes("market")) {
-    pros = ["SEO-optimized prompt templates", "Multi-language generation support"];
-    cons = ["Occasional repetitive output on long essays"];
-  } else if (cat.includes("image") || cat.includes("video")) {
-    pros = ["Photorealistic prompt adherence", "High-resolution 4K export capabilities"];
-    cons = ["GPU processing queue during peak traffic"];
   }
 
-  if (pricing.includes("free")) {
+  if (pricing.includes("free") || pricing.includes("freemium")) {
     pros.unshift("Generous 100% free starter plan");
   }
 
   return { pros: pros.slice(0, 2), cons: cons.slice(0, 2) };
 }
 
-// 6. Dynamic Sub-Metrics (0 to 10 scale)
 function getSubMetrics(tool: ToolRecord) {
   const rawScore = getToolScore(tool);
   const base = typeof rawScore === "number" ? rawScore : 88;
@@ -232,7 +207,6 @@ function getBestForAudience(tool: ToolRecord): string {
   if (cat.includes("code") || cat.includes("dev")) return "Software Engineers & Tech Leads";
   if (cat.includes("chat") || cat.includes("agent")) return "Customer Ops & Support Teams";
   if (cat.includes("market") || cat.includes("seo")) return "Growth Marketers & Agencies";
-  if (cat.includes("writ") || cat.includes("content")) return "Copywriters & Content Creators";
   if (cat.includes("image") || cat.includes("video")) return "Designers & Media Producers";
   return "Founders, Operators & Product Teams";
 }
@@ -253,26 +227,63 @@ function CompareContent() {
   const router = useRouter();
 
   const [allTools, setAllTools] = useState<ToolRecord[]>([]);
-  const [selectedTools, setSelectedTools] = useState<ToolRecord[]>([]);
+  const [selectedTools, setSelectedTools] = useState<(ToolRecord | null)[]>([null, null, null]);
   const [loading, setLoading] = useState(true);
+
+  const [searchOpenForSlot, setSearchOpenForSlot] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
-  const [searchOpenForSlot, setSearchOpenForSlot] = useState<number | null>(null);
 
   useEffect(() => {
     async function loadCatalog() {
       try {
         setLoading(true);
-        const supabase = getSupabase();
         const { data, error } = await supabase
           .from("ai_tools")
           .select("*")
           .not("slug", "is", null)
-          .order("name", { ascending: true })
-          .limit(1500);
+          .neq("affiliate_status", "pending_submission")
+          .order("score", { ascending: false });
 
         if (error) throw error;
-        setAllTools((data as ToolRecord[]) || []);
+        const catalog = (data as ToolRecord[]) || [];
+        setAllTools(catalog);
+
+        const toolsParam = searchParams.get("tools");
+        let initialList: (ToolRecord | null)[] = [null, null, null];
+
+        if (toolsParam) {
+          const slugs = toolsParam.split(",").map((s) => s.trim().toLowerCase());
+          slugs.forEach((slug, i) => {
+            if (i < 3) {
+              const match = catalog.find((t) => (t.slug || "").toLowerCase() === slug || (t.name || "").toLowerCase() === slug);
+              if (match) initialList[i] = match;
+            }
+          });
+        }
+
+        // Distinct default top tools fallback
+        const priorityDefaults = ["claude", "deepseek", "cursor", "lovable", "perplexity", "bolt-new"];
+        let pIdx = 0;
+
+        for (let i = 0; i < 3; i++) {
+          if (!initialList[i]) {
+            while (pIdx < priorityDefaults.length) {
+              const slugTarget = priorityDefaults[pIdx++];
+              const candidate = catalog.find((t) => (t.slug || "").toLowerCase() === slugTarget);
+              if (candidate && !initialList.some((item) => item?.slug === candidate.slug)) {
+                initialList[i] = candidate;
+                break;
+              }
+            }
+            if (!initialList[i]) {
+              const nextUnused = catalog.find((t) => !initialList.some((item) => item?.slug === t.slug));
+              if (nextUnused) initialList[i] = nextUnused;
+            }
+          }
+        }
+
+        setSelectedTools(initialList);
       } catch (err) {
         console.error("Failed to load catalog for comparison:", err);
       } finally {
@@ -280,68 +291,32 @@ function CompareContent() {
       }
     }
     loadCatalog();
-  }, []);
+  }, [searchParams]);
 
-  useEffect(() => {
-    if (allTools.length === 0) return;
-
-    const rawParam = searchParams.get("tools") || "";
-    const slugs = rawParam
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
-
-    if (slugs.length > 0) {
-      const matched = slugs
-        .map((s) =>
-          allTools.find(
-            (t) =>
-              (t.slug || "").toLowerCase() === s ||
-              (t.name || "").toLowerCase() === s
-          )
-        )
-        .filter((t): t is ToolRecord => Boolean(t));
-
-      if (matched.length > 0) {
-        setSelectedTools(matched.slice(0, 3));
-        return;
-      }
-    }
-
-    if (allTools.length >= 2) {
-      setSelectedTools([allTools[0], allTools[1]]);
-    }
-  }, [allTools, searchParams]);
-
-  const updateComparisonUrl = (tools: ToolRecord[]) => {
-    const slugs = tools
+  const updateComparisonUrl = (tools: (ToolRecord | null)[]) => {
+    const validSlugs = tools
+      .filter((t): t is ToolRecord => Boolean(t))
       .map((t) => t.slug || t.name || "")
-      .filter(Boolean)
       .join(",");
-    if (slugs) {
-      router.push(`/compare?tools=${encodeURIComponent(slugs)}`);
+    if (validSlugs) {
+      router.push(`/compare?tools=${encodeURIComponent(validSlugs)}`);
     } else {
       router.push("/compare");
     }
   };
 
-  const addTool = (tool: ToolRecord, slotIndex?: number) => {
-    let next: ToolRecord[] = [...selectedTools];
-    if (typeof slotIndex === "number" && slotIndex < next.length) {
-      next[slotIndex] = tool;
-    } else if (next.length < 3) {
-      next.push(tool);
-    } else {
-      next[2] = tool;
-    }
+  const addTool = (tool: ToolRecord, slotIndex: number) => {
+    const next = [...selectedTools];
+    next[slotIndex] = tool;
     setSelectedTools(next);
     updateComparisonUrl(next);
     setSearchOpenForSlot(null);
     setSearchQuery("");
   };
 
-  const removeTool = (index: number) => {
-    const next = selectedTools.filter((_, i) => i !== index);
+  const removeTool = (slotIndex: number) => {
+    const next = [...selectedTools];
+    next[slotIndex] = null;
     setSelectedTools(next);
     updateComparisonUrl(next);
   };
@@ -350,7 +325,7 @@ function CompareContent() {
     return allTools.filter((t) => {
       const matchesCategory =
         selectedCategory === "all" ||
-        (t.category && t.category.toLowerCase() === selectedCategory.toLowerCase());
+        (t.category && t.category.toLowerCase().includes(selectedCategory.toLowerCase()));
 
       if (!matchesCategory) return false;
       if (!searchQuery.trim()) return true;
@@ -365,14 +340,15 @@ function CompareContent() {
   }, [allTools, searchQuery, selectedCategory]);
 
   const winnerIndex = useMemo(() => {
-    if (selectedTools.length < 2) return null;
-    let maxIdx = 0;
+    let maxIdx = -1;
     let maxScore = -1;
     selectedTools.forEach((tool, idx) => {
-      const s = getToolScore(tool) ?? 80;
-      if (s > maxScore) {
-        maxScore = s;
-        maxIdx = idx;
+      if (tool) {
+        const s = getToolScore(tool) ?? 80;
+        if (s > maxScore) {
+          maxScore = s;
+          maxIdx = idx;
+        }
       }
     });
     return maxIdx;
@@ -380,11 +356,12 @@ function CompareContent() {
 
   return (
     <main className="min-h-screen bg-[#F8FAFC] text-slate-900 pb-28 font-sans">
-      {/* TOP NAVBAR */}
+      {/* HEADER */}
       <header className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 backdrop-blur px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link href="/" className="text-lg font-black tracking-tight text-slate-950">
-            AI Vault<span className="text-blue-600">.</span>
+          <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
+            <img src="/logo.png" alt="AI Vault" className="h-7 w-7 object-contain" />
+            <span>AI Vault<span className="text-blue-600">.</span></span>
           </Link>
           <div className="flex items-center gap-3">
             <Link
@@ -413,11 +390,11 @@ function CompareContent() {
             Compare AI Tools
           </h1>
           <p className="mt-2 text-xs sm:text-sm text-slate-500">
-            Evaluate deep capabilities, monthly benchmark ratings, feature checklists, and pricing across {allTools.length > 0 ? `${allTools.length}+` : "830+"} verified platforms.
+            Evaluate deep capabilities, monthly benchmark ratings, feature checklists, and pricing across {allTools.length > 0 ? `${allTools.length}+` : "840+"} verified platforms.
           </p>
         </div>
 
-        {/* TOP HERO SLOTS */}
+        {/* 3 HERO SLOTS */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
           {[0, 1, 2].map((slotIdx) => {
             const current = selectedTools[slotIdx];
@@ -428,7 +405,7 @@ function CompareContent() {
               const logo = (current.logo_url || current.logo) as string | undefined;
               const isWinner = winnerIndex === slotIdx;
               const score = getToolScore(current) ?? 92;
-              const pricing = String(current.pricing_model || current.pricing || "Freemium");
+              const pricing = String(current.pricing_model || current.pricing_type || current.pricing || "Freemium");
               const seedRating = ((name.charCodeAt(0) * 137) % 9000 + 3200);
 
               return (
@@ -447,7 +424,7 @@ function CompareContent() {
                   <div>
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3 min-w-0">
-                        <ToolLogo name={name} src={logo} website={current.website_url || current.website} size="md" />
+                        <ToolLogo name={name} src={logo} website={current.website_url || current.website} slug={current.slug} size="md" />
                         <div className="min-w-0">
                           <h3 className="text-base font-black text-slate-950 truncate">{name}</h3>
                           <span className="inline-block rounded-md bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-600 capitalize">
@@ -466,14 +443,12 @@ function CompareContent() {
                         >
                           Change
                         </button>
-                        {selectedTools.length > 1 && (
-                          <button
-                            onClick={() => removeTool(slotIdx)}
-                            className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600"
-                          >
-                            ✕
-                          </button>
-                        )}
+                        <button
+                          onClick={() => removeTool(slotIdx)}
+                          className="rounded-xl bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
 
@@ -526,15 +501,15 @@ function CompareContent() {
                 <div className="h-12 w-12 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 text-2xl font-bold">
                   +
                 </div>
-                <span className="text-sm font-black text-slate-800">Add Tool to Compare</span>
-                <span className="text-xs text-slate-400">Click to choose 3rd tool from catalog</span>
+                <span className="text-sm font-black text-slate-800">Add Tool to Slot {slotIdx + 1}</span>
+                <span className="text-xs text-slate-400">Click to select from 840+ catalog tools</span>
               </button>
             );
           })}
         </div>
 
-        {/* COMPARISON SPECIFICATIONS & FEATURE CHECKLIST TABLE */}
-        {selectedTools.length > 0 && (
+        {/* COMPARISON SPECIFICATIONS TABLE */}
+        {selectedTools.some(Boolean) && (
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm mb-12">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[700px]">
@@ -545,10 +520,14 @@ function CompareContent() {
                     </th>
                     {selectedTools.map((t, i) => (
                       <th key={i} className="p-4 text-xs font-black text-slate-950 w-1/4">
-                        <div className="flex items-center gap-2">
-                          <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} size="sm" />
-                          <span className="truncate">{String(t.name)}</span>
-                        </div>
+                        {t ? (
+                          <div className="flex items-center gap-2">
+                            <ToolLogo name={String(t.name)} src={(t.logo_url || t.logo) as string} website={t.website_url || t.website} slug={t.slug} size="sm" />
+                            <span className="truncate">{String(t.name)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 italic font-medium">Slot {i + 1} Empty</span>
+                        )}
                       </th>
                     ))}
                   </tr>
@@ -557,19 +536,17 @@ function CompareContent() {
                 <tbody className="divide-y divide-slate-100 text-xs">
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">AI Vault Score</td>
-                    {selectedTools.map((t, i) => {
-                      const s = getToolScore(t);
-                      return (
-                        <td key={i} className="p-4">
-                          <span className="text-base font-black text-blue-600">{formatAIScore(s)}</span>
-                        </td>
-                      );
-                    })}
+                    {selectedTools.map((t, i) => (
+                      <td key={i} className="p-4">
+                        {t ? <span className="text-base font-black text-blue-600">{formatAIScore(getToolScore(t))}</span> : "—"}
+                      </td>
+                    ))}
                   </tr>
 
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Benchmark Ratings</td>
                     {selectedTools.map((t, i) => {
+                      if (!t) return <td key={i} className="p-4 text-slate-400">—</td>;
                       const sub = getSubMetrics(t);
                       return (
                         <td key={i} className="p-4 space-y-2">
@@ -612,6 +589,7 @@ function CompareContent() {
                         <span>✦</span> {cap.label}
                       </td>
                       {selectedTools.map((t, i) => {
+                        if (!t) return <td key={i} className="p-4 text-slate-400">—</td>;
                         const hasCap = checkCapability(t, cap.key);
                         return (
                           <td key={i} className="p-4">
@@ -633,6 +611,7 @@ function CompareContent() {
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Key Highlights</td>
                     {selectedTools.map((t, i) => {
+                      if (!t) return <td key={i} className="p-4 text-slate-400">—</td>;
                       const feats = extractCleanFeatures(t);
                       return (
                         <td key={i} className="p-4">
@@ -652,6 +631,7 @@ function CompareContent() {
                   <tr>
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Pros & Cons</td>
                     {selectedTools.map((t, i) => {
+                      if (!t) return <td key={i} className="p-4 text-slate-400">—</td>;
                       const { pros, cons } = extractProsAndCons(t);
                       return (
                         <td key={i} className="p-4 space-y-1.5">
@@ -674,7 +654,7 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Best For</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-bold text-slate-800 text-[11px]">
-                        {getBestForAudience(t)}
+                        {t ? getBestForAudience(t) : "—"}
                       </td>
                     ))}
                   </tr>
@@ -683,7 +663,7 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Summary</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 text-[11px] leading-relaxed text-slate-600">
-                        {cleanAiContent(t.overview || t.description || t.tagline) || `${t.name} provides high-performance AI workflows.`}
+                        {t ? cleanAiContent(t.overview || t.description || t.tagline) || `${t.name} provides high-performance AI workflows.` : "—"}
                       </td>
                     ))}
                   </tr>
@@ -692,7 +672,7 @@ function CompareContent() {
                     <td className="p-4 font-bold text-slate-500 bg-slate-50/40">Deployment</td>
                     {selectedTools.map((t, i) => (
                       <td key={i} className="p-4 font-bold text-slate-700">
-                        {String(t.deployment || "Cloud / Web App & API")}
+                        {t ? String(t.deployment || "Cloud / Web App") : "—"}
                       </td>
                     ))}
                   </tr>
@@ -733,10 +713,10 @@ function CompareContent() {
       {/* MODAL */}
       {searchOpenForSlot !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
-          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl animate-in fade-in zoom-in duration-150">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="text-sm font-black text-slate-950">Select Tool to Compare</h3>
+                <h3 className="text-sm font-black text-slate-950">Select Tool for Slot {searchOpenForSlot + 1}</h3>
                 <p className="text-[11px] text-slate-400 font-medium">
                   Showing {searchResults.length} of {allTools.length} tools
                 </p>
@@ -771,7 +751,7 @@ function CompareContent() {
                 autoFocus
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search across 830+ tools or keywords..."
+                placeholder="Search across 840+ tools or keywords..."
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-xs text-slate-900 outline-none transition focus:border-blue-600 focus:bg-white focus:ring-4 focus:ring-blue-50"
               />
             </div>
@@ -781,7 +761,7 @@ function CompareContent() {
                 const toolName = String(t.name || "AI Tool");
                 const toolLogo = (t.logo_url || t.logo) as string | undefined;
                 const toolCat = String(t.category || "General");
-                const toolPricing = String(t.pricing_model || t.pricing || "Freemium");
+                const toolPricing = String(t.pricing_model || t.pricing_type || t.pricing || "Freemium");
 
                 return (
                   <button
@@ -790,7 +770,7 @@ function CompareContent() {
                     className="w-full flex items-center justify-between rounded-xl p-2.5 text-left transition hover:bg-slate-50 border border-transparent hover:border-slate-100"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <ToolLogo name={toolName} src={toolLogo} website={t.website_url || t.website} size="sm" />
+                      <ToolLogo name={toolName} src={toolLogo} website={t.website_url || t.website} slug={t.slug} size="sm" />
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-slate-900 truncate">{toolName}</p>
                         <p className="text-[10px] text-slate-400 capitalize font-mono">{toolCat} • {toolPricing}</p>
