@@ -43,23 +43,24 @@ export async function POST(req: NextRequest) {
 
     const cleanName = String(name || "").trim();
     const targetWebsite = String(website_url || "").trim();
+    const email = String(founder_email || submitter_email || "").trim();
     const cleanDesc = String(
       description ||
         overview ||
-        `${cleanName} is an AI solution designed for modern workflow automation.`
+        `${cleanName} is an AI software solution for workflow automation.`
     ).trim();
 
     if (!cleanName || !targetWebsite) {
       return NextResponse.json(
-        { error: "Tool name and official website URL are required." },
+        { error: "Tool Name and Official Website URL are required." },
         { status: 400 }
       );
     }
 
-    if (!SUPABASE_URL || !SUPABASE_KEY) {
+    if (!email || !email.includes("@")) {
       return NextResponse.json(
-        { error: "Supabase environment not configured." },
-        { status: 500 }
+        { error: "A valid Founder Contact Email is compulsory." },
+        { status: 400 }
       );
     }
 
@@ -82,10 +83,8 @@ export async function POST(req: NextRequest) {
 
     const cleanCategory = String(category || "Productivity").trim();
     const cleanPricing = String(pricing || "Freemium").trim();
-    const email = String(founder_email || submitter_email || "").trim();
     const cleanLogo = String(logo_url || "").trim();
 
-    // Exact database schema payload (NO 'tagline', NO 'pricing_model')
     const payload: Record<string, unknown> = {
       name: cleanName,
       slug: baseSlug,
@@ -97,7 +96,7 @@ export async function POST(req: NextRequest) {
       score: tier === "spotlight" ? 98 : tier === "featured" ? 95 : 91,
       ai_vault_score: tier === "spotlight" ? 98 : tier === "featured" ? 95 : 91,
       affiliate_status: "pending_submission",
-      affiliate_network: email ? `Founder: ${email} | Tier: ${tier.toUpperCase()}` : `Tier: ${tier.toUpperCase()}`,
+      affiliate_network: `Email: ${email} | Tier: ${tier.toUpperCase()} | Payment: PENDING`,
       created_at: new Date().toISOString(),
     };
 

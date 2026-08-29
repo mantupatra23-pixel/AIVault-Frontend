@@ -29,7 +29,7 @@ const PAYPAL_ME_HANDLE = "MANTUPATRA372";
 const TIERS = [
   {
     id: "standard",
-    name: "Starter Fast Review",
+    name: "Starter Review",
     price: "$3",
     amount: 3,
     badge: "Basic",
@@ -73,6 +73,7 @@ const TIERS = [
 export default function SubmitToolPage() {
   const [selectedTier, setSelectedTier] = useState<"standard" | "featured" | "spotlight">("standard");
 
+  // Form Fields
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -81,14 +82,18 @@ export default function SubmitToolPage() {
   const [founderEmail, setFounderEmail] = useState("");
   const [description, setDescription] = useState("");
 
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "payment_pending" | "error">("idle");
   const [feedbackMsg, setFeedbackMsg] = useState("");
+
+  // Support / Payment Assistance Form State
+  const [supportTxId, setSupportTxId] = useState("");
+  const [supportMessage, setSupportMessage] = useState("");
+  const [supportStatus, setSupportStatus] = useState<"idle" | "loading" | "sent">("idle");
 
   const activeTierObj = useMemo(() => {
     return TIERS.find((t) => t.id === selectedTier) || TIERS[0];
   }, [selectedTier]);
 
-  // Standard PayPal Merchant Checkout URL (Accepts Cards & PayPal worldwide)
   const paypalMerchantCheckoutUrl = useMemo(() => {
     const itemName = encodeURIComponent(`AI Vault - ${activeTierObj.name} Listing (${name || "Tool"})`);
     return `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(
@@ -108,6 +113,12 @@ export default function SubmitToolPage() {
       return;
     }
 
+    if (!founderEmail.trim() || !founderEmail.includes("@")) {
+      setStatus("error");
+      setFeedbackMsg("A valid Founder / Contact Email is compulsory to verify listing.");
+      return;
+    }
+
     try {
       setStatus("loading");
       setFeedbackMsg("");
@@ -121,11 +132,10 @@ export default function SubmitToolPage() {
           logo_url: logoUrl.trim() || null,
           category,
           pricing,
-          founder_email: founderEmail.trim() || null,
+          founder_email: founderEmail.trim(),
           description: description.trim(),
           overview: description.trim(),
           tier: selectedTier,
-          is_featured: selectedTier !== "standard",
         }),
       });
 
@@ -134,15 +144,43 @@ export default function SubmitToolPage() {
         throw new Error(data.error || "Submission failed. Please check inputs.");
       }
 
-      setStatus("success");
+      // Show Payment Pending state
+      setStatus("payment_pending");
 
-      // Auto-open PayPal Checkout in a new tab
+      // Attempt popup checkout
       if (paypalMerchantCheckoutUrl) {
         window.open(paypalMerchantCheckoutUrl, "_blank", "noopener,noreferrer");
       }
     } catch (err: unknown) {
       setStatus("error");
       setFeedbackMsg(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  };
+
+  const handleSupportTicket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!founderEmail.trim()) return;
+
+    try {
+      setSupportStatus("loading");
+      const res = await fetch("/api/support", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: founderEmail.trim(),
+          tool_name: name.trim(),
+          tier: selectedTier,
+          transaction_id: supportTxId.trim(),
+          message: supportMessage.trim() || "Payment assistance / custom invoice requested.",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Support submission failed.");
+      setSupportStatus("sent");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to register support request.");
+      setSupportStatus("idle");
     }
   };
 
@@ -154,6 +192,9 @@ export default function SubmitToolPage() {
     setDescription("");
     setFounderEmail("");
     setSelectedTier("standard");
+    setSupportTxId("");
+    setSupportMessage("");
+    setSupportStatus("idle");
   };
 
   return (
@@ -197,65 +238,134 @@ export default function SubmitToolPage() {
           </p>
         </div>
 
-        {status === "success" ? (
-          /* SUCCESS / CHECKOUT CONFIRMATION SCREEN */
-          <div className="max-w-2xl mx-auto rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 shadow-sm text-center space-y-6 animate-in fade-in zoom-in duration-200">
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-3xl font-black shadow-inner">
-              ✓
-            </div>
-            <h2 className="text-2xl font-black text-slate-950">
-              Tool Placed in Review Queue!
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Your tool metadata has been recorded in our editorial system.
-            </p>
-
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-6 text-left space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
-                  {activeTierObj.name} ({activeTierObj.price} USD)
-                </span>
-                <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5">
-                  {activeTierObj.turnaround}
-                </span>
+        {status === "payment_pending" ? (
+          /* PAYMENT PENDING + SUPPORT SCREEN */
+          <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in zoom-in duration-200">
+            <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 p-8 sm:p-10 shadow-sm text-center space-y-5">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-2xl font-black">
+                ⏳
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed">
-                Click below to complete the {activeTierObj.price} USD verification payment via PayPal or Credit/Debit Card:
+              <div>
+                <span className="rounded-full bg-amber-200/80 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900">
+                  Step 2: Payment Verification Pending
+                </span>
+                <h2 className="text-2xl font-black text-slate-950 mt-2">
+                  Metadata Recorded for {name}
+                </h2>
+                <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mt-1 leading-relaxed">
+                  Your listing is queued in our editorial backend. Complete the <strong>{activeTierObj.price} USD</strong> review payment to initiate technical verification.
+                </p>
+              </div>
+
+              {/* PAYMENT BUTTONS */}
+              <div className="rounded-2xl border border-blue-200 bg-white p-5 text-left space-y-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-900 uppercase">
+                    {activeTierObj.name} ({activeTierObj.price} USD)
+                  </span>
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5">
+                    {activeTierObj.turnaround}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                  <a
+                    href={paypalMerchantCheckoutUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
+                  >
+                    <span>🅿 Pay {activeTierObj.price} via Card / PayPal ↗</span>
+                  </a>
+                  <a
+                    href={paypalMeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition text-center"
+                  >
+                    PayPal.me Portal ↗
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* PAYMENT ASSISTANCE / SUPPORT TICKET CONTAINER */}
+            <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-base">💬</span>
+                <h3 className="text-sm font-black text-slate-950">
+                  Payment Failed or Need Alternate Payment Method?
+                </h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                If your card was declined, PayPal was unsupported, or you require an invoice/UPI/Crypto transfer, submit this ticket. It will directly notify our admin desk:
               </p>
 
-              <div className="flex flex-col sm:flex-row gap-2.5">
-                <a
-                  href={paypalMerchantCheckoutUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
-                >
-                  <span>🅿 Pay {activeTierObj.price} via Card / PayPal ↗</span>
-                </a>
-                <a
-                  href={paypalMeUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition text-center"
-                >
-                  PayPal.me Link ↗
-                </a>
-              </div>
-            </div>
+              {supportStatus === "sent" ? (
+                <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-xs font-bold text-emerald-800">
+                  ✓ Support ticket received! Our editorial team will review your submission and email you at <strong>{founderEmail}</strong> within a few hours.
+                </div>
+              ) : (
+                <form onSubmit={handleSupportTicket} className="space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        Compulsory Contact Email
+                      </label>
+                      <input
+                        type="email"
+                        required
+                        value={founderEmail}
+                        onChange={(e) => setFounderEmail(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                        PayPal Tx ID / Reference (If already paid)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. 9X482014..."
+                        value={supportTxId}
+                        onChange={(e) => setSupportTxId(e.target.value)}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
+                      />
+                    </div>
+                  </div>
 
-            <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
-              <button
-                onClick={handleReset}
-                className="rounded-xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-100 transition shadow-sm"
-              >
-                Submit Another Product
-              </button>
-              <Link
-                href="/"
-                className="rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/20"
-              >
-                Explore Directory →
-              </Link>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Issue Description / Alternate Payment Request
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g. PayPal card checkout showed unsupported error. Please share alternate invoice or bank details..."
+                      value={supportMessage}
+                      onChange={(e) => setSupportMessage(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white resize-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-2">
+                    <button
+                      type="submit"
+                      disabled={supportStatus === "loading"}
+                      className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-600 transition shadow-sm disabled:opacity-50"
+                    >
+                      {supportStatus === "loading" ? "Submitting Ticket..." : "Submit Payment Assistance Ticket 📨"}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleReset}
+                      className="text-xs font-bold text-slate-500 hover:text-slate-900 underline"
+                    >
+                      Submit Another Product
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         ) : (
@@ -351,14 +461,15 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Logo Image URL (Optional — Auto-detected if empty)
+                      Founder / Contact Email <span className="text-rose-500">* (Compulsory)</span>
                     </label>
                     <input
-                      type="url"
-                      placeholder="https://yourproduct.com/logo.png"
-                      value={logoUrl}
-                      onChange={(e) => setLogoUrl(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:bg-white"
+                      type="email"
+                      required
+                      placeholder="founder@company.com"
+                      value={founderEmail}
+                      onChange={(e) => setFounderEmail(e.target.value)}
+                      className="w-full rounded-xl border border-blue-200 bg-blue-50/20 px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:bg-white"
                     />
                   </div>
 
@@ -400,13 +511,13 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Founder / Contact Email
+                      Logo Image URL (Optional)
                     </label>
                     <input
-                      type="email"
-                      placeholder="founder@company.com"
-                      value={founderEmail}
-                      onChange={(e) => setFounderEmail(e.target.value)}
+                      type="url"
+                      placeholder="https://yourproduct.com/logo.png"
+                      value={logoUrl}
+                      onChange={(e) => setLogoUrl(e.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:bg-white"
                     />
                   </div>
@@ -431,7 +542,7 @@ export default function SubmitToolPage() {
                     className="w-full rounded-xl py-3.5 text-xs font-black text-white bg-[#0070BA] hover:bg-[#003087] shadow-md shadow-blue-500/20 transition disabled:opacity-50 mt-2"
                   >
                     {status === "loading"
-                      ? "Processing Submission..."
+                      ? "Recording Metadata..."
                       : `Proceed to Payment (${activeTierObj.price}) 🅿`}
                   </button>
                 </form>
@@ -450,9 +561,11 @@ export default function SubmitToolPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
                       Previewing #{name ? name : "Your Product"}
                     </span>
-                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
-                      ⚡ Verified
-                    </span>
+                    {selectedTier !== "standard" && (
+                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
+                        ⚡ Verified
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-start gap-3.5 mb-4">
