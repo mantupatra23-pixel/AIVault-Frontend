@@ -23,7 +23,8 @@ const PRICING_MODELS = [
   "Enterprise",
 ];
 
-const PAYPAL_HANDLE = "MANTUPATRA372";
+const PAYPAL_MERCHANT_EMAIL = "pmantu808@gmail.com";
+const PAYPAL_ME_HANDLE = "MANTUPATRA372";
 
 const TIERS = [
   {
@@ -87,8 +88,16 @@ export default function SubmitToolPage() {
     return TIERS.find((t) => t.id === selectedTier) || TIERS[0];
   }, [selectedTier]);
 
-  const paypalCheckoutUrl = useMemo(() => {
-    return `https://www.paypal.com/paypalme/${PAYPAL_HANDLE}/${activeTierObj.amount}USD`;
+  // Standard PayPal Merchant Checkout URL (Accepts Cards & PayPal worldwide)
+  const paypalMerchantCheckoutUrl = useMemo(() => {
+    const itemName = encodeURIComponent(`AI Vault - ${activeTierObj.name} Listing (${name || "Tool"})`);
+    return `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(
+      PAYPAL_MERCHANT_EMAIL
+    )}&item_name=${itemName}&amount=${activeTierObj.amount}&currency_code=USD`;
+  }, [activeTierObj, name]);
+
+  const paypalMeUrl = useMemo(() => {
+    return `https://www.paypal.com/paypalme/${PAYPAL_ME_HANDLE}/${activeTierObj.amount}USD`;
   }, [activeTierObj]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,9 +136,9 @@ export default function SubmitToolPage() {
 
       setStatus("success");
 
-      // Auto-open PayPal Checkout
-      if (paypalCheckoutUrl) {
-        window.open(paypalCheckoutUrl, "_blank", "noopener,noreferrer");
+      // Auto-open PayPal Checkout in a new tab
+      if (paypalMerchantCheckoutUrl) {
+        window.open(paypalMerchantCheckoutUrl, "_blank", "noopener,noreferrer");
       }
     } catch (err: unknown) {
       setStatus("error");
@@ -198,10 +207,10 @@ export default function SubmitToolPage() {
               Tool Placed in Review Queue!
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Your tool metadata has been recorded.
+              Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Your tool metadata has been recorded in our editorial system.
             </p>
 
-            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-5 text-left space-y-3">
+            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-6 text-left space-y-4">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
                   {activeTierObj.name} ({activeTierObj.price} USD)
@@ -211,16 +220,27 @@ export default function SubmitToolPage() {
                 </span>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed">
-                If the PayPal checkout tab did not open automatically, click the button below to complete the {activeTierObj.price} payment directly:
+                Click below to complete the {activeTierObj.price} USD verification payment via PayPal or Credit/Debit Card:
               </p>
-              <a
-                href={paypalCheckoutUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
-              >
-                <span>🅿 Complete {activeTierObj.price} Payment via PayPal ↗</span>
-              </a>
+
+              <div className="flex flex-col sm:flex-row gap-2.5">
+                <a
+                  href={paypalMerchantCheckoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
+                >
+                  <span>🅿 Pay {activeTierObj.price} via Card / PayPal ↗</span>
+                </a>
+                <a
+                  href={paypalMeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-50 transition text-center"
+                >
+                  PayPal.me Link ↗
+                </a>
+              </div>
             </div>
 
             <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
@@ -412,7 +432,7 @@ export default function SubmitToolPage() {
                   >
                     {status === "loading"
                       ? "Processing Submission..."
-                      : `Proceed to PayPal Checkout (${activeTierObj.price}) 🅿`}
+                      : `Proceed to Payment (${activeTierObj.price}) 🅿`}
                   </button>
                 </form>
               </div>
@@ -430,11 +450,9 @@ export default function SubmitToolPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
                       Previewing #{name ? name : "Your Product"}
                     </span>
-                    {selectedTier !== "standard" && (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
-                        ⚡ Featured
-                      </span>
-                    )}
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
+                      ⚡ Verified
+                    </span>
                   </div>
 
                   <div className="flex items-start gap-3.5 mb-4">
