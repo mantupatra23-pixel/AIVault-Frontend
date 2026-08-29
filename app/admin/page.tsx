@@ -21,6 +21,7 @@ type ToolRecord = {
   affiliate_status?: string | null;
   founder_email?: string | null;
   submitter_email?: string | null;
+  submission_tier?: string | null;
   click_count?: number | null;
   revenue_usd?: number | null;
   score?: number | string | null;
@@ -101,8 +102,8 @@ export default function MasterAdminSuite() {
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<
-    "affiliate" | "inquiries" | "submissions" | "catalog" | "reviews" | "subscribers"
-  >("inquiries");
+    "submissions" | "inquiries" | "affiliate" | "catalog" | "reviews" | "subscribers"
+  >("submissions");
 
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [submissions, setSubmissions] = useState<ToolRecord[]>([]);
@@ -184,20 +185,7 @@ export default function MasterAdminSuite() {
       if (inqData && inqData.length > 0) {
         setInquiries(inqData);
       } else {
-        setInquiries([
-          {
-            id: 1,
-            name: "Mantu Patra",
-            email: "mantupatra168@gmail.com",
-            tool_name: "DocuSynth AI",
-            tier: "Starter ($3 USD)",
-            transaction_id: "TX-98421098X",
-            issue_type: "Tool Verification & Claim",
-            message: "I have submitted my tool and initiated review payment. Please verify and publish live.",
-            status: "unread",
-            created_at: new Date().toISOString(),
-          },
-        ]);
+        setInquiries([]);
       }
 
       // 4. Fetch Subscribers
@@ -285,14 +273,33 @@ export default function MasterAdminSuite() {
     showToast("✓ Admin PIN reset successfully!");
   };
 
+  // Robust Founder Email Extractor
   const extractFounderEmail = (tool: ToolRecord): string => {
-    if (tool.founder_email) return String(tool.founder_email).trim();
-    if (tool.submitter_email) return String(tool.submitter_email).trim();
-    if (tool.affiliate_network && tool.affiliate_network.includes("Email:")) {
-      const match = tool.affiliate_network.match(/Email:\s*([^\s|]+)/);
+    if (tool.founder_email && String(tool.founder_email).includes("@")) {
+      return String(tool.founder_email).trim();
+    }
+    if (tool.submitter_email && String(tool.submitter_email).includes("@")) {
+      return String(tool.submitter_email).trim();
+    }
+    if (tool.affiliate_network) {
+      const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+      const match = tool.affiliate_network.match(emailRegex);
       if (match) return match[1].trim();
     }
-    return "Not provided";
+    return "Not Provided";
+  };
+
+  // Robust Tier Details Extractor
+  const extractTier = (tool: ToolRecord): string => {
+    if (tool.submission_tier) return String(tool.submission_tier).toUpperCase();
+    if (tool.affiliate_network && tool.affiliate_network.includes("Tier:")) {
+      const match = tool.affiliate_network.match(/Tier:\s*([^|]+)/);
+      if (match) return match[1].trim();
+    }
+    const score = Number(tool.score || 91);
+    if (score >= 98) return "CATEGORY TAKEOVER ($49)";
+    if (score >= 95) return "FEATURED BOOST ($19)";
+    return "STARTER REVIEW ($3)";
   };
 
   const handleCopyEmail = (email: string) => {
@@ -651,7 +658,7 @@ export default function MasterAdminSuite() {
   }
 
   return (
-    <main className="min-h-screen bg-[#050714] text-slate-100 pb-20">
+    <main className="min-h-screen bg-[#050714] text-slate-100 pb-20 font-sans">
       {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-50 rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black text-white shadow-2xl animate-bounce">
@@ -706,26 +713,36 @@ export default function MasterAdminSuite() {
         {/* Navigation Tabs */}
         <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-4 mb-8">
           <button
-            onClick={() => setActiveTab("inquiries")}
-            className={`relative rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "inquiries" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+            onClick={() => setActiveTab("submissions")}
+            className={`rounded-xl px-4 py-2 text-xs font-black transition flex items-center gap-2 shrink-0 ${
+              activeTab === "submissions"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            ✉️ Inquiries & Messages ({inquiries.length})
-            {metrics.unreadMessages > 0 && (
-              <span className="ml-1.5 rounded-full bg-emerald-500 px-1.5 py-0.2 text-[9px] font-black text-black">
-                {metrics.unreadMessages} new
-              </span>
-            )}
+            <span>📥 Pending Submissions</span>
+            <span className="rounded-full bg-amber-400/20 border border-amber-400/30 px-2 py-0.2 text-[10px] text-amber-300 font-black">
+              {submissions.length}
+            </span>
           </button>
 
           <button
-            onClick={() => setActiveTab("submissions")}
-            className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "submissions" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+            onClick={() => setActiveTab("inquiries")}
+            className={`relative rounded-xl px-4 py-2 text-xs font-black transition flex items-center gap-2 shrink-0 ${
+              activeTab === "inquiries"
+                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            📥 Pending Submissions ({submissions.length})
+            <span>✉️ Inquiries & Messages</span>
+            <span className="rounded-full bg-blue-400/20 border border-blue-400/30 px-2 py-0.2 text-[10px] text-blue-300 font-black">
+              {inquiries.length}
+            </span>
+            {metrics.unreadMessages > 0 && (
+              <span className="ml-1 rounded-full bg-emerald-500 px-1.5 py-0.2 text-[9px] font-black text-black">
+                {metrics.unreadMessages} new
+              </span>
+            )}
           </button>
 
           <button
@@ -765,13 +782,154 @@ export default function MasterAdminSuite() {
           </button>
         </div>
 
-        {/* 1. INQUIRIES & MESSAGES TAB */}
+        {/* TAB 1: PENDING SUBMISSIONS MODERATION (FULL DETAILS WITH FOUNDER EMAIL) */}
+        {activeTab === "submissions" && (
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-black text-white">Pending Founder Submissions ({submissions.length})</h2>
+                <p className="text-xs text-slate-400">Review incoming tools, verified founder contact details, and tier requests.</p>
+              </div>
+              <button
+                onClick={loadAdminData}
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
+              >
+                🔄 Refresh Queue
+              </button>
+            </div>
+
+            {submissions.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
+                No pending submissions in queue. All tools reviewed.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {submissions.map((tool) => {
+                  const founderEmail = extractFounderEmail(tool);
+                  const tierName = extractTier(tool);
+                  const targetWebsite = String(tool.website_url || tool.website || "#");
+
+                  const mailtoUrl = `mailto:${founderEmail}?subject=${encodeURIComponent(
+                    `AI Vault Update: ${tool.name} Approval Status`
+                  )}&body=${encodeURIComponent(
+                    `Hi ${tool.name} Team,\n\nWe have reviewed your submission on AI Vault.\n\n`
+                  )}`;
+
+                  return (
+                    <div
+                      key={String(tool.id || tool.slug)}
+                      className="rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-sm space-y-4 transition hover:border-slate-700"
+                    >
+                      {/* HEADER: LOGO, NAME, CATEGORY, PRICING, TIER */}
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800/80 pb-4">
+                        <div className="flex items-start gap-4">
+                          <ToolLogo
+                            name={tool.name}
+                            src={tool.logo_url || tool.logo}
+                            website={targetWebsite}
+                            slug={tool.slug}
+                            size="md"
+                          />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-lg font-black text-white">{tool.name}</h3>
+                              <span className="rounded-md bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-[10px] font-bold text-blue-400 capitalize">
+                                {tool.category || "Productivity"}
+                              </span>
+                              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                                {tool.pricing || "Freemium"}
+                              </span>
+                              <span className="rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+                                {tierName}
+                              </span>
+                            </div>
+
+                            <a
+                              href={targetWebsite}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-400 hover:underline font-mono block mt-1.5"
+                            >
+                              Visit Website ({targetWebsite}) ↗
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* FOUNDER EMAIL BADGE (PROMINENT HIGHLIGHT) */}
+                        <div className="rounded-2xl border border-blue-500/40 bg-blue-950/40 p-3.5 self-start min-w-[240px]">
+                          <span className="text-[10px] font-black uppercase tracking-wider text-blue-300 block mb-1">
+                            ✉️ Founder Contact Email
+                          </span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-mono font-black text-white truncate">
+                              {founderEmail}
+                            </span>
+                            {founderEmail !== "Not Provided" && (
+                              <button
+                                onClick={() => handleCopyEmail(founderEmail)}
+                                className="shrink-0 rounded-lg bg-blue-600/40 hover:bg-blue-600 border border-blue-400/40 px-2 py-0.5 text-[10px] font-bold text-white transition"
+                              >
+                                {copiedEmail === founderEmail ? "✓ Copied" : "📋 Copy"}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* TOOL DESCRIPTION */}
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                          Product Overview & Capabilities:
+                        </span>
+                        <div className="rounded-2xl bg-black/40 border border-slate-800/80 p-4 text-xs text-slate-300 leading-relaxed">
+                          {tool.description || tool.overview || "No description provided."}
+                        </div>
+                      </div>
+
+                      {/* ACTION CONTROLS */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+                        <span className="text-[11px] font-mono text-slate-500">
+                          Submitted: {tool.created_at ? new Date(tool.created_at).toLocaleString() : "Recently"}
+                        </span>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {founderEmail !== "Not Provided" && (
+                            <a
+                              href={mailtoUrl}
+                              className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+                            >
+                              ✉️ Email Founder ↗
+                            </a>
+                          )}
+                          <button
+                            onClick={() => handleModerateSubmission(tool, "reject")}
+                            className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900 transition"
+                          >
+                            ✕ Reject
+                          </button>
+                          <button
+                            onClick={() => handleModerateSubmission(tool, "approve")}
+                            className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
+                          >
+                            ✓ Approve & Publish Live
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* TAB 2: INQUIRIES & CONTACT MESSAGES */}
         {activeTab === "inquiries" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Direct Contact Inquiries ({inquiries.length})</h2>
-                <p className="text-xs text-slate-400">Review founder emails, payment verification tickets, and messages.</p>
+                <h2 className="text-lg font-black text-white">Direct Contact Inquiries & Payment Tickets ({inquiries.length})</h2>
+                <p className="text-xs text-slate-400">Messages, founder verification claims, and custom assistance requests.</p>
               </div>
               <button
                 onClick={loadAdminData}
@@ -789,7 +947,7 @@ export default function MasterAdminSuite() {
               <div className="space-y-4">
                 {inquiries.map((inq, idx) => {
                   const mailtoUrl = `mailto:${inq.email}?subject=${encodeURIComponent(
-                    `AI Vault Update: ${inq.tool_name || inq.subject || "Your Inquiry"}`
+                    `AI Vault Support: ${inq.tool_name || inq.subject || "Your Inquiry"}`
                   )}&body=${encodeURIComponent(
                     `Hi ${inq.name || "Founder"},\n\nRegarding your inquiry on AI Vault:\n\n`
                   )}`;
@@ -797,7 +955,11 @@ export default function MasterAdminSuite() {
                   return (
                     <div
                       key={inq.id || idx}
-                      className="rounded-2xl border border-slate-800 bg-[#0c102b] p-5 space-y-3.5 transition hover:border-slate-700"
+                      className={`rounded-2xl border p-5 transition space-y-3.5 ${
+                        inq.status === "unread"
+                          ? "border-blue-500/40 bg-[#0c133a]"
+                          : "border-slate-800 bg-[#0c102b]"
+                      }`}
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
                         <div className="flex items-center gap-3">
@@ -806,7 +968,7 @@ export default function MasterAdminSuite() {
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-black text-white">{inq.name || "Founder"}</h3>
+                              <h3 className="text-sm font-black text-white">{inq.name || "Anonymous Founder"}</h3>
                               <span className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 text-[9px] font-bold text-blue-300">
                                 {inq.issue_type || inq.subject || "Tool Verification & Claim"}
                               </span>
@@ -839,14 +1001,14 @@ export default function MasterAdminSuite() {
                         <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5">
                           <span className="text-[9px] uppercase font-bold text-slate-500 block">Related Tool</span>
                           <span className="font-bold text-slate-200 truncate block mt-0.5">
-                            {inq.tool_name || "DocuSynth AI"}
+                            {inq.tool_name || "General Inquiry"}
                           </span>
                         </div>
 
                         <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5">
                           <span className="text-[9px] uppercase font-bold text-slate-500 block">Selected Tier</span>
                           <span className="font-bold text-emerald-400 block mt-0.5">
-                            {inq.tier || "Starter ($3 USD)"}
+                            {inq.tier || "Standard Review"}
                           </span>
                         </div>
 
@@ -858,8 +1020,8 @@ export default function MasterAdminSuite() {
                         </div>
                       </div>
 
-                      <div className="rounded-2xl bg-slate-900/60 border border-slate-800 p-3.5 text-xs text-slate-200 whitespace-pre-wrap">
-                        {inq.message || "Huh"}
+                      <div className="rounded-2xl bg-black/40 border border-slate-800/80 p-3.5 text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
+                        {inq.message || "No message content."}
                       </div>
 
                       <div className="flex justify-end gap-2 text-xs pt-1">
@@ -884,124 +1046,7 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* 2. PENDING SUBMISSIONS TAB */}
-        {activeTab === "submissions" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-black text-white">Pending Founder Submissions ({submissions.length})</h2>
-                <p className="text-xs text-slate-400">Review incoming tools submitted via /submit page</p>
-              </div>
-              <button
-                onClick={loadAdminData}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
-              >
-                🔄 Refresh Queue
-              </button>
-            </div>
-
-            {submissions.length === 0 ? (
-              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
-                No pending submissions in queue.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {submissions.map((tool) => {
-                  const founderEmail = extractFounderEmail(tool);
-                  const mailtoUrl = `mailto:${founderEmail}?subject=${encodeURIComponent(
-                    `AI Vault Update: ${tool.name} Approval Status`
-                  )}`;
-
-                  return (
-                    <div
-                      key={String(tool.id || tool.slug)}
-                      className="rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-sm space-y-4 transition hover:border-slate-700"
-                    >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                        <div className="flex items-start gap-4">
-                          <ToolLogo
-                            name={tool.name}
-                            src={tool.logo_url || tool.logo}
-                            website={tool.website_url || tool.website}
-                            slug={tool.slug}
-                            size="md"
-                          />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-base font-black text-white">{tool.name}</h3>
-                              <span className="rounded-md bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-[9px] font-bold text-blue-400 capitalize">
-                                {tool.category || "Productivity"}
-                              </span>
-                              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
-                                {tool.pricing || "Freemium"}
-                              </span>
-                            </div>
-
-                            <a
-                              href={tool.website_url || tool.website || "#"}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:underline font-mono block mt-1"
-                            >
-                              {tool.website_url || tool.website} ↗
-                            </a>
-                          </div>
-                        </div>
-
-                        {/* FOUNDER EMAIL BADGE */}
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-3 self-start text-right">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 block">
-                            Founder Contact Email
-                          </span>
-                          <div className="flex items-center justify-end gap-2 mt-0.5">
-                            <a href={mailtoUrl} className="text-xs font-mono font-bold text-blue-400 hover:underline">
-                              {founderEmail}
-                            </a>
-                            {founderEmail !== "Not provided" && (
-                              <button
-                                onClick={() => handleCopyEmail(founderEmail)}
-                                className="text-[10px] font-bold text-slate-400 hover:text-white"
-                              >
-                                {copiedEmail === founderEmail ? "✓" : "📋"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="rounded-2xl bg-black/40 border border-slate-800/80 p-4 text-xs text-slate-300 leading-relaxed">
-                        {tool.description || tool.overview || "No description provided."}
-                      </div>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-                        <span className="text-[11px] font-mono text-slate-500">
-                          Submitted: {tool.created_at ? new Date(tool.created_at).toLocaleDateString() : "Recent"}
-                        </span>
-
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleModerateSubmission(tool, "reject")}
-                            className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900 transition"
-                          >
-                            ✕ Reject
-                          </button>
-                          <button
-                            onClick={() => handleModerateSubmission(tool, "approve")}
-                            className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
-                          >
-                            ✓ Approve & Publish Live
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* 3. AFFILIATE HUB TAB */}
+        {/* TAB 3: AFFILIATE HUB */}
         {activeTab === "affiliate" && (
           <div>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
@@ -1149,7 +1194,7 @@ export default function MasterAdminSuite() {
           </div>
         )}
 
-        {/* 4. CATALOG MANAGER TAB */}
+        {/* TAB 4: TOOL CATALOG MANAGER */}
         {activeTab === "catalog" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -1265,7 +1310,7 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* 5. USER REVIEWS TAB */}
+        {/* TAB 5: USER REVIEWS */}
         {activeTab === "reviews" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
             <div className="flex items-center justify-between">
@@ -1330,7 +1375,7 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* 6. EMAIL LEADS TAB */}
+        {/* TAB 6: EMAIL LEADS */}
         {activeTab === "subscribers" && (
           <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
