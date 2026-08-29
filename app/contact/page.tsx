@@ -15,7 +15,7 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !message.trim()) {
-      setErrorMsg("Please fill out your Email and Message.");
+      setErrorMsg("Please provide both your Contact Email and Message.");
       return;
     }
 
@@ -36,7 +36,7 @@ export default function ContactPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to send message.");
+      if (!res.ok || data.error) throw new Error(data.error || "Failed to deliver message.");
 
       setSubmitted(true);
     } catch (err: unknown) {
@@ -83,7 +83,7 @@ export default function ContactPage() {
             </div>
             <h2 className="text-xl font-black text-slate-950">Message Sent to Admin Desk</h2>
             <p className="text-xs text-slate-500 max-w-sm mx-auto leading-relaxed">
-              Your inquiry has been logged into our admin dashboard. Our editorial team will review and reply via email.
+              Your inquiry has been logged into our admin dashboard. Our editorial team will review and reply via email to <strong>{email}</strong>.
             </p>
             <div className="pt-4 flex justify-center gap-3">
               <button
@@ -144,7 +144,7 @@ export default function ContactPage() {
                 className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-slate-900 outline-none focus:border-blue-600 focus:bg-white"
               >
                 <option value="Tool Verification & Claim">Tool Verification & Claim</option>
-                <option value="Sponsored Spotlight Inquiry">Sponsored Spotlight Inquiry ($29 / $49)</option>
+                <option value="Sponsored Spotlight Inquiry">Sponsored Spotlight Inquiry ($19 / $49)</option>
                 <option value="Payment Assistance / Custom Invoice">Payment Assistance / Custom Invoice</option>
                 <option value="Editorial Correction / Update">Editorial Correction / Update</option>
                 <option value="Partnership & Integration">Partnership & Integration</option>
