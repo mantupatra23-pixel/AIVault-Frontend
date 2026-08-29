@@ -11,6 +11,7 @@ type ToolRecord = {
   name?: string | null;
   category?: string | null;
   pricing?: string | null;
+  pricing_model?: string | null;
   website_url?: string | null;
   website?: string | null;
   logo_url?: string | null;
@@ -31,18 +32,17 @@ type ToolRecord = {
 };
 
 type InquiryRecord = {
-  id?: string | number | null;
-  name?: string | null;
-  email?: string | null;
-  tool_name?: string | null;
-  tier?: string | null;
-  transaction_id?: string | null;
-  subject?: string | null;
-  issue_type?: string | null;
-  message?: string | null;
-  status?: string | null;
-  created_at?: string | null;
-  [key: string]: unknown;
+  id: string | number;
+  name: string;
+  email: string;
+  tool_name: string;
+  tier?: string;
+  transaction_id?: string;
+  subject: string;
+  issue_type: string;
+  message: string;
+  status: string;
+  created_at: string;
 };
 
 type SubscriberRecord = {
@@ -159,7 +159,7 @@ export default function MasterAdminSuite() {
     try {
       setLoading(true);
 
-      // 1. Fetch Inquiries through Server API (Bypasses RLS)
+      // 1. Fetch Inquiries from Universal API
       try {
         const inqRes = await fetch("/api/admin/inquiries");
         const inqJson = await inqRes.json();
@@ -168,11 +168,12 @@ export default function MasterAdminSuite() {
         console.error("Inquiries fetch error:", e);
       }
 
-      // 2. Fetch Tools Catalog
+      // 2. Fetch Tools Catalog (Excluding Inquiries & Submissions)
       const { data: toolsData } = await supabase
         .from("ai_tools")
         .select("*")
         .neq("affiliate_status", "pending_submission")
+        .neq("affiliate_status", "inquiry_message")
         .order("name", { ascending: true });
       setTools((toolsData as ToolRecord[]) || []);
 
@@ -324,19 +325,21 @@ export default function MasterAdminSuite() {
     }
   };
 
-  const handleDeleteInquiry = async (id?: string | number | null) => {
-    if (!id) return;
+  const handleDeleteInquiry = async (id: string | number) => {
     if (!confirm("Are you sure you want to delete this message?")) return;
     try {
-      await fetch("/api/admin/inquiries", {
+      const res = await fetch("/api/admin/inquiries", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, action: "delete" }),
       });
+      const data = await res.json();
+      if (!res.ok || data.error) throw new Error(data.error || "Failed to delete");
+
       setInquiries((prev) => prev.filter((i) => i.id !== id));
       showToast("Message deleted.");
-    } catch {
-      alert("Failed to delete message.");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Failed to delete message.");
     }
   };
 
@@ -388,7 +391,7 @@ export default function MasterAdminSuite() {
     const pending = total - active;
     const clicks = tools.reduce((acc, t) => acc + Number(t.click_count || 0), 0) + 31;
     const revenue = tools.reduce((acc, t) => acc + Number(t.revenue_usd || 0), 0);
-    const unreadMessages = inquiries.filter((m) => m.status === "unread").length;
+    const unreadMessages = inquiries.length;
 
     return { total, active, pending, clicks, revenue, unreadMessages };
   }, [tools, inquiries]);
@@ -720,11 +723,6 @@ export default function MasterAdminSuite() {
             <span className="rounded-full bg-blue-400/20 border border-blue-400/30 px-2 py-0.2 text-[10px] text-blue-300 font-black">
               {inquiries.length}
             </span>
-            {metrics.unreadMessages > 0 && (
-              <span className="ml-1 rounded-full bg-emerald-500 px-1.5 py-0.2 text-[9px] font-black text-black">
-                {metrics.unreadMessages} new
-              </span>
-            )}
           </button>
 
           <button
@@ -800,7 +798,7 @@ export default function MasterAdminSuite() {
               </div>
             ) : (
               <div className="space-y-4">
-                {inquiries.map((inq, idx) => {
+                {inquiries.map((inq) => {
                   const mailtoUrl = `mailto:${inq.email}?subject=${encodeURIComponent(
                     `AI Vault Update: ${inq.tool_name || inq.subject || "Your Inquiry"}`
                   )}&body=${encodeURIComponent(
@@ -809,12 +807,8 @@ export default function MasterAdminSuite() {
 
                   return (
                     <div
-                      key={inq.id || idx}
-                      className={`rounded-2xl border p-5 transition space-y-3.5 ${
-                        inq.status === "unread"
-                          ? "border-blue-500/40 bg-[#0c133a]"
-                          : "border-slate-800 bg-[#0c102b]"
-                      }`}
+                      key={String(inq.id)}
+                      className="rounded-2xl border border-slate-800 bg-[#0c102b] p-5 space-y-3.5 transition hover:border-slate-700"
                     >
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
                         <div className="flex items-center gap-3">
@@ -837,7 +831,7 @@ export default function MasterAdminSuite() {
                                 {inq.email}
                               </a>
                               <button
-                                onClick={() => handleCopyEmail(inq.email || "")}
+                                onClick={() => handleCopyEmail(inq.email)}
                                 className="text-[10px] font-bold text-slate-500 hover:text-slate-300"
                               >
                                 {copiedEmail === inq.email ? "✓ Copied" : "📋 Copy"}
@@ -868,9 +862,9 @@ export default function MasterAdminSuite() {
                         </div>
 
                         <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5 col-span-2 sm:col-span-1">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Status</span>
-                          <span className="font-mono text-blue-300 font-bold block mt-0.5 uppercase">
-                            {inq.status || "Received"}
+                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Reference</span>
+                          <span className="font-mono text-blue-300 font-bold block mt-0.5 truncate">
+                            {inq.transaction_id || "Direct Message"}
                           </span>
                         </div>
                       </div>
