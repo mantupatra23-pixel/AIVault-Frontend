@@ -23,8 +23,8 @@ const PRICING_MODELS = [
   "Enterprise",
 ];
 
-const PAYPAL_MERCHANT_EMAIL = "pmantu808@gmail.com";
-const PAYPAL_ME_HANDLE = "MANTUPATRA372";
+const PAYPAL_HANDLE = "MANTUPATRA372";
+const PAYPAL_EMAIL = "pmantu808@gmail.com";
 
 const TIERS = [
   {
@@ -73,7 +73,6 @@ const TIERS = [
 export default function SubmitToolPage() {
   const [selectedTier, setSelectedTier] = useState<"standard" | "featured" | "spotlight">("standard");
 
-  // Form Fields
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -82,10 +81,9 @@ export default function SubmitToolPage() {
   const [founderEmail, setFounderEmail] = useState("");
   const [description, setDescription] = useState("");
 
-  const [status, setStatus] = useState<"idle" | "loading" | "payment_pending" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "payment_ready" | "error">("idle");
   const [feedbackMsg, setFeedbackMsg] = useState("");
 
-  // Support / Payment Assistance Form State
   const [supportTxId, setSupportTxId] = useState("");
   const [supportMessage, setSupportMessage] = useState("");
   const [supportStatus, setSupportStatus] = useState<"idle" | "loading" | "sent">("idle");
@@ -95,14 +93,14 @@ export default function SubmitToolPage() {
   }, [selectedTier]);
 
   const paypalMerchantCheckoutUrl = useMemo(() => {
-    const itemName = encodeURIComponent(`AI Vault - ${activeTierObj.name} Listing (${name || "Tool"})`);
+    const itemName = encodeURIComponent(`AI Vault - ${activeTierObj.name} (${name || "Tool"})`);
     return `https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=${encodeURIComponent(
-      PAYPAL_MERCHANT_EMAIL
+      PAYPAL_EMAIL
     )}&item_name=${itemName}&amount=${activeTierObj.amount}&currency_code=USD`;
   }, [activeTierObj, name]);
 
   const paypalMeUrl = useMemo(() => {
-    return `https://www.paypal.com/paypalme/${PAYPAL_ME_HANDLE}/${activeTierObj.amount}USD`;
+    return `https://www.paypal.com/paypalme/${PAYPAL_HANDLE}/${activeTierObj.amount}USD`;
   }, [activeTierObj]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,7 +113,7 @@ export default function SubmitToolPage() {
 
     if (!founderEmail.trim() || !founderEmail.includes("@")) {
       setStatus("error");
-      setFeedbackMsg("A valid Founder / Contact Email is compulsory to verify listing.");
+      setFeedbackMsg("A valid Founder / Contact Email is compulsory.");
       return;
     }
 
@@ -144,13 +142,8 @@ export default function SubmitToolPage() {
         throw new Error(data.error || "Submission failed. Please check inputs.");
       }
 
-      // Show Payment Pending state
-      setStatus("payment_pending");
-
-      // Attempt popup checkout
-      if (paypalMerchantCheckoutUrl) {
-        window.open(paypalMerchantCheckoutUrl, "_blank", "noopener,noreferrer");
-      }
+      setStatus("payment_ready");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (err: unknown) {
       setStatus("error");
       setFeedbackMsg(err instanceof Error ? err.message : "Something went wrong.");
@@ -163,15 +156,17 @@ export default function SubmitToolPage() {
 
     try {
       setSupportStatus("loading");
-      const res = await fetch("/api/support", {
+      const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          name: name.trim() || "Founder",
           email: founderEmail.trim(),
           tool_name: name.trim(),
-          tier: selectedTier,
+          tier: activeTierObj.name,
           transaction_id: supportTxId.trim(),
-          message: supportMessage.trim() || "Payment assistance / custom invoice requested.",
+          subject: "Payment Assistance / Direct Invoice Request",
+          message: supportMessage.trim() || "Need alternative payment assistance or direct invoice.",
         }),
       });
 
@@ -224,66 +219,88 @@ export default function SubmitToolPage() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* TITLE */}
-        <div className="text-center max-w-2xl mx-auto mb-10">
+        <div className="text-center max-w-2xl mx-auto mb-8">
           <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 border border-blue-200/60 px-3.5 py-1 text-[10px] font-black uppercase tracking-wider text-blue-600 mb-3">
             <span>⚡ Founder Direct Placement</span>
           </div>
           <h1 className="text-3xl sm:text-5xl font-black text-slate-950 tracking-tight">
             Submit & Boost Your AI Product
           </h1>
-          <p className="mt-3 text-xs sm:text-sm text-slate-600 leading-relaxed max-w-lg mx-auto">
+          <p className="mt-2 text-xs sm:text-sm text-slate-600 leading-relaxed max-w-lg mx-auto">
             Get discovered by 25,000+ monthly active founders, software engineers, and growth teams evaluating AI workflow automation.
           </p>
         </div>
 
-        {status === "payment_pending" ? (
-          /* PAYMENT PENDING + SUPPORT SCREEN */
-          <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in zoom-in duration-200">
-            <div className="rounded-3xl border border-amber-200 bg-gradient-to-br from-amber-50/70 via-white to-orange-50/40 p-8 sm:p-10 shadow-sm text-center space-y-5">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-amber-100 text-amber-600 text-2xl font-black">
-                ⏳
+        {status === "payment_ready" ? (
+          /* STEP 2: PAYMENT OPTIONS CONTAINER */
+          <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in duration-200">
+            <div className="rounded-3xl border border-blue-200 bg-gradient-to-br from-blue-50/90 via-indigo-50/40 to-white p-6 sm:p-10 shadow-md text-center space-y-5">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white text-2xl font-black shadow-lg shadow-blue-500/30">
+                ✓
               </div>
+
               <div>
-                <span className="rounded-full bg-amber-200/80 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900">
-                  Step 2: Payment Verification Pending
+                <span className="rounded-full bg-blue-100 border border-blue-200 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">
+                  Step 2: Complete Review Payment
                 </span>
                 <h2 className="text-2xl font-black text-slate-950 mt-2">
                   Metadata Recorded for {name}
                 </h2>
                 <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto mt-1 leading-relaxed">
-                  Your listing is queued in our editorial backend. Complete the <strong>{activeTierObj.price} USD</strong> review payment to initiate technical verification.
+                  Your product is queued in our editorial review database. Choose your payment method below to initiate verification:
                 </p>
               </div>
 
-              {/* PAYMENT BUTTONS */}
-              <div className="rounded-2xl border border-blue-200 bg-white p-5 text-left space-y-3 shadow-sm">
-                <div className="flex items-center justify-between">
+              {/* 3 PAYMENT OPTIONS BOX */}
+              <div className="rounded-2xl border border-blue-200 bg-white p-5 text-left space-y-4 shadow-sm">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                   <span className="text-xs font-black text-slate-900 uppercase">
-                    {activeTierObj.name} ({activeTierObj.price} USD)
+                    Selected Tier: {activeTierObj.name}
                   </span>
-                  <span className="rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5">
-                    {activeTierObj.turnaround}
+                  <span className="rounded-full bg-emerald-600 text-white text-xs font-black px-3 py-1">
+                    Amount: {activeTierObj.price} USD
                   </span>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
+                <div className="space-y-2.5">
+                  {/* Option 1: Card / PayPal Merchant */}
                   <a
                     href={paypalMerchantCheckoutUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
+                    className="flex items-center justify-between rounded-xl bg-[#0070BA] hover:bg-[#003087] p-3.5 text-white shadow-md transition group"
                   >
-                    <span>🅿 Pay {activeTierObj.price} via Card / PayPal ↗</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">💳</span>
+                      <div>
+                        <p className="text-xs font-black">Option 1: Pay with Credit / Debit Card or PayPal</p>
+                        <p className="text-[10px] text-blue-100">Instant Worldwide Card Checkout ({activeTierObj.price} USD)</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black bg-white/20 px-2.5 py-1 rounded-lg group-hover:bg-white/30">
+                      Pay Now ↗
+                    </span>
                   </a>
+
+                  {/* Option 2: PayPal.me Direct Link */}
                   <a
                     href={paypalMeUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs font-bold text-slate-700 hover:bg-slate-100 transition text-center"
+                    className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3.5 text-slate-800 transition group"
                   >
-                    PayPal.me Portal ↗
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl">🅿️</span>
+                      <div>
+                        <p className="text-xs font-black">Option 2: Direct PayPal.me Transfer</p>
+                        <p className="text-[10px] text-slate-500">paypal.me/{PAYPAL_HANDLE}/{activeTierObj.amount}USD</p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-blue-600 group-hover:underline">
+                      Open Link ↗
+                    </span>
                   </a>
                 </div>
               </div>
@@ -291,26 +308,26 @@ export default function SubmitToolPage() {
 
             {/* PAYMENT ASSISTANCE / SUPPORT TICKET CONTAINER */}
             <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-sm">
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-base">💬</span>
                 <h3 className="text-sm font-black text-slate-950">
-                  Payment Failed or Need Alternate Payment Method?
+                  Option 3: Need an Alternate Payment Method or Custom Invoice?
                 </h3>
               </div>
               <p className="text-xs text-slate-500 mb-4 leading-relaxed">
-                If your card was declined, PayPal was unsupported, or you require an invoice/UPI/Crypto transfer, submit this ticket. It will directly notify our admin desk:
+                If your card was declined or you need manual verification, submit this ticket. It will directly notify our editorial desk:
               </p>
 
               {supportStatus === "sent" ? (
                 <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-4 text-xs font-bold text-emerald-800">
-                  ✓ Support ticket received! Our editorial team will review your submission and email you at <strong>{founderEmail}</strong> within a few hours.
+                  ✓ Support ticket received! We will verify your submission and reply to <strong>{founderEmail}</strong> within 12 hours.
                 </div>
               ) : (
                 <form onSubmit={handleSupportTicket} className="space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        Compulsory Contact Email
+                        Contact Email *
                       </label>
                       <input
                         type="email"
@@ -322,7 +339,7 @@ export default function SubmitToolPage() {
                     </div>
                     <div>
                       <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                        PayPal Tx ID / Reference (If already paid)
+                        PayPal Transaction ID (If already paid)
                       </label>
                       <input
                         type="text"
@@ -336,11 +353,11 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      Issue Description / Alternate Payment Request
+                      Notes / Message to Editorial Team
                     </label>
                     <textarea
                       rows={2}
-                      placeholder="e.g. PayPal card checkout showed unsupported error. Please share alternate invoice or bank details..."
+                      placeholder="e.g. Paid via card / please send bank invoice / request fast review..."
                       value={supportMessage}
                       onChange={(e) => setSupportMessage(e.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-900 outline-none focus:border-blue-600 focus:bg-white resize-none"
@@ -353,7 +370,7 @@ export default function SubmitToolPage() {
                       disabled={supportStatus === "loading"}
                       className="rounded-xl bg-slate-950 px-5 py-2.5 text-xs font-black text-white hover:bg-blue-600 transition shadow-sm disabled:opacity-50"
                     >
-                      {supportStatus === "loading" ? "Submitting Ticket..." : "Submit Payment Assistance Ticket 📨"}
+                      {supportStatus === "loading" ? "Submitting..." : "Send Ticket to Admin 📨"}
                     </button>
 
                     <button
@@ -369,13 +386,13 @@ export default function SubmitToolPage() {
             </div>
           </div>
         ) : (
-          /* MAIN FORM */
+          /* STEP 1: FORM & TIER SELECTION */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT COLUMN: FORM (7 COLS) */}
+            {/* LEFT COLUMN: 3 TIERS + FORM (7 COLS) */}
             <div className="lg:col-span-7 space-y-6">
-              {/* TIER SELECTION */}
+              {/* 3 TIERS AT TOP */}
               <div>
-                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
+                <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2.5">
                   1. Select Placement Tier
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -387,21 +404,21 @@ export default function SubmitToolPage() {
                         onClick={() => setSelectedTier(t.id as "standard" | "featured" | "spotlight")}
                         className={`cursor-pointer rounded-2xl p-4 transition-all duration-150 flex flex-col justify-between ${
                           isSelected
-                            ? "border-2 border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/10 shadow-sm"
+                            ? "border-2 border-blue-600 bg-blue-50/50 ring-2 ring-blue-500/20 shadow-sm"
                             : "border border-slate-200 bg-white hover:border-slate-300"
                         }`}
                       >
                         <div>
                           <div className="flex items-center justify-between gap-1 mb-1">
-                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                              {t.name.split(" ")[0]}
+                            <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
+                              {t.name}
                             </span>
                             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[8px] font-black uppercase text-amber-800">
                               {t.badge}
                             </span>
                           </div>
-                          <div className="text-xl font-black text-slate-950 mt-1">
-                            {t.price}
+                          <div className="text-2xl font-black text-slate-950 mt-1">
+                            {t.price} <span className="text-[10px] font-bold text-slate-400">USD</span>
                           </div>
                           <p className="text-[10px] text-blue-600 font-bold mt-1">
                             {t.turnaround}
@@ -511,7 +528,7 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Logo Image URL (Optional)
+                      Logo Image URL (Optional — Auto-detected if empty)
                     </label>
                     <input
                       type="url"
@@ -529,7 +546,7 @@ export default function SubmitToolPage() {
                     <textarea
                       rows={4}
                       required
-                      placeholder="Explain the problem your tool solves, target audience, API support, and workflow advantages..."
+                      placeholder="Explain the problem your tool solves, target audience, and workflow advantages..."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       className="w-full rounded-2xl border border-slate-200 bg-slate-50/50 p-4 text-xs text-slate-900 placeholder:text-slate-400 outline-none transition focus:border-blue-600 focus:bg-white resize-none"
@@ -539,11 +556,11 @@ export default function SubmitToolPage() {
                   <button
                     type="submit"
                     disabled={status === "loading"}
-                    className="w-full rounded-xl py-3.5 text-xs font-black text-white bg-[#0070BA] hover:bg-[#003087] shadow-md shadow-blue-500/20 transition disabled:opacity-50 mt-2"
+                    className="w-full rounded-xl py-3.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25 transition disabled:opacity-50 mt-2"
                   >
                     {status === "loading"
                       ? "Recording Metadata..."
-                      : `Proceed to Payment (${activeTierObj.price}) 🅿`}
+                      : `Continue to Payment Options (${activeTierObj.price} USD) →`}
                   </button>
                 </form>
               </div>
@@ -561,11 +578,9 @@ export default function SubmitToolPage() {
                     <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
                       Previewing #{name ? name : "Your Product"}
                     </span>
-                    {selectedTier !== "standard" && (
-                      <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
-                        ⚡ Verified
-                      </span>
-                    )}
+                    <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[9px] font-black text-amber-800 uppercase">
+                      ⚡ Verified
+                    </span>
                   </div>
 
                   <div className="flex items-start gap-3.5 mb-4">
