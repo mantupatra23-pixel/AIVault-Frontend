@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
     const {
       name,
       website_url,
-      website,
       logo_url,
       category,
       pricing,
@@ -43,7 +42,7 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const cleanName = String(name || "").trim();
-    const targetWebsite = String(website_url || website || "").trim();
+    const targetWebsite = String(website_url || "").trim();
     const cleanDesc = String(
       description ||
         overview ||
@@ -85,20 +84,18 @@ export async function POST(req: NextRequest) {
     const cleanPricing = String(pricing || "Freemium").trim();
     const email = String(founder_email || submitter_email || "").trim();
     const cleanLogo = String(logo_url || "").trim();
-    const isPaid = tier === "featured" || tier === "spotlight";
 
+    // Exact database schema payload (NO 'tagline', NO 'pricing_model')
     const payload: Record<string, unknown> = {
       name: cleanName,
       slug: baseSlug,
       website_url: targetWebsite,
-      website: targetWebsite,
       category: cleanCategory,
       pricing: cleanPricing,
       description: cleanDesc,
       overview: cleanDesc,
-      tagline: `${cleanName} is a verified AI platform for ${cleanCategory.toLowerCase()} operations.`,
-      score: isPaid ? 97 : 91,
-      ai_vault_score: isPaid ? 97 : 91,
+      score: tier === "spotlight" ? 98 : tier === "featured" ? 95 : 91,
+      ai_vault_score: tier === "spotlight" ? 98 : tier === "featured" ? 95 : 91,
       affiliate_status: "pending_submission",
       affiliate_network: email ? `Founder: ${email} | Tier: ${tier.toUpperCase()}` : `Tier: ${tier.toUpperCase()}`,
       created_at: new Date().toISOString(),
@@ -106,7 +103,6 @@ export async function POST(req: NextRequest) {
 
     if (cleanLogo) {
       payload.logo_url = cleanLogo;
-      payload.logo = cleanLogo;
     }
 
     const { data, error } = await supabase

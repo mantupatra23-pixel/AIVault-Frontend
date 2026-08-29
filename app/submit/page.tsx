@@ -28,26 +28,26 @@ const PAYPAL_HANDLE = "MANTUPATRA372";
 const TIERS = [
   {
     id: "standard",
-    name: "Standard",
-    price: "$0",
-    amount: 0,
-    badge: "Free",
-    turnaround: "7–14 Days Review",
+    name: "Starter Fast Review",
+    price: "$3",
+    amount: 3,
+    badge: "Basic",
+    turnaround: "48-Hour Review",
     perks: [
       "Standard Directory Indexation",
-      "Permanent Dossier & Backlink",
-      "Side-by-Side Comparison Inclusion",
+      "Permanent SEO Dossier & Backlink",
+      "Comparison Matrix Inclusion",
     ],
   },
   {
     id: "featured",
-    name: "Fast-Track Featured",
-    price: "$29",
-    amount: 29,
+    name: "Featured Boost",
+    price: "$19",
+    amount: 19,
     badge: "Popular 🔥",
     turnaround: "24-Hour Express Publish",
     perks: [
-      "Guaranteed 24-Hour Review & Publish",
+      "Guaranteed 24-Hour Express Review",
       "Homepage Top Featured Spotlight (30 Days)",
       "Verified Blue Partner Glow Badge",
       "Priority Placement in AI Matcher Quiz",
@@ -56,21 +56,21 @@ const TIERS = [
   {
     id: "spotlight",
     name: "Category Takeover",
-    price: "$79",
-    amount: 79,
+    price: "$49",
+    amount: 49,
     badge: "Maximum ROI",
     turnaround: "Instant 12h Priority",
     perks: [
-      "All Fast-Track Featured Benefits",
+      "All Featured Boost Benefits",
       "#1 Sticky Podium in Primary Category Hub",
       "Dofollow Editorial SEO Anchor Link",
-      "Email Blast Feature to 1,200+ Subscribers",
+      "Email Blast Feature to Active Subscribers",
     ],
   },
 ];
 
 export default function SubmitToolPage() {
-  const [selectedTier, setSelectedTier] = useState<"standard" | "featured" | "spotlight">("featured");
+  const [selectedTier, setSelectedTier] = useState<"standard" | "featured" | "spotlight">("standard");
 
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
@@ -78,7 +78,6 @@ export default function SubmitToolPage() {
   const [category, setCategory] = useState("Productivity");
   const [pricing, setPricing] = useState("Freemium");
   const [founderEmail, setFounderEmail] = useState("");
-  const [tagline, setTagline] = useState("");
   const [description, setDescription] = useState("");
 
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -89,7 +88,6 @@ export default function SubmitToolPage() {
   }, [selectedTier]);
 
   const paypalCheckoutUrl = useMemo(() => {
-    if (activeTierObj.amount <= 0) return "";
     return `https://www.paypal.com/paypalme/${PAYPAL_HANDLE}/${activeTierObj.amount}USD`;
   }, [activeTierObj]);
 
@@ -111,7 +109,6 @@ export default function SubmitToolPage() {
         body: JSON.stringify({
           name: name.trim(),
           website_url: website.trim(),
-          website: website.trim(),
           logo_url: logoUrl.trim() || null,
           category,
           pricing,
@@ -130,8 +127,8 @@ export default function SubmitToolPage() {
 
       setStatus("success");
 
-      // Paid Tier: Auto-open PayPal Checkout
-      if (activeTierObj.amount > 0 && paypalCheckoutUrl) {
+      // Auto-open PayPal Checkout
+      if (paypalCheckoutUrl) {
         window.open(paypalCheckoutUrl, "_blank", "noopener,noreferrer");
       }
     } catch (err: unknown) {
@@ -145,10 +142,9 @@ export default function SubmitToolPage() {
     setName("");
     setWebsite("");
     setLogoUrl("");
-    setTagline("");
     setDescription("");
     setFounderEmail("");
-    setSelectedTier("featured");
+    setSelectedTier("standard");
   };
 
   return (
@@ -205,33 +201,27 @@ export default function SubmitToolPage() {
               Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Your tool metadata has been recorded.
             </p>
 
-            {activeTierObj.amount > 0 ? (
-              <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-5 text-left space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
-                    {activeTierObj.name} Payment ({activeTierObj.price} USD)
-                  </span>
-                  <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5">
-                    Express 24h Queue
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  If the PayPal checkout tab did not open automatically, click the button below to complete the {activeTierObj.price} payment directly:
-                </p>
-                <a
-                  href={paypalCheckoutUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
-                >
-                  <span>🅿 Complete {activeTierObj.price} Checkout via PayPal ↗</span>
-                </a>
+            <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-5 text-left space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
+                  {activeTierObj.name} ({activeTierObj.price} USD)
+                </span>
+                <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5">
+                  {activeTierObj.turnaround}
+                </span>
               </div>
-            ) : (
-              <div className="inline-block rounded-2xl bg-slate-50 border border-slate-200 px-5 py-3 text-xs font-bold text-slate-700">
-                Standard Queue ($0 Free) — Review within 7–14 days.
-              </div>
-            )}
+              <p className="text-xs text-slate-600 leading-relaxed">
+                If the PayPal checkout tab did not open automatically, click the button below to complete the {activeTierObj.price} payment directly:
+              </p>
+              <a
+                href={paypalCheckoutUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
+              >
+                <span>🅿 Complete {activeTierObj.price} Payment via PayPal ↗</span>
+              </a>
+            </div>
 
             <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
               <button
@@ -390,19 +380,6 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Short Tagline (One Sentence)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Autonomous AI engineer that builds full-stack apps."
-                      value={tagline}
-                      onChange={(e) => setTagline(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1.5">
                       Founder / Contact Email
                     </label>
                     <input
@@ -431,17 +408,11 @@ export default function SubmitToolPage() {
                   <button
                     type="submit"
                     disabled={status === "loading"}
-                    className={`w-full rounded-xl py-3.5 text-xs font-black text-white shadow-md transition disabled:opacity-50 mt-2 ${
-                      activeTierObj.amount > 0
-                        ? "bg-[#0070BA] hover:bg-[#003087] shadow-blue-500/20"
-                        : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
-                    }`}
+                    className="w-full rounded-xl py-3.5 text-xs font-black text-white bg-[#0070BA] hover:bg-[#003087] shadow-md shadow-blue-500/20 transition disabled:opacity-50 mt-2"
                   >
                     {status === "loading"
                       ? "Processing Submission..."
-                      : activeTierObj.amount > 0
-                      ? `Proceed to PayPal Checkout (${activeTierObj.price}) 🅿`
-                      : "Submit to Standard Queue ($0 Free) 🚀"}
+                      : `Proceed to PayPal Checkout (${activeTierObj.price}) 🅿`}
                   </button>
                 </form>
               </div>
@@ -490,13 +461,13 @@ export default function SubmitToolPage() {
                   </div>
 
                   <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed mb-4">
-                    {tagline || description || "Your tool description and capabilities will appear here live across search results, category pages, and comparison tables."}
+                    {description || "Your tool description and capabilities will appear here live across search results, category pages, and comparison tables."}
                   </p>
 
                   <div className="border-t border-slate-100 pt-3">
                     <div className="flex items-center justify-between text-[10px] font-bold mb-1">
                       <span className="text-slate-400 uppercase tracking-wider">AI Vault Score</span>
-                      <span className="text-blue-600 font-black">{selectedTier !== "standard" ? "97/100" : "91/100"}</span>
+                      <span className="text-blue-600 font-black">{selectedTier === "spotlight" ? "98/100" : selectedTier === "featured" ? "95/100" : "91/100"}</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 mb-4">
                       <div className="h-full bg-blue-600 rounded-full w-[95%]" />
@@ -517,7 +488,7 @@ export default function SubmitToolPage() {
               {/* TIER PERKS SUMMARY BOX */}
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                 <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 mb-3">
-                  Included in {activeTierObj.name}
+                  Included in {activeTierObj.name} ({activeTierObj.price})
                 </h3>
                 <ul className="space-y-2 text-xs text-slate-600">
                   {activeTierObj.perks.map((p, idx) => (
