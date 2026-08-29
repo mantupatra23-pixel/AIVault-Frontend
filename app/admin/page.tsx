@@ -1,9 +1,17 @@
+// app/admin/page.tsx
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createClient } from "@supabase/supabase-js";
 import ToolLogo from "@/components/ToolLogo";
+
+type Tab =
+  | "inquiries"
+  | "submissions"
+  | "affiliate"
+  | "catalog"
+  | "reviews"
+  | "subscribers";
 
 type ToolRecord = {
   id: string | number;
@@ -16,18 +24,26 @@ type ToolRecord = {
   website?: string | null;
   logo_url?: string | null;
   logo?: string | null;
+
   affiliate_url?: string | null;
   affiliate_network?: string | null;
   affiliate_status?: string | null;
+
   founder_email?: string | null;
   submitter_email?: string | null;
   submission_tier?: string | null;
+
   click_count?: number | null;
   revenue_usd?: number | null;
+
   score?: number | string | null;
+  ai_vault_score?: number | string | null;
+
   overview?: string | null;
   description?: string | null;
   created_at?: string | null;
+  updated_at?: string | null;
+
   [key: string]: unknown;
 };
 
@@ -35,13 +51,13 @@ type InquiryRecord = {
   id: string | number;
   name: string;
   email: string;
-  tool_name: string;
+  tool_name?: string;
   tier?: string;
   transaction_id?: string;
-  subject: string;
-  issue_type: string;
+  subject?: string;
+  issue_type?: string;
   message: string;
-  status: string;
+  status?: string;
   created_at: string;
 };
 
@@ -61,12 +77,6 @@ type ReviewRecord = {
   comment: string;
   created_at: string;
 };
-
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-const MASTER_RECOVERY_KEY = "RESET2026";
 
 const AFFILIATE_NETWORKS = [
   "Direct",
@@ -89,20 +99,62 @@ const CATEGORIES = [
   "Video",
 ];
 
+const PRICING_OPTIONS = ["Free", "Freemium", "Paid"];
+
+/**
+ * IMPORTANT:
+ * Authentication must be performed by a server-side API.
+ *
+ * Expected endpoint:
+ * POST /api/admin/auth
+ * body: { pin: string }
+ *
+ * Expected successful response:
+ * { success: true }
+ *
+ * The API should set an HttpOnly, Secure, SameSite cookie.
+ *
+ * DO NOT put the real admin PIN/recovery key in this file.
+ */
+
+async function adminFetch(
+  url: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  return fetch(url, {
+    ...options,
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+}
+
 export default function MasterAdminSuite() {
+  /* ============================================================
+     AUTH
+  ============================================================ */
+
+  const [authChecked, setAuthChecked] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState(false);
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [showResetModal, setShowResetModal] = useState(false);
   const [recoveryInput, setRecoveryInput] = useState("");
   const [newPinInput, setNewPinInput] = useState("");
   const [confirmPinInput, setConfirmPinInput] = useState("");
   const [resetErrorMsg, setResetErrorMsg] = useState<string | null>(null);
+  const [resetLoading, setResetLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<
-    "inquiries" | "submissions" | "affiliate" | "catalog" | "reviews" | "subscribers"
-  >("inquiries");
+  /* ============================================================
+     DATA
+  ============================================================ */
+
+  const [activeTab, setActiveTab] = useState<Tab>("inquiries");
 
   const [tools, setTools] = useState<ToolRecord[]>([]);
   const [submissions, setSubmissions] = useState<ToolRecord[]>([]);
@@ -111,22 +163,44 @@ export default function MasterAdminSuite() {
   const [reviews, setReviews] = useState<ReviewRecord[]>([]);
 
   const [loading, setLoading] = useState(true);
+
+  /* ============================================================
+     UI
+  ============================================================ */
+
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "monetized" | "discovery_required"
+  >("all");
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [copiedEmail, setCopiedEmail] = useState<string | null>(null);
 
+  /* ============================================================
+     INGEST
+  ============================================================ */
+
   const [isIngesting, setIsIngesting] = useState(false);
   const [ingestMessage, setIngestMessage] = useState("");
+
+  /* ============================================================
+     AFFILIATE CONFIG
+  ============================================================ */
 
   const [selectedTool, setSelectedTool] = useState<ToolRecord | null>(null);
   const [editWebsiteUrl, setEditWebsiteUrl] = useState("");
   const [editAffiliateUrl, setEditAffiliateUrl] = useState("");
   const [editNetwork, setEditNetwork] = useState("Direct");
-  const [saving, setSaving] = useState(false);
 
-  const [editingToolRecord, setEditingToolRecord] = useState<ToolRecord | null>(null);
+  /* ============================================================
+     ADD / EDIT TOOL
+  ============================================================ */
+
+  const [editingToolRecord, setEditingToolRecord] =
+    useState<ToolRecord | null>(null);
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
   const [formName, setFormName] = useState("");
   const [formCategory, setFormCategory] = useState("Productivity");
   const [formPricing, setFormPricing] = useState("Freemium");
@@ -134,429 +208,1331 @@ export default function MasterAdminSuite() {
   const [formOverview, setFormOverview] = useState("");
   const [formScore, setFormScore] = useState("92");
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3500);
-  };
+  const [saving, setSaving] = useState(false);
 
-  const getCurrentPin = () => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("aivault_admin_pin") || "2026";
-    }
-    return "2026";
-  };
+  /* ============================================================
+     HELPERS
+  ============================================================ */
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const auth = sessionStorage.getItem("aivault_admin_auth");
-      if (auth === "true") {
-        setIsAuthenticated(true);
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+
+    window.setTimeout(() => {
+      setToastMessage(null);
+    }, 3500);
+  }, []);
+
+  const getErrorMessage = async (
+    response: Response,
+    fallback: string
+  ): Promise<string> => {
+    try {
+      const data = await response.json();
+
+      if (typeof data?.error === "string") {
+        return data.error;
       }
+
+      if (typeof data?.message === "string") {
+        return data.message;
+      }
+    } catch {
+      // Ignore JSON parsing errors.
+    }
+
+    return fallback;
+  };
+
+  /* ============================================================
+     CHECK AUTH SESSION
+  ============================================================ */
+
+  const checkAuth = useCallback(async () => {
+    try {
+      const response = await adminFetch("/api/admin/auth", {
+        method: "GET",
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data?.authenticated === true || data?.success === true) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch {
+      setIsAuthenticated(false);
+    } finally {
+      setAuthChecked(true);
     }
   }, []);
 
-  async function loadAdminData() {
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
+  /* ============================================================
+     LOAD ADMIN DATA
+  ============================================================ */
+
+  const loadAdminData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // 1. Fetch Inquiries from Universal API
-      try {
-        const inqRes = await fetch("/api/admin/inquiries");
-        const inqJson = await inqRes.json();
-        setInquiries(inqJson.inquiries || []);
-      } catch (e) {
-        console.error("Inquiries fetch error:", e);
+      const [
+        inquiryResponse,
+        toolsResponse,
+        submissionResponse,
+        subscriberResponse,
+        reviewResponse,
+      ] = await Promise.allSettled([
+        adminFetch("/api/admin/inquiries"),
+        adminFetch("/api/admin/tools"),
+        adminFetch("/api/admin/submissions"),
+        adminFetch("/api/admin/subscribers"),
+        adminFetch("/api/admin/reviews"),
+      ]);
+
+      /* ---------------- INQUIRIES ---------------- */
+
+      if (inquiryResponse.status === "fulfilled") {
+        if (inquiryResponse.value.ok) {
+          const data = await inquiryResponse.value.json();
+          setInquiries(data.inquiries || []);
+        } else {
+          console.error(
+            "Inquiry API:",
+            await getErrorMessage(
+              inquiryResponse.value,
+              "Failed to load inquiries"
+            )
+          );
+        }
       }
 
-      // 2. Fetch Tools Catalog (Excluding Inquiries & Submissions)
-      const { data: toolsData } = await supabase
-        .from("ai_tools")
-        .select("*")
-        .neq("affiliate_status", "pending_submission")
-        .neq("affiliate_status", "inquiry_message")
-        .order("name", { ascending: true });
-      setTools((toolsData as ToolRecord[]) || []);
+      /* ---------------- TOOLS ---------------- */
 
-      // 3. Fetch Pending Submissions
-      const { data: subData } = await supabase
-        .from("ai_tools")
-        .select("*")
-        .eq("affiliate_status", "pending_submission")
-        .order("created_at", { ascending: false });
-      setSubmissions((subData as ToolRecord[]) || []);
+      if (toolsResponse.status === "fulfilled") {
+        if (toolsResponse.value.ok) {
+          const data = await toolsResponse.value.json();
 
-      // 4. Fetch Subscribers
-      const { data: leadData } = await supabase
-        .from("subscribers")
-        .select("*")
-        .order("created_at", { ascending: false });
-      setSubscribers((leadData as SubscriberRecord[]) || []);
+          setTools(
+            Array.isArray(data.tools)
+              ? data.tools
+              : Array.isArray(data)
+              ? data
+              : []
+          );
+        } else {
+          console.error(
+            "Tools API:",
+            await getErrorMessage(
+              toolsResponse.value,
+              "Failed to load tools"
+            )
+          );
+        }
+      }
 
-      // 5. Fetch Reviews
-      try {
-        const revRes = await fetch("/api/admin/reviews");
-        const revJson = await revRes.json();
-        setReviews(revJson.reviews || []);
-      } catch {}
-    } catch (err) {
-      console.error("Admin fetch error:", err);
+      /* ---------------- SUBMISSIONS ---------------- */
+
+      if (submissionResponse.status === "fulfilled") {
+        if (submissionResponse.value.ok) {
+          const data = await submissionResponse.value.json();
+
+          setSubmissions(
+            Array.isArray(data.submissions)
+              ? data.submissions
+              : Array.isArray(data)
+              ? data
+              : []
+          );
+        } else {
+          console.error(
+            "Submission API:",
+            await getErrorMessage(
+              submissionResponse.value,
+              "Failed to load submissions"
+            )
+          );
+        }
+      }
+
+      /* ---------------- SUBSCRIBERS ---------------- */
+
+      if (subscriberResponse.status === "fulfilled") {
+        if (subscriberResponse.value.ok) {
+          const data = await subscriberResponse.value.json();
+
+          setSubscribers(
+            Array.isArray(data.subscribers)
+              ? data.subscribers
+              : Array.isArray(data)
+              ? data
+              : []
+          );
+        } else {
+          console.error(
+            "Subscriber API:",
+            await getErrorMessage(
+              subscriberResponse.value,
+              "Failed to load subscribers"
+            )
+          );
+        }
+      }
+
+      /* ---------------- REVIEWS ---------------- */
+
+      if (reviewResponse.status === "fulfilled") {
+        if (reviewResponse.value.ok) {
+          const data = await reviewResponse.value.json();
+
+          setReviews(
+            Array.isArray(data.reviews)
+              ? data.reviews
+              : Array.isArray(data)
+              ? data
+              : []
+          );
+        } else {
+          console.error(
+            "Review API:",
+            await getErrorMessage(
+              reviewResponse.value,
+              "Failed to load reviews"
+            )
+          );
+        }
+      }
+    } catch (error) {
+      console.error("Admin data loading error:", error);
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
       loadAdminData();
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, loadAdminData]);
 
-  const handlePinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const activePin = getCurrentPin();
+  /* ============================================================
+     LOGIN
+  ============================================================ */
 
-    if (
-      pinInput.trim() === activePin ||
-      pinInput.trim() === "9999" ||
-      pinInput.trim() === "1234" ||
-      pinInput.trim() === "2026"
-    ) {
-      setIsAuthenticated(true);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("aivault_admin_auth", "true");
+  const handlePinSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    setPinError(null);
+
+    const pin = pinInput.trim();
+
+    if (!pin) {
+      setPinError("Please enter your admin PIN.");
+      return;
+    }
+
+    try {
+      setAuthLoading(true);
+
+      const response = await adminFetch("/api/admin/auth", {
+        method: "POST",
+        body: JSON.stringify({
+          pin,
+        }),
+      });
+
+      if (!response.ok) {
+        const message = await getErrorMessage(
+          response,
+          "Incorrect admin PIN."
+        );
+
+        setPinError(message);
+        return;
       }
-      setPinError(false);
-    } else {
-      setPinError(true);
+
+      const data = await response.json();
+
+      if (!data?.success) {
+        setPinError("Authentication failed.");
+        return;
+      }
+
+      setPinInput("");
+      setPinError(null);
+      setIsAuthenticated(true);
+
+      await loadAdminData();
+    } catch (error) {
+      console.error(error);
+      setPinError("Unable to contact the authentication server.");
+    } finally {
+      setAuthLoading(false);
     }
   };
 
-  const handleLogout = () => {
+  /* ============================================================
+     LOGOUT
+  ============================================================ */
+
+  const handleLogout = async () => {
+    try {
+      await adminFetch("/api/admin/auth", {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+
     setIsAuthenticated(false);
-    if (typeof window !== "undefined") {
-      sessionStorage.removeItem("aivault_admin_auth");
-    }
+    setPinInput("");
   };
 
-  const handleResetPinSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  /* ============================================================
+     RESET / CHANGE PIN
+  ============================================================ */
+
+  const handleResetPinSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
     setResetErrorMsg(null);
 
-    if (recoveryInput.trim() !== MASTER_RECOVERY_KEY && recoveryInput.trim() !== getCurrentPin()) {
-      setResetErrorMsg("Invalid Recovery Key. Master Key is: RESET2026");
+    const recovery = recoveryInput.trim();
+    const newPin = newPinInput.trim();
+    const confirmPin = confirmPinInput.trim();
+
+    if (!recovery) {
+      setResetErrorMsg("Recovery key is required.");
       return;
     }
 
-    if (newPinInput.trim().length < 4) {
-      setResetErrorMsg("PIN must be at least 4 characters.");
+    if (newPin.length < 8) {
+      setResetErrorMsg("New PIN must contain at least 8 characters.");
       return;
     }
 
-    if (newPinInput.trim() !== confirmPinInput.trim()) {
-      setResetErrorMsg("New PIN and Confirm PIN do not match.");
+    if (newPin !== confirmPin) {
+      setResetErrorMsg("New PIN and confirmation do not match.");
       return;
     }
 
-    if (typeof window !== "undefined") {
-      localStorage.setItem("aivault_admin_pin", newPinInput.trim());
-      sessionStorage.setItem("aivault_admin_auth", "true");
-    }
+    try {
+      setResetLoading(true);
 
-    setIsAuthenticated(true);
-    setShowResetModal(false);
-    setRecoveryInput("");
-    setNewPinInput("");
-    setConfirmPinInput("");
-    showToast("✓ Admin PIN reset successfully!");
+      const response = await adminFetch("/api/admin/auth/reset", {
+        method: "POST",
+        body: JSON.stringify({
+          recovery_key: recovery,
+          new_pin: newPin,
+        }),
+      });
+
+      if (!response.ok) {
+        setResetErrorMsg(
+          await getErrorMessage(
+            response,
+            "Unable to reset the admin PIN."
+          )
+        );
+        return;
+      }
+
+      setRecoveryInput("");
+      setNewPinInput("");
+      setConfirmPinInput("");
+      setShowResetModal(false);
+
+      showToast("✓ Admin security PIN updated.");
+
+      await checkAuth();
+    } catch (error) {
+      console.error(error);
+      setResetErrorMsg("Network error while changing the PIN.");
+    } finally {
+      setResetLoading(false);
+    }
   };
 
+  /* ============================================================
+     COPY EMAIL
+  ============================================================ */
+
+  const handleCopyEmail = async (email: string) => {
+    try {
+      await navigator.clipboard.writeText(email);
+      setCopiedEmail(email);
+
+      window.setTimeout(() => {
+        setCopiedEmail(null);
+      }, 2000);
+    } catch {
+      showToast("Unable to copy email.");
+    }
+  };
+
+  /* ============================================================
+     EXTRACT FOUNDER EMAIL
+  ============================================================ */
+
   const extractFounderEmail = (tool: ToolRecord): string => {
-    if (tool.founder_email && String(tool.founder_email).includes("@")) {
+    if (
+      tool.founder_email &&
+      String(tool.founder_email).includes("@")
+    ) {
       return String(tool.founder_email).trim();
     }
-    if (tool.submitter_email && String(tool.submitter_email).includes("@")) {
+
+    if (
+      tool.submitter_email &&
+      String(tool.submitter_email).includes("@")
+    ) {
       return String(tool.submitter_email).trim();
     }
+
     if (tool.affiliate_network) {
-      const emailRegex = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
-      const match = tool.affiliate_network.match(emailRegex);
-      if (match) return match[1].trim();
+      const emailRegex =
+        /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/;
+
+      const match = String(tool.affiliate_network).match(emailRegex);
+
+      if (match) {
+        return match[1].trim();
+      }
     }
+
     return "Not Provided";
   };
 
+  /* ============================================================
+     EXTRACT SUBMISSION TIER
+  ============================================================ */
+
   const extractTier = (tool: ToolRecord): string => {
-    if (tool.submission_tier) return String(tool.submission_tier).toUpperCase();
-    if (tool.affiliate_network && tool.affiliate_network.includes("Tier:")) {
-      const match = tool.affiliate_network.match(/Tier:\s*([^|]+)/);
-      if (match) return match[1].trim();
+    if (tool.submission_tier) {
+      return String(tool.submission_tier).toUpperCase();
     }
-    const score = Number(tool.score || 91);
-    if (score >= 98) return "CATEGORY TAKEOVER ($49)";
-    if (score >= 95) return "FEATURED BOOST ($19)";
-    return "STARTER REVIEW ($3)";
-  };
 
-  const handleCopyEmail = (email: string) => {
-    navigator.clipboard.writeText(email);
-    setCopiedEmail(email);
-    setTimeout(() => setCopiedEmail(null), 2000);
-  };
+    if (
+      tool.affiliate_network &&
+      String(tool.affiliate_network).includes("Tier:")
+    ) {
+      const match = String(tool.affiliate_network).match(
+        /Tier:\s*([^|]+)/
+      );
 
-  const handleModerateSubmission = async (tool: ToolRecord, action: "approve" | "reject") => {
-    try {
-      const res = await fetch("/api/admin/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: tool.id, action }),
-      });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Action failed");
-
-      setSubmissions((prev) => prev.filter((s) => s.id !== tool.id));
-      if (action === "approve") {
-        setTools((prev) => [tool, ...prev]);
-        showToast(`✓ "${tool.name}" approved and published live!`);
-      } else {
-        showToast(`Submission for "${tool.name}" rejected.`);
+      if (match) {
+        return match[1].trim();
       }
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Moderation failed");
     }
+
+    const score = Number(tool.score || tool.ai_vault_score || 0);
+
+    if (score >= 98) {
+      return "CATEGORY TAKEOVER";
+    }
+
+    if (score >= 95) {
+      return "FEATURED BOOST";
+    }
+
+    return "STARTER REVIEW";
   };
 
-  const handleDeleteInquiry = async (id: string | number) => {
-    if (!confirm("Are you sure you want to delete this message?")) return;
+  /* ============================================================
+     SUBMISSION MODERATION
+  ============================================================ */
+
+  const handleModerateSubmission = async (
+    tool: ToolRecord,
+    action: "approve" | "reject"
+  ) => {
     try {
-      const res = await fetch("/api/admin/inquiries", {
+      const response = await adminFetch("/api/admin/submissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, action: "delete" }),
+        body: JSON.stringify({
+          id: tool.id,
+          action,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to delete");
 
-      setInquiries((prev) => prev.filter((i) => i.id !== id));
-      showToast("Message deleted.");
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Failed to delete message.");
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Moderation failed."
+          )
+        );
+      }
+
+      setSubmissions((previous) =>
+        previous.filter((item) => item.id !== tool.id)
+      );
+
+      if (action === "approve") {
+        setTools((previous) => [tool, ...previous]);
+
+        showToast(
+          `✓ "${tool.name || "Tool"}" approved and published.`
+        );
+      } else {
+        showToast(
+          `Submission for "${tool.name || "Tool"}" rejected.`
+        );
+      }
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Moderation failed."
+      );
     }
   };
+
+  /* ============================================================
+     DELETE INQUIRY
+  ============================================================ */
+
+  const handleDeleteInquiry = async (
+    id: string | number
+  ) => {
+    if (!window.confirm("Delete this inquiry?")) {
+      return;
+    }
+
+    try {
+      const response = await adminFetch("/api/admin/inquiries", {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          action: "delete",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to delete inquiry."
+          )
+        );
+      }
+
+      setInquiries((previous) =>
+        previous.filter((item) => item.id !== id)
+      );
+
+      showToast("Inquiry deleted.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete inquiry."
+      );
+    }
+  };
+
+  /* ============================================================
+     MARK INQUIRY READ
+  ============================================================ */
+
+  const handleMarkInquiryRead = async (
+    id: string | number
+  ) => {
+    try {
+      const response = await adminFetch("/api/admin/inquiries", {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          action: "read",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Unable to mark inquiry as read."
+          )
+        );
+      }
+
+      setInquiries((previous) =>
+        previous.map((item) =>
+          item.id === id
+            ? {
+                ...item,
+                status: "read",
+              }
+            : item
+        )
+      );
+
+      showToast("✓ Inquiry marked as read.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Unable to update inquiry."
+      );
+    }
+  };
+
+  /* ============================================================
+     AUTO INGEST
+  ============================================================ */
 
   const handleIngest10Tools = async () => {
-    setIsIngesting(true);
-    setIngestMessage("");
-
     try {
-      const res = await fetch("/api/ingest", { method: "POST" });
-      const data = await res.json();
+      setIsIngesting(true);
+      setIngestMessage("");
 
-      if (data.success) {
-        setIngestMessage(`✅ Successfully added ${data.new_tools_added || 10} new AI tools!`);
-        showToast(`✓ Added ${data.new_tools_added || 10} new AI tools to directory!`);
-        await loadAdminData();
-      } else {
-        setIngestMessage(`❌ Error: ${data.error || "Failed to ingest tools"}`);
-        alert(data.error || "Failed to ingest tools");
+      const response = await adminFetch("/api/ingest", {
+        method: "POST",
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to ingest AI tools."
+          )
+        );
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      setIngestMessage(`❌ Network error: ${msg}`);
-      alert(`Network error: ${msg}`);
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(
+          data.error || "Tool ingestion failed."
+        );
+      }
+
+      const count = Number(data.new_tools_added || 10);
+
+      setIngestMessage(
+        `✅ Successfully added ${count} new AI tools.`
+      );
+
+      showToast(`✓ Added ${count} new AI tools.`);
+
+      await loadAdminData();
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Network error.";
+
+      setIngestMessage(`❌ ${message}`);
     } finally {
       setIsIngesting(false);
     }
   };
 
-  const filteredTools = useMemo(() => {
-    return tools.filter((t) => {
-      const q = search.toLowerCase();
-      const matchesSearch =
-        (t.name || "").toLowerCase().includes(q) ||
-        (t.slug || "").toLowerCase().includes(q) ||
-        (t.category || "").toLowerCase().includes(q);
+  /* ============================================================
+     AUTO DISCOVER AFFILIATES
+  ============================================================ */
 
-      if (!matchesSearch) return false;
+  const [discovering, setDiscovering] = useState(false);
 
-      const isMonetized = Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
-      if (statusFilter === "monetized") return isMonetized;
-      if (statusFilter === "discovery_required") return !isMonetized;
-      return true;
-    });
-  }, [tools, search, statusFilter]);
+  const handleAutoDiscover = async () => {
+    try {
+      setDiscovering(true);
 
-  const metrics = useMemo(() => {
-    const total = tools.length;
-    const active = tools.filter((t) => t.affiliate_url && t.affiliate_url.trim().length > 0).length;
-    const pending = total - active;
-    const clicks = tools.reduce((acc, t) => acc + Number(t.click_count || 0), 0) + 31;
-    const revenue = tools.reduce((acc, t) => acc + Number(t.revenue_usd || 0), 0);
-    const unreadMessages = inquiries.length;
+      showToast(
+        "⚡ Scanning tools for verified affiliate links..."
+      );
 
-    return { total, active, pending, clicks, revenue, unreadMessages };
-  }, [tools, inquiries]);
+      const response = await adminFetch(
+        "/api/admin/auto-discover",
+        {
+          method: "POST",
+        }
+      );
 
-  const handleOpenConfigure = (t: ToolRecord) => {
-    setSelectedTool(t);
-    setEditWebsiteUrl(t.website_url || t.website || "");
-    setEditAffiliateUrl(t.affiliate_url || "");
-    setEditNetwork(t.affiliate_network || "Direct");
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Affiliate discovery failed."
+          )
+        );
+      }
+
+      await loadAdminData();
+
+      showToast(
+        "✓ Affiliate discovery synchronization completed."
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Affiliate discovery failed."
+      );
+    } finally {
+      setDiscovering(false);
+    }
   };
 
-  const handleSaveAffiliate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTool) return;
+  /* ============================================================
+     OPEN AFFILIATE CONFIG
+  ============================================================ */
+
+  const handleOpenConfigure = (tool: ToolRecord) => {
+    setSelectedTool(tool);
+
+    setEditWebsiteUrl(
+      String(tool.website_url || tool.website || "")
+    );
+
+    setEditAffiliateUrl(
+      String(tool.affiliate_url || "")
+    );
+
+    setEditNetwork(
+      String(tool.affiliate_network || "Direct")
+    );
+  };
+
+  /* ============================================================
+     SAVE AFFILIATE CONFIG
+  ============================================================ */
+
+  const handleSaveAffiliate = async (
+    event: React.FormEvent
+  ) => {
+    event.preventDefault();
+
+    if (!selectedTool) {
+      return;
+    }
 
     try {
       setSaving(true);
-      const res = await fetch("/api/admin/update-tool", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: selectedTool.id,
-          slug: selectedTool.slug,
-          website_url: editWebsiteUrl.trim(),
-          affiliate_url: editAffiliateUrl.trim(),
-          affiliate_network: editNetwork,
-        }),
-      });
 
-      const data = await res.json();
-      if (!res.ok || data.error) throw new Error(data.error || "Failed to update tool");
+      const response = await adminFetch(
+        "/api/admin/update-tool",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: selectedTool.id,
+            slug: selectedTool.slug,
+            website_url: editWebsiteUrl.trim(),
+            affiliate_url: editAffiliateUrl.trim(),
+            affiliate_network: editNetwork,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to save affiliate settings."
+          )
+        );
+      }
+
+      const toolName = selectedTool.name || "Tool";
+
+      setSelectedTool(null);
 
       await loadAdminData();
-      setSelectedTool(null);
-      showToast(`✓ Link settings saved for ${selectedTool.name}`);
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Error saving affiliate settings");
+
+      showToast(
+        `✓ Affiliate settings saved for ${toolName}.`
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to save affiliate settings."
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSaveToolRecord = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formName.trim()) return;
+  /* ============================================================
+     REMOVE AFFILIATE
+  ============================================================ */
+
+  const handleRemoveAffiliate = async () => {
+    if (!selectedTool) {
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Remove affiliate configuration for "${selectedTool.name}"?`
+      )
+    ) {
+      return;
+    }
 
     try {
       setSaving(true);
-      const slug = formName
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/(^-|-$)+/g, "");
+
+      const response = await adminFetch(
+        "/api/admin/update-tool",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            id: selectedTool.id,
+            slug: selectedTool.slug,
+            affiliate_url: "",
+            affiliate_network: "Direct",
+            affiliate_status: null,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to remove affiliate."
+          )
+        );
+      }
+
+      const toolName = selectedTool.name || "Tool";
+
+      setSelectedTool(null);
+
+      await loadAdminData();
+
+      showToast(
+        `✓ Affiliate removed from ${toolName}.`
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to remove affiliate."
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ============================================================
+     SLUG
+  ============================================================ */
+
+  const generateSlug = (name: string) => {
+    return name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  };
+
+  /* ============================================================
+     SAVE TOOL
+  ============================================================ */
+
+  const handleSaveToolRecord = async (
+    event: React.FormEvent
+  ) => {
+    event.preventDefault();
+
+    const name = formName.trim();
+
+    if (!name) {
+      return;
+    }
+
+    if (formWebsite.trim()) {
+      try {
+        new URL(formWebsite.trim());
+      } catch {
+        alert("Please enter a valid website URL.");
+        return;
+      }
+    }
+
+    const score = Number(formScore);
+
+    if (!Number.isFinite(score) || score < 0 || score > 100) {
+      alert("Score must be between 0 and 100.");
+      return;
+    }
+
+    try {
+      setSaving(true);
 
       const payload = {
-        name: formName.trim(),
-        slug,
+        name,
+        slug: generateSlug(name),
         category: formCategory,
         pricing: formPricing,
         website_url: formWebsite.trim(),
         description: formOverview.trim(),
         overview: formOverview.trim(),
-        score: Number(formScore) || 90,
-        ai_vault_score: Number(formScore) || 90,
-        updated_at: new Date().toISOString(),
+        score,
+        ai_vault_score: score,
       };
 
-      if (editingToolRecord) {
-        const { error } = await supabase
-          .from("ai_tools")
-          .update(payload)
-          .eq("id", editingToolRecord.id);
-        if (error) throw error;
-        showToast(`✓ Updated ${formName}`);
-      } else {
-        const { error } = await supabase.from("ai_tools").insert([payload]);
-        if (error) throw error;
-        showToast(`✓ Added new tool: ${formName}`);
+      const response = await adminFetch("/api/admin/tools", {
+        method: editingToolRecord ? "PATCH" : "POST",
+        body: JSON.stringify(
+          editingToolRecord
+            ? {
+                ...payload,
+                id: editingToolRecord.id,
+              }
+            : payload
+        ),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to save tool."
+          )
+        );
       }
 
-      await loadAdminData();
+      showToast(
+        editingToolRecord
+          ? `✓ Updated ${name}.`
+          : `✓ Added ${name}.`
+      );
+
       setIsAddModalOpen(false);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save tool.");
+      setEditingToolRecord(null);
+
+      await loadAdminData();
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to save tool."
+      );
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDeleteTool = async (tool: ToolRecord) => {
-    if (!confirm(`Are you sure you want to delete ${tool.name}?`)) return;
+  /* ============================================================
+     DELETE TOOL
+  ============================================================ */
+
+  const handleDeleteTool = async (
+    tool: ToolRecord
+  ) => {
+    if (
+      !window.confirm(
+        `Delete "${tool.name || "this tool"}" permanently?`
+      )
+    ) {
+      return;
+    }
+
     try {
-      const { error } = await supabase.from("ai_tools").delete().eq("id", tool.id);
-      if (error) throw error;
-      setTools((prev) => prev.filter((t) => t.id !== tool.id));
-      showToast(`Deleted ${tool.name}`);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete tool.");
+      const response = await adminFetch("/api/admin/tools", {
+        method: "DELETE",
+        body: JSON.stringify({
+          id: tool.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to delete tool."
+          )
+        );
+      }
+
+      setTools((previous) =>
+        previous.filter((item) => item.id !== tool.id)
+      );
+
+      showToast(
+        `Deleted ${tool.name || "tool"}.`
+      );
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete tool."
+      );
     }
   };
 
-  const handleDeleteSubscriber = async (id: string | number) => {
-    if (!confirm("Are you sure you want to delete this subscriber?")) return;
+  /* ============================================================
+     DELETE REVIEW
+  ============================================================ */
+
+  const handleDeleteReview = async (
+    id: string | number
+  ) => {
+    if (!window.confirm("Delete this review?")) {
+      return;
+    }
+
     try {
-      await supabase.from("subscribers").delete().eq("id", id);
-      setSubscribers((prev) => prev.filter((s) => s.id !== id));
-      showToast("Subscriber deleted.");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to delete subscriber.");
+      const response = await adminFetch("/api/admin/reviews", {
+        method: "POST",
+        body: JSON.stringify({
+          id,
+          action: "delete",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to delete review."
+          )
+        );
+      }
+
+      setReviews((previous) =>
+        previous.filter((review) => review.id !== id)
+      );
+
+      showToast("Review deleted.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete review."
+      );
     }
   };
+
+  /* ============================================================
+     DELETE SUBSCRIBER
+  ============================================================ */
+
+  const handleDeleteSubscriber = async (
+    id: string | number
+  ) => {
+    if (!window.confirm("Delete this subscriber?")) {
+      return;
+    }
+
+    try {
+      const response = await adminFetch(
+        "/api/admin/subscribers",
+        {
+          method: "DELETE",
+          body: JSON.stringify({
+            id,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          await getErrorMessage(
+            response,
+            "Failed to delete subscriber."
+          )
+        );
+      }
+
+      setSubscribers((previous) =>
+        previous.filter((item) => item.id !== id)
+      );
+
+      showToast("Subscriber deleted.");
+    } catch (error) {
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete subscriber."
+      );
+    }
+  };
+
+  /* ============================================================
+     EXPORT CSV
+  ============================================================ */
 
   const handleExportCSV = () => {
     if (subscribers.length === 0) {
       alert("No subscribers to export.");
       return;
     }
-    const headers = "Email,Source,Subscribed Date\n";
-    const rows = subscribers
-      .map((s) => `"${s.email}","${s.source || "global_footer"}","${new Date(s.created_at).toISOString()}"`)
-      .join("\n");
-    const blob = new Blob([headers + rows], { type: "text/csv;charset=utf-8;" });
+
+    const escapeCSV = (value: unknown) => {
+      const text = String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+
+    const headers = [
+      "Email",
+      "Source",
+      "Tool Slug",
+      "Subscribed Date",
+    ];
+
+    const rows = subscribers.map((subscriber) =>
+      [
+        subscriber.email,
+        subscriber.source || "global_footer",
+        subscriber.tool_slug || "",
+        subscriber.created_at
+          ? new Date(subscriber.created_at).toISOString()
+          : "",
+      ]
+        .map(escapeCSV)
+        .join(",")
+    );
+
+    const csv = [headers.join(","), ...rows].join("\n");
+
+    const blob = new Blob([csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+
     const url = URL.createObjectURL(blob);
+
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `aivault_subscribers_${new Date().toISOString().slice(0, 10)}.csv`);
+
+    link.href = url;
+    link.download = `aivault_subscribers_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+
+    showToast("✓ CSV export created.");
   };
+
+  /* ============================================================
+     FILTERED TOOLS
+  ============================================================ */
+
+  const filteredTools = useMemo(() => {
+    const query = search.trim().toLowerCase();
+
+    return tools.filter((tool) => {
+      const matchesSearch =
+        !query ||
+        String(tool.name || "")
+          .toLowerCase()
+          .includes(query) ||
+        String(tool.slug || "")
+          .toLowerCase()
+          .includes(query) ||
+        String(tool.category || "")
+          .toLowerCase()
+          .includes(query);
+
+      if (!matchesSearch) {
+        return false;
+      }
+
+      const monetized =
+        Boolean(tool.affiliate_url) &&
+        String(tool.affiliate_url).trim().length > 0;
+
+      if (
+        statusFilter === "monetized" &&
+        !monetized
+      ) {
+        return false;
+      }
+
+      if (
+        statusFilter === "discovery_required" &&
+        monetized
+      ) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [tools, search, statusFilter]);
+
+  /* ============================================================
+     METRICS
+  ============================================================ */
+
+  const metrics = useMemo(() => {
+    const total = tools.length;
+
+    const active = tools.filter(
+      (tool) =>
+        Boolean(tool.affiliate_url) &&
+        String(tool.affiliate_url).trim().length > 0
+    ).length;
+
+    const pending = total - active;
+
+    const clicks = tools.reduce(
+      (totalClicks, tool) =>
+        totalClicks + Number(tool.click_count || 0),
+      0
+    );
+
+    const revenue = tools.reduce(
+      (totalRevenue, tool) =>
+        totalRevenue + Number(tool.revenue_usd || 0),
+      0
+    );
+
+    const unreadMessages = inquiries.filter(
+      (item) =>
+        String(item.status || "").toLowerCase() ===
+        "unread"
+    ).length;
+
+    return {
+      total,
+      active,
+      pending,
+      clicks,
+      revenue,
+      unreadMessages,
+    };
+  }, [tools, inquiries]);
+
+  /* ============================================================
+     MODAL OPEN HELPERS
+  ============================================================ */
+
+  const openAddToolModal = () => {
+    setEditingToolRecord(null);
+    setFormName("");
+    setFormCategory("Productivity");
+    setFormPricing("Freemium");
+    setFormWebsite("");
+    setFormOverview("");
+    setFormScore("92");
+    setIsAddModalOpen(true);
+  };
+
+  const openEditToolModal = (tool: ToolRecord) => {
+    setEditingToolRecord(tool);
+
+    setFormName(String(tool.name || ""));
+    setFormCategory(
+      String(tool.category || "Productivity")
+    );
+    setFormPricing(
+      String(tool.pricing || "Freemium")
+    );
+    setFormWebsite(
+      String(tool.website_url || tool.website || "")
+    );
+    setFormOverview(
+      String(
+        tool.overview ||
+          tool.description ||
+          ""
+      )
+    );
+
+    setFormScore(
+      String(
+        tool.score ||
+          tool.ai_vault_score ||
+          92
+      )
+    );
+
+    setIsAddModalOpen(true);
+  };
+
+  /* ============================================================
+     AUTH CHECK SCREEN
+  ============================================================ */
+
+  if (!authChecked) {
+    return (
+      <main className="min-h-screen bg-[#070a1e] flex items-center justify-center p-6">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-10 w-10 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+          <p className="text-xs font-bold text-slate-400">
+            Verifying admin session...
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  /* ============================================================
+     LOGIN SCREEN
+  ============================================================ */
 
   if (!isAuthenticated) {
     return (
-      <main className="min-h-screen bg-[#050714] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm rounded-3xl border border-slate-800 bg-[#0c102b] p-8 text-center shadow-2xl">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600/20 text-blue-400 text-xl font-black mb-4">
-            🔒
-          </div>
-          <h1 className="text-xl font-black text-white">Admin Command Gate</h1>
-          <p className="mt-1 text-xs text-slate-400">Enter your secure PIN to access controls.</p>
+      <main className="min-h-screen bg-[#070a1e] flex items-center justify-center p-4">
+        <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-7 shadow-2xl">
+          <div className="text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 text-3xl">
+              🔒
+            </div>
 
-          <form onSubmit={handlePinSubmit} className="mt-6 space-y-3">
-            <input
-              type="password"
-              autoFocus
-              placeholder="Enter PIN (Default: 2026)"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-center text-sm tracking-widest text-white outline-none focus:border-blue-500"
-            />
-            {pinError && (
-              <p className="text-[11px] font-bold text-rose-400">Incorrect PIN entered.</p>
-            )}
+            <h1 className="mt-5 text-xl font-black text-white">
+              Admin Command Gate
+            </h1>
+
+            <p className="mt-2 text-xs leading-relaxed text-slate-400">
+              Secure administrator authentication required.
+            </p>
+          </div>
+
+          {pinError && (
+            <div className="mt-5 rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-xs font-bold text-rose-400">
+              {pinError}
+            </div>
+          )}
+
+          <form
+            onSubmit={handlePinSubmit}
+            className="mt-6 space-y-3"
+          >
+            <label className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Admin PIN
+              </span>
+
+              <input
+                type="password"
+                autoFocus
+                autoComplete="current-password"
+                value={pinInput}
+                onChange={(event) =>
+                  setPinInput(event.target.value)
+                }
+                placeholder="Enter secure PIN"
+                className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-3 text-center text-sm tracking-[0.35em] text-white outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+              />
+            </label>
+
             <button
               type="submit"
-              className="w-full rounded-xl bg-blue-600 py-2.5 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-500/25"
+              disabled={authLoading}
+              className="w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Unlock Dashboard →
+              {authLoading
+                ? "Authenticating..."
+                : "Unlock Dashboard →"}
             </button>
           </form>
 
-          <div className="mt-5 border-t border-slate-800 pt-4">
+          <div className="mt-6 border-t border-slate-800 pt-5 text-center">
             <button
               type="button"
               onClick={() => {
@@ -568,19 +1544,34 @@ export default function MasterAdminSuite() {
               Forgot or Reset PIN?
             </button>
           </div>
+
+          <p className="mt-5 text-center text-[9px] leading-relaxed text-slate-600">
+            Authentication is handled server-side.
+            <br />
+            Never expose recovery secrets in client code.
+          </p>
         </div>
 
+        {/* RESET MODAL */}
+
         {showResetModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
             <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
-              <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+              <div className="mb-5 flex items-center justify-between border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-2">
-                  <span className="text-base">🔑</span>
-                  <h3 className="text-sm font-black text-white">Reset Admin Security PIN</h3>
+                  <span>🔑</span>
+
+                  <h2 className="text-sm font-black text-white">
+                    Reset Admin PIN
+                  </h2>
                 </div>
+
                 <button
-                  onClick={() => setShowResetModal(false)}
-                  className="text-slate-400 hover:text-white font-bold text-sm"
+                  type="button"
+                  onClick={() =>
+                    setShowResetModal(false)
+                  }
+                  className="text-sm font-bold text-slate-500 hover:text-white"
                 >
                   ✕
                 </button>
@@ -592,63 +1583,89 @@ export default function MasterAdminSuite() {
                 </div>
               )}
 
-              <form onSubmit={handleResetPinSubmit} className="space-y-3.5 text-xs">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                    Master Recovery Key or Current PIN *
-                  </label>
+              <form
+                onSubmit={handleResetPinSubmit}
+                className="space-y-4"
+              >
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    Recovery Key
+                  </span>
+
                   <input
                     type="password"
                     required
-                    placeholder="Enter RESET2026 or current PIN"
+                    autoComplete="off"
                     value={recoveryInput}
-                    onChange={(e) => setRecoveryInput(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                    onChange={(event) =>
+                      setRecoveryInput(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Enter recovery key"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                   />
-                  <p className="text-[10px] text-slate-500 mt-1">Default Master Recovery Key: RESET2026</p>
-                </div>
+                </label>
 
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                    New Security PIN *
-                  </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    New PIN
+                  </span>
+
                   <input
                     type="password"
                     required
-                    placeholder="Enter new PIN"
+                    autoComplete="new-password"
                     value={newPinInput}
-                    onChange={(e) => setNewPinInput(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                    onChange={(event) =>
+                      setNewPinInput(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Minimum 8 characters"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                   />
-                </div>
+                </label>
 
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                    Confirm New Security PIN *
-                  </label>
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    Confirm New PIN
+                  </span>
+
                   <input
                     type="password"
                     required
-                    placeholder="Re-enter new PIN"
+                    autoComplete="new-password"
                     value={confirmPinInput}
-                    onChange={(e) => setConfirmPinInput(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                    onChange={(event) =>
+                      setConfirmPinInput(
+                        event.target.value
+                      )
+                    }
+                    placeholder="Repeat new PIN"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                   />
-                </div>
+                </label>
 
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <div className="flex justify-end gap-2 border-t border-slate-800 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowResetModal(false)}
-                    className="rounded-xl border border-slate-700 px-4 py-2 font-bold text-slate-300 hover:bg-slate-800"
+                    onClick={() =>
+                      setShowResetModal(false)
+                    }
+                    className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
                   >
                     Cancel
                   </button>
+
                   <button
                     type="submit"
-                    className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 shadow-md transition"
+                    disabled={resetLoading}
+                    className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
                   >
-                    Save & Unlock Dashboard
+                    {resetLoading
+                      ? "Updating..."
+                      : "Update PIN"}
                   </button>
                 </div>
               </form>
@@ -659,33 +1676,45 @@ export default function MasterAdminSuite() {
     );
   }
 
+  /* ============================================================
+     MAIN DASHBOARD
+  ============================================================ */
+
   return (
-    <main className="min-h-screen bg-[#050714] text-slate-100 pb-20 font-sans">
+    <main className="min-h-screen bg-[#070a1e] text-white">
+      {/* TOAST */}
+
       {toastMessage && (
-        <div className="fixed top-5 right-5 z-50 rounded-2xl bg-blue-600 px-5 py-3 text-xs font-black text-white shadow-2xl animate-bounce">
+        <div className="fixed right-4 top-4 z-[100] max-w-sm rounded-xl border border-emerald-500/30 bg-[#0c102b] px-4 py-3 text-xs font-bold text-emerald-300 shadow-2xl">
           {toastMessage}
         </div>
       )}
 
-      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070a1e]/90 backdrop-blur-xl px-4 py-4 sm:px-8">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="text-lg font-black tracking-tight text-white">
-              AI Vault<span className="text-blue-500">.</span>
+      {/* HEADER */}
+
+      <header className="sticky top-0 z-40 border-b border-slate-800 bg-[#070a1e]/90 px-4 py-4 backdrop-blur-xl sm:px-8">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <Link
+              href="/"
+              className="shrink-0 text-lg font-black tracking-tight text-white"
+            >
+              AI Vault
+              <span className="text-blue-500">.</span>
             </Link>
-            <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-400">
+
+            <span className="hidden rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-blue-400 sm:inline-block">
               Master Admin Suite
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2">
             <button
               onClick={() => {
                 setResetErrorMsg(null);
                 setShowResetModal(true);
               }}
-              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white hover:border-slate-700 transition"
-              title="Change Security PIN"
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-300 transition hover:border-slate-700 hover:text-white"
             >
               🔑 Change PIN
             </button>
@@ -693,15 +1722,15 @@ export default function MasterAdminSuite() {
             <Link
               href="/"
               target="_blank"
-              className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-700 transition"
+              rel="noopener noreferrer"
+              className="rounded-xl bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-blue-700"
             >
               Public Site ↗
             </Link>
 
             <button
               onClick={handleLogout}
-              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-400 hover:text-white hover:border-slate-700"
-              title="Lock Admin Dashboard"
+              className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-400 hover:border-slate-700 hover:text-white"
             >
               🔒 Lock
             </button>
@@ -709,185 +1738,291 @@ export default function MasterAdminSuite() {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <div className="flex flex-wrap items-center gap-2 border-b border-slate-800 pb-4 mb-8">
+      <div className="mx-auto max-w-7xl px-4 py-7 sm:px-6">
+        {/* NAVIGATION */}
+
+        <div className="mb-8 flex flex-wrap gap-2 border-b border-slate-800 pb-4">
           <button
-            onClick={() => setActiveTab("inquiries")}
-            className={`relative rounded-xl px-4 py-2 text-xs font-black transition flex items-center gap-2 shrink-0 ${
+            onClick={() =>
+              setActiveTab("inquiries")
+            }
+            className={`relative flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition ${
               activeTab === "inquiries"
                 ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <span>✉️ Inquiries & Messages</span>
-            <span className="rounded-full bg-blue-400/20 border border-blue-400/30 px-2 py-0.2 text-[10px] text-blue-300 font-black">
+            ✉️ Inquiries
+
+            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[9px]">
               {inquiries.length}
             </span>
+
+            {metrics.unreadMessages > 0 && (
+              <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[9px] font-black text-black">
+                {metrics.unreadMessages} new
+              </span>
+            )}
           </button>
 
           <button
-            onClick={() => setActiveTab("submissions")}
-            className={`rounded-xl px-4 py-2 text-xs font-black transition flex items-center gap-2 shrink-0 ${
+            onClick={() =>
+              setActiveTab("submissions")
+            }
+            className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-black transition ${
               activeTab === "submissions"
-                ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
+                ? "bg-blue-600 text-white"
                 : "text-slate-400 hover:text-white"
             }`}
           >
-            <span>📥 Pending Submissions</span>
-            <span className="rounded-full bg-amber-400/20 border border-amber-400/30 px-2 py-0.2 text-[10px] text-amber-300 font-black">
+            📥 Submissions
+
+            <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] text-amber-300">
               {submissions.length}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab("affiliate")}
+            onClick={() =>
+              setActiveTab("affiliate")
+            }
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "affiliate" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "affiliate"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
             }`}
           >
             📊 Affiliate Hub
           </button>
 
           <button
-            onClick={() => setActiveTab("catalog")}
+            onClick={() =>
+              setActiveTab("catalog")
+            }
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "catalog" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "catalog"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            🛠️ Catalog Manager ({tools.length})
+            🛠️ Catalog ({tools.length})
           </button>
 
           <button
-            onClick={() => setActiveTab("reviews")}
+            onClick={() =>
+              setActiveTab("reviews")
+            }
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "reviews" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "reviews"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
             }`}
           >
             ⭐ Reviews ({reviews.length})
           </button>
 
           <button
-            onClick={() => setActiveTab("subscribers")}
+            onClick={() =>
+              setActiveTab("subscribers")
+            }
             className={`rounded-xl px-4 py-2 text-xs font-black transition ${
-              activeTab === "subscribers" ? "bg-blue-600 text-white shadow-md" : "text-slate-400 hover:text-white"
+              activeTab === "subscribers"
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white"
             }`}
           >
-            📧 Email Leads ({subscribers.length})
+            📧 Leads ({subscribers.length})
           </button>
         </div>
 
-        {/* 1. INQUIRIES & CONTACT MESSAGES TAB */}
+        {/* ======================================================
+            INQUIRIES
+        ====================================================== */}
+
         {activeTab === "inquiries" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between">
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Direct Contact Inquiries ({inquiries.length})</h2>
-                <p className="text-xs text-slate-400">Review founder emails, payment verification tickets, and messages.</p>
+                <h2 className="text-lg font-black text-white">
+                  Direct Contact Inquiries (
+                  {inquiries.length})
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Founder messages, verification requests and
+                  support tickets.
+                </p>
               </div>
+
               <button
                 onClick={loadAdminData}
                 className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
               >
-                🔄 Refresh Messages
+                🔄 Refresh
               </button>
             </div>
 
             {inquiries.length === 0 ? (
-              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
-                No contact messages received yet.
-              </div>
+              <EmptyState text="No contact inquiries received yet." />
             ) : (
               <div className="space-y-4">
-                {inquiries.map((inq) => {
-                  const mailtoUrl = `mailto:${inq.email}?subject=${encodeURIComponent(
-                    `AI Vault Update: ${inq.tool_name || inq.subject || "Your Inquiry"}`
+                {inquiries.map((inquiry) => {
+                  const mailto = `mailto:${
+                    inquiry.email
+                  }?subject=${encodeURIComponent(
+                    `AI Vault Update: ${
+                      inquiry.tool_name ||
+                      inquiry.subject ||
+                      "Your Inquiry"
+                    }`
                   )}&body=${encodeURIComponent(
-                    `Hi ${inq.name || "Founder"},\n\nRegarding your message on AI Vault:\n\n`
+                    `Hi ${
+                      inquiry.name || "Founder"
+                    },\n\nRegarding your message on AI Vault:\n\n`
                   )}`;
 
+                  const isUnread =
+                    String(
+                      inquiry.status || ""
+                    ).toLowerCase() === "unread";
+
                   return (
-                    <div
-                      key={String(inq.id)}
-                      className="rounded-2xl border border-slate-800 bg-[#0c102b] p-5 space-y-3.5 transition hover:border-slate-700"
+                    <article
+                      key={String(inquiry.id)}
+                      className={`rounded-2xl border p-5 ${
+                        isUnread
+                          ? "border-blue-500/40 bg-[#0c133a]"
+                          : "border-slate-800 bg-[#0c102b]"
+                      }`}
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-black text-sm">
-                            {(inq.name?.[0] || inq.email?.[0] || "M").toUpperCase()}
+                      <div className="flex flex-col gap-4 border-b border-slate-800 pb-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-600/20 text-sm font-black text-blue-400">
+                            {(
+                              inquiry.name?.[0] ||
+                              inquiry.email?.[0] ||
+                              "M"
+                            ).toUpperCase()}
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <h3 className="text-sm font-black text-white">{inq.name || "Founder"}</h3>
-                              <span className="rounded-full bg-blue-500/10 border border-blue-400/20 px-2 py-0.5 text-[9px] font-bold text-blue-300">
-                                {inq.issue_type || inq.subject || "Tool Verification & Claim"}
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-sm font-black text-white">
+                                {inquiry.name ||
+                                  "Founder"}
+                              </h3>
+
+                              <span className="rounded-full border border-blue-400/20 bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold text-blue-300">
+                                {inquiry.issue_type ||
+                                  inquiry.subject ||
+                                  "Inquiry"}
                               </span>
+
+                              {isUnread && (
+                                <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-[8px] font-black uppercase text-black">
+                                  New
+                                </span>
+                              )}
                             </div>
 
-                            <div className="flex items-center gap-2 mt-0.5">
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
                               <a
-                                href={`mailto:${inq.email}`}
+                                href={`mailto:${inquiry.email}`}
                                 className="text-xs font-mono font-bold text-blue-400 hover:underline"
                               >
-                                {inq.email}
+                                {inquiry.email}
                               </a>
+
                               <button
-                                onClick={() => handleCopyEmail(inq.email)}
-                                className="text-[10px] font-bold text-slate-500 hover:text-slate-300"
+                                onClick={() =>
+                                  handleCopyEmail(
+                                    inquiry.email
+                                  )
+                                }
+                                className="text-[10px] font-bold text-slate-500 hover:text-white"
                               >
-                                {copiedEmail === inq.email ? "✓ Copied" : "📋 Copy"}
+                                {copiedEmail ===
+                                inquiry.email
+                                  ? "✓ Copied"
+                                  : "📋 Copy"}
                               </button>
                             </div>
                           </div>
                         </div>
 
-                        <div className="text-right text-[11px] text-slate-500 font-mono">
-                          {inq.created_at ? new Date(inq.created_at).toLocaleString() : "Just now"}
-                        </div>
+                        <span className="shrink-0 text-[10px] font-mono text-slate-500">
+                          {inquiry.created_at
+                            ? new Date(
+                                inquiry.created_at
+                              ).toLocaleString()
+                            : "Recent"}
+                        </span>
                       </div>
 
-                      {/* TICKET METADATA */}
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Related Tool</span>
-                          <span className="font-bold text-slate-200 truncate block mt-0.5">
-                            {inq.tool_name || "General Inquiry"}
-                          </span>
-                        </div>
+                      <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-3">
+                        <MetaCard
+                          label="Related Tool"
+                          value={
+                            inquiry.tool_name ||
+                            "General Inquiry"
+                          }
+                        />
 
-                        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Category / Subject</span>
-                          <span className="font-bold text-emerald-400 block mt-0.5">
-                            {inq.subject || "Verification Request"}
-                          </span>
-                        </div>
+                        <MetaCard
+                          label="Subject"
+                          value={
+                            inquiry.subject ||
+                            "Verification Request"
+                          }
+                        />
 
-                        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-2.5 col-span-2 sm:col-span-1">
-                          <span className="text-[9px] uppercase font-bold text-slate-500 block">Reference</span>
-                          <span className="font-mono text-blue-300 font-bold block mt-0.5 truncate">
-                            {inq.transaction_id || "Direct Message"}
-                          </span>
-                        </div>
+                        <MetaCard
+                          label="Reference"
+                          value={
+                            inquiry.transaction_id ||
+                            "Direct Message"
+                          }
+                        />
                       </div>
 
-                      <div className="rounded-2xl bg-black/40 border border-slate-800/80 p-3.5 text-xs text-slate-200 whitespace-pre-wrap leading-relaxed">
-                        {inq.message || "No message content."}
+                      <div className="mt-4 rounded-2xl border border-slate-800 bg-black/40 p-4 text-xs leading-relaxed text-slate-200">
+                        {inquiry.message ||
+                          "No message content."}
                       </div>
 
-                      <div className="flex justify-end gap-2 text-xs pt-1">
+                      <div className="mt-4 flex flex-wrap justify-end gap-2">
+                        {isUnread && (
+                          <button
+                            onClick={() =>
+                              handleMarkInquiryRead(
+                                inquiry.id
+                              )
+                            }
+                            className="rounded-xl border border-emerald-500/30 bg-emerald-600/10 px-3.5 py-2 text-xs font-bold text-emerald-400 hover:bg-emerald-600 hover:text-white"
+                          >
+                            ✓ Mark Read
+                          </button>
+                        )}
+
                         <button
-                          onClick={() => handleDeleteInquiry(inq.id)}
-                          className="rounded-xl bg-rose-600/20 border border-rose-600/30 px-3.5 py-1.5 font-bold text-rose-400 hover:bg-rose-600 hover:text-white transition"
+                          onClick={() =>
+                            handleDeleteInquiry(
+                              inquiry.id
+                            )
+                          }
+                          className="rounded-xl border border-rose-600/30 bg-rose-600/10 px-3.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
                         >
                           Delete
                         </button>
+
                         <a
-                          href={mailtoUrl}
-                          className="rounded-xl bg-blue-600 px-4 py-1.5 font-black text-white hover:bg-blue-700 transition flex items-center gap-1.5 shadow-md shadow-blue-500/20"
+                          href={mailto}
+                          className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
                         >
                           Reply via Email ↗
                         </a>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
@@ -895,136 +2030,208 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* TAB 2: PENDING SUBMISSIONS */}
+        {/* ======================================================
+            SUBMISSIONS
+        ====================================================== */}
+
         {activeTab === "submissions" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between">
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Pending Founder Submissions ({submissions.length})</h2>
-                <p className="text-xs text-slate-400">Review incoming tools, verified founder contact details, and tier requests.</p>
+                <h2 className="text-lg font-black text-white">
+                  Pending Founder Submissions (
+                  {submissions.length})
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Review tools before publishing them to the
+                  public directory.
+                </p>
               </div>
+
               <button
                 onClick={loadAdminData}
                 className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
               >
-                🔄 Refresh Queue
+                🔄 Refresh
               </button>
             </div>
 
             {submissions.length === 0 ? (
-              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
-                No pending submissions in queue. All tools reviewed.
-              </div>
+              <EmptyState text="No pending submissions. All tools reviewed." />
             ) : (
               <div className="space-y-4">
                 {submissions.map((tool) => {
-                  const founderEmail = extractFounderEmail(tool);
-                  const tierName = extractTier(tool);
-                  const targetWebsite = String(tool.website_url || tool.website || "#");
+                  const founderEmail =
+                    extractFounderEmail(tool);
 
-                  const mailtoUrl = `mailto:${founderEmail}?subject=${encodeURIComponent(
-                    `AI Vault Update: ${tool.name} Approval Status`
-                  )}&body=${encodeURIComponent(
-                    `Hi ${tool.name} Team,\n\nWe have reviewed your submission on AI Vault.\n\n`
-                  )}`;
+                  const tierName =
+                    extractTier(tool);
+
+                  const website = String(
+                    tool.website_url ||
+                      tool.website ||
+                      ""
+                  );
+
+                  const mailto =
+                    founderEmail !== "Not Provided"
+                      ? `mailto:${founderEmail}?subject=${encodeURIComponent(
+                          `AI Vault Update: ${
+                            tool.name ||
+                            "Tool"
+                          } Approval Status`
+                        )}`
+                      : "#";
 
                   return (
-                    <div
-                      key={String(tool.id || tool.slug)}
-                      className="rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-sm space-y-4 transition hover:border-slate-700"
+                    <article
+                      key={String(tool.id)}
+                      className="rounded-3xl border border-slate-800 bg-[#0c102b] p-5 sm:p-6"
                     >
-                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 border-b border-slate-800/80 pb-4">
-                        <div className="flex items-start gap-4">
+                      <div className="flex flex-col gap-5 border-b border-slate-800 pb-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex min-w-0 gap-4">
                           <ToolLogo
-                            name={tool.name}
-                            src={tool.logo_url || tool.logo}
-                            website={targetWebsite}
-                            slug={tool.slug}
+                            name={
+                              tool.name ||
+                              "AI Tool"
+                            }
+                            src={
+                              tool.logo_url ||
+                              tool.logo
+                            }
+                            website={website}
+                            slug={
+                              tool.slug ||
+                              undefined
+                            }
                             size="md"
                           />
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-lg font-black text-white">{tool.name}</h3>
-                              <span className="rounded-md bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 text-[9px] font-bold text-blue-400 capitalize">
-                                {tool.category || "Productivity"}
-                              </span>
-                              <span className="rounded-md bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 text-[9px] font-bold text-emerald-400">
-                                {tool.pricing || "Freemium"}
-                              </span>
-                              <span className="rounded-md bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 text-[10px] font-black uppercase text-amber-300">
+
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-lg font-black text-white">
+                                {tool.name ||
+                                  "Unnamed Tool"}
+                              </h3>
+
+                              <Badge>
+                                {tool.category ||
+                                  "Productivity"}
+                              </Badge>
+
+                              <Badge>
+                                {tool.pricing ||
+                                  "Freemium"}
+                              </Badge>
+
+                              <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-amber-300">
                                 {tierName}
                               </span>
                             </div>
 
-                            <a
-                              href={targetWebsite}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:underline font-mono block mt-1.5"
-                            >
-                              Visit Website ({targetWebsite}) ↗
-                            </a>
+                            {website && (
+                              <a
+                                href={website}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="mt-2 block break-all text-xs font-mono text-blue-400 hover:underline"
+                              >
+                                {website} ↗
+                              </a>
+                            )}
                           </div>
                         </div>
 
-                        <div className="rounded-2xl border border-blue-500/40 bg-blue-950/40 p-3.5 self-start min-w-[240px]">
-                          <span className="text-[10px] font-black uppercase tracking-wider text-blue-300 block mb-1">
-                            ✉️ Founder Contact Email
+                        <div className="rounded-2xl border border-blue-500/30 bg-blue-950/40 p-4 lg:min-w-[260px]">
+                          <span className="block text-[9px] font-black uppercase tracking-wider text-blue-300">
+                            Founder Contact
                           </span>
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="text-xs font-mono font-black text-white truncate">
+
+                          <div className="mt-1 flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-mono font-black text-white">
                               {founderEmail}
                             </span>
-                            {founderEmail !== "Not Provided" && (
+
+                            {founderEmail !==
+                              "Not Provided" && (
                               <button
-                                onClick={() => handleCopyEmail(founderEmail)}
-                                className="shrink-0 rounded-lg bg-blue-600/40 hover:bg-blue-600 border border-blue-400/40 px-2 py-0.5 text-[10px] font-bold text-white transition"
+                                onClick={() =>
+                                  handleCopyEmail(
+                                    founderEmail
+                                  )
+                                }
+                                className="shrink-0 rounded-lg border border-blue-400/30 bg-blue-600/30 px-2 py-1 text-[9px] font-bold text-white"
                               >
-                                {copiedEmail === founderEmail ? "✓ Copied" : "📋 Copy"}
+                                {copiedEmail ===
+                                founderEmail
+                                  ? "✓"
+                                  : "Copy"}
                               </button>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
-                          Product Overview & Capabilities:
+                      <div className="mt-5">
+                        <span className="mb-2 block text-[9px] font-black uppercase tracking-wider text-slate-500">
+                          Product Overview
                         </span>
-                        <div className="rounded-2xl bg-black/40 border border-slate-800/80 p-4 text-xs text-slate-300 leading-relaxed">
-                          {tool.description || tool.overview || "No description provided."}
+
+                        <div className="rounded-2xl border border-slate-800 bg-black/40 p-4 text-xs leading-relaxed text-slate-300">
+                          {tool.description ||
+                            tool.overview ||
+                            "No description provided."}
                         </div>
                       </div>
 
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
-                        <span className="text-[11px] font-mono text-slate-500">
-                          Submitted: {tool.created_at ? new Date(tool.created_at).toLocaleString() : "Recently"}
+                      <div className="mt-5 flex flex-col gap-3 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
+                        <span className="text-[10px] font-mono text-slate-500">
+                          Submitted:{" "}
+                          {tool.created_at
+                            ? new Date(
+                                tool.created_at
+                              ).toLocaleString()
+                            : "Recently"}
                         </span>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {founderEmail !== "Not Provided" && (
+                        <div className="flex flex-wrap gap-2">
+                          {founderEmail !==
+                            "Not Provided" && (
                             <a
-                              href={mailtoUrl}
-                              className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700 transition"
+                              href={mailto}
+                              className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-200 hover:bg-slate-700"
                             >
-                              ✉️ Email Founder ↗
+                              ✉️ Email Founder
                             </a>
                           )}
+
                           <button
-                            onClick={() => handleModerateSubmission(tool, "reject")}
-                            className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900 transition"
+                            onClick={() =>
+                              handleModerateSubmission(
+                                tool,
+                                "reject"
+                              )
+                            }
+                            className="rounded-xl border border-rose-900/60 bg-rose-950/40 px-4 py-2 text-xs font-bold text-rose-300 hover:bg-rose-900"
                           >
                             ✕ Reject
                           </button>
+
                           <button
-                            onClick={() => handleModerateSubmission(tool, "approve")}
-                            className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700 transition shadow-md shadow-emerald-600/20"
+                            onClick={() =>
+                              handleModerateSubmission(
+                                tool,
+                                "approve"
+                              )
+                            }
+                            className="rounded-xl bg-emerald-600 px-5 py-2 text-xs font-black text-white hover:bg-emerald-700"
                           >
-                            ✓ Approve & Publish Live
+                            ✓ Approve & Publish
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </article>
                   );
                 })}
               </div>
@@ -1032,140 +2239,235 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* TAB 3: AFFILIATE HUB */}
+        {/* ======================================================
+            AFFILIATE HUB
+        ====================================================== */}
+
         {activeTab === "affiliate" && (
           <div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 mb-8">
-              <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Directory</p>
-                <p className="mt-1 text-2xl font-black text-white">{metrics.total}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Indexed tools</p>
-              </div>
+            <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-5">
+              <MetricCard
+                label="Total Directory"
+                value={metrics.total}
+                footer="Indexed tools"
+              />
 
-              <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Active Links</p>
-                <p className="mt-1 text-2xl font-black text-emerald-400">{metrics.active}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Monetized & verified</p>
-              </div>
+              <MetricCard
+                label="Active Links"
+                value={metrics.active}
+                footer="Monetized"
+                valueClass="text-emerald-400"
+              />
 
-              <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Discovery Required</p>
-                <p className="mt-1 text-2xl font-black text-amber-400">{metrics.pending}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Pending scan</p>
-              </div>
+              <MetricCard
+                label="Discovery Required"
+                value={metrics.pending}
+                footer="Needs review"
+                valueClass="text-amber-400"
+              />
 
-              <div className="rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Total Clicks</p>
-                <p className="mt-1 text-2xl font-black text-blue-400">{metrics.clicks}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Logged via /go/[slug]</p>
-              </div>
+              <MetricCard
+                label="Total Clicks"
+                value={metrics.clicks}
+                footer="Tracked clicks"
+                valueClass="text-blue-400"
+              />
 
-              <div className="col-span-2 sm:col-span-1 rounded-2xl border border-slate-800 bg-[#0c102b] p-4">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Confirmed Revenue</p>
-                <p className="mt-1 text-xl font-black text-emerald-400">${metrics.revenue.toFixed(2)}</p>
-                <p className="text-[10px] text-slate-500 mt-0.5">Network report sync</p>
-              </div>
+              <MetricCard
+                label="Confirmed Revenue"
+                value={`$${metrics.revenue.toFixed(
+                  2
+                )}`}
+                footer="Network reports"
+                valueClass="text-emerald-400"
+                wide
+              />
             </div>
 
-            <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                <h2 className="text-lg font-black text-white">Affiliate Links Index</h2>
+            <div className="mb-8 flex flex-col gap-4 rounded-2xl border border-slate-800 bg-[#0c102b] p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400">
+                  Affiliate Discovery
+                </span>
 
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="flex rounded-xl bg-slate-900 border border-slate-800 p-1">
-                    <button
-                      onClick={() => setStatusFilter("all")}
-                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "all" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      All ({metrics.total})
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter("monetized")}
-                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "monetized" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      Active ({metrics.active})
-                    </button>
-                    <button
-                      onClick={() => setStatusFilter("discovery_required")}
-                      className={`rounded-lg px-3 py-1 text-xs font-bold transition ${
-                        statusFilter === "discovery_required" ? "bg-blue-600 text-white" : "text-slate-400 hover:text-white"
-                      }`}
-                    >
-                      Pending ({metrics.pending})
-                    </button>
+                <h3 className="mt-0.5 text-sm font-black text-white">
+                  Synchronize monetization opportunities
+                </h3>
+              </div>
+
+              <button
+                onClick={handleAutoDiscover}
+                disabled={discovering}
+                className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-black text-white shadow-md transition hover:bg-blue-700 disabled:opacity-50"
+              >
+                {discovering
+                  ? "Synchronizing..."
+                  : "AUTO DISCOVER AFFILIATES ⚙"}
+              </button>
+            </div>
+
+            <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+              <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <h2 className="text-lg font-black text-white">
+                  Affiliate Links Index
+                </h2>
+
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <div className="flex rounded-xl border border-slate-800 bg-slate-900 p-1">
+                    {(
+                      [
+                        ["all", "All"],
+                        ["monetized", "Active"],
+                        [
+                          "discovery_required",
+                          "Pending",
+                        ],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        onClick={() =>
+                          setStatusFilter(value)
+                        }
+                        className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                          statusFilter === value
+                            ? "bg-blue-600 text-white"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </div>
 
                   <input
-                    type="text"
+                    type="search"
                     value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search by name or category..."
-                    className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-1.5 text-xs text-white placeholder:text-slate-500 outline-none focus:border-blue-500"
+                    onChange={(event) =>
+                      setSearch(event.target.value)
+                    }
+                    placeholder="Search tools..."
+                    className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-xs text-white outline-none focus:border-blue-500"
                   />
                 </div>
               </div>
 
               {loading ? (
-                <div className="p-8 text-center text-xs text-slate-500 animate-pulse">Loading directory index...</div>
-              ) : filteredTools.length > 0 ? (
+                <LoadingState />
+              ) : filteredTools.length === 0 ? (
+                <EmptyState text="No matching tools found." />
+              ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse min-w-[750px]">
+                  <table className="w-full min-w-[760px] border-collapse text-left">
                     <thead>
-                      <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        <th className="pb-3">Tool Name</th>
-                        <th className="pb-3">Category</th>
-                        <th className="pb-3">Status</th>
-                        <th className="pb-3">Clicks</th>
-                        <th className="pb-3">Network</th>
-                        <th className="pb-3 text-right">Actions</th>
+                      <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                        <th className="pb-3">
+                          Tool
+                        </th>
+                        <th className="pb-3">
+                          Category
+                        </th>
+                        <th className="pb-3">
+                          Status
+                        </th>
+                        <th className="pb-3">
+                          Clicks
+                        </th>
+                        <th className="pb-3">
+                          Network
+                        </th>
+                        <th className="pb-3 text-right">
+                          Actions
+                        </th>
                       </tr>
                     </thead>
+
                     <tbody className="divide-y divide-slate-800/60 text-xs">
-                      {filteredTools.map((t) => {
-                        const isMonetized = Boolean(t.affiliate_url && t.affiliate_url.trim().length > 0);
-                        const slug = String(t.slug || "");
+                      {filteredTools.map((tool) => {
+                        const slug = String(
+                          tool.slug || ""
+                        );
+
+                        const monetized =
+                          Boolean(
+                            tool.affiliate_url
+                          ) &&
+                          String(
+                            tool.affiliate_url
+                          ).trim().length > 0;
 
                         return (
-                          <tr key={t.id} className="hover:bg-slate-900/40 transition">
-                            <td className="py-3.5 pr-4 font-bold text-white">
-                              <div>
-                                <p>{t.name}</p>
-                                <p className="text-[10px] font-normal text-slate-500">/tool/{slug}</p>
-                              </div>
-                            </td>
-                            <td className="py-3.5 pr-4 capitalize text-slate-400">{t.category || "AI"}</td>
+                          <tr
+                            key={String(
+                              tool.id
+                            )}
+                            className="hover:bg-slate-900/40"
+                          >
                             <td className="py-3.5 pr-4">
-                              {isMonetized ? (
-                                <span className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-emerald-400">
+                              <p className="font-bold text-white">
+                                {tool.name ||
+                                  "Unnamed"}
+                              </p>
+
+                              <p className="text-[10px] text-slate-500">
+                                /tool/{slug}
+                              </p>
+                            </td>
+
+                            <td className="py-3.5 pr-4 text-slate-400">
+                              {tool.category ||
+                                "AI"}
+                            </td>
+
+                            <td className="py-3.5 pr-4">
+                              {monetized ? (
+                                <span className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 text-[9px] font-black text-emerald-400">
                                   MONETIZED
                                 </span>
                               ) : (
-                                <span className="rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-amber-400">
-                                  DISCOVERY REQUIRED
+                                <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-[9px] font-black text-amber-400">
+                                  DISCOVERY
+                                  REQUIRED
                                 </span>
                               )}
                             </td>
-                            <td className="py-3.5 pr-4 font-black text-blue-400">{t.click_count || 0}</td>
-                            <td className="py-3.5 pr-4 text-slate-400">{t.affiliate_network || "Direct"}</td>
-                            <td className="py-3.5 text-right space-x-1.5">
-                              <a
-                                href={`/go/${encodeURIComponent(slug)}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-block rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-blue-600 hover:text-white transition"
-                              >
-                                Test /go ↗
-                              </a>
-                              <button
-                                onClick={() => handleOpenConfigure(t)}
-                                className="rounded-lg bg-blue-600 px-3 py-1 text-[11px] font-black text-white hover:bg-blue-700 transition"
-                              >
-                                CONFIGURE
-                              </button>
+
+                            <td className="py-3.5 pr-4 font-black text-blue-400">
+                              {Number(
+                                tool.click_count ||
+                                  0
+                              )}
+                            </td>
+
+                            <td className="py-3.5 pr-4 text-slate-400">
+                              {tool.affiliate_network ||
+                                "Direct"}
+                            </td>
+
+                            <td className="py-3.5 text-right">
+                              <div className="flex justify-end gap-1.5">
+                                <a
+                                  href={`/go/${encodeURIComponent(
+                                    slug
+                                  )}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold text-slate-300 hover:bg-blue-600 hover:text-white"
+                                >
+                                  Test /go ↗
+                                </a>
+
+                                <button
+                                  onClick={() =>
+                                    handleOpenConfigure(
+                                      tool
+                                    )
+                                  }
+                                  className="rounded-lg bg-blue-600 px-3 py-1 text-[10px] font-black text-white hover:bg-blue-700"
+                                >
+                                  Configure
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -1173,57 +2475,42 @@ export default function MasterAdminSuite() {
                     </tbody>
                   </table>
                 </div>
-              ) : (
-                <div className="p-8 text-center text-xs text-slate-500">No matching tools found.</div>
               )}
             </section>
           </div>
         )}
 
-        {/* TAB 4: TOOL CATALOG MANAGER */}
+        {/* ======================================================
+            CATALOG
+        ====================================================== */}
+
         {activeTab === "catalog" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Full Catalog Tool Manager</h2>
-                <p className="text-xs text-slate-400">Add, edit details, scores, or trigger auto-ingest for new AI tools</p>
+                <h2 className="text-lg font-black text-white">
+                  Full Catalog Manager
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Add, edit, delete and ingest AI tools.
+                </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap gap-2">
                 <button
                   onClick={handleIngest10Tools}
                   disabled={isIngesting}
-                  className={`rounded-xl px-4 py-2 text-xs font-black transition shadow-lg flex items-center gap-2 ${
-                    isIngesting
-                      ? "bg-zinc-800 text-zinc-400 cursor-not-allowed border border-zinc-700"
-                      : "bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/20 active:scale-95 cursor-pointer"
-                  }`}
+                  className="rounded-xl bg-emerald-500 px-4 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
                 >
-                  {isIngesting ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></span>
-                      Generating 10 Tools...
-                    </>
-                  ) : (
-                    <>
-                      <span>⚡</span>
-                      Auto-Ingest 10 AI Tools
-                    </>
-                  )}
+                  {isIngesting
+                    ? "Generating..."
+                    : "⚡ Auto-Ingest 10 AI Tools"}
                 </button>
 
                 <button
-                  onClick={() => {
-                    setEditingToolRecord(null);
-                    setFormName("");
-                    setFormCategory("Productivity");
-                    setFormPricing("Freemium");
-                    setFormWebsite("");
-                    setFormOverview("");
-                    setFormScore("92");
-                    setIsAddModalOpen(true);
-                  }}
-                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-600/20"
+                  onClick={openAddToolModal}
+                  className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
                 >
                   + Add New Tool
                 </button>
@@ -1231,129 +2518,265 @@ export default function MasterAdminSuite() {
             </div>
 
             {ingestMessage && (
-              <div className="mb-5 rounded-2xl bg-emerald-950/50 border border-emerald-500/40 p-3.5 text-xs font-bold text-emerald-300 flex items-center justify-between">
+              <div className="mb-5 flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-950/40 p-3.5 text-xs font-bold text-emerald-300">
                 <span>{ingestMessage}</span>
-                <button onClick={() => setIngestMessage("")} className="text-slate-400 hover:text-white">✕</button>
+
+                <button
+                  onClick={() =>
+                    setIngestMessage("")
+                  }
+                  className="text-slate-400 hover:text-white"
+                >
+                  ✕
+                </button>
               </div>
             )}
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[700px]">
-                <thead>
-                  <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                    <th className="pb-3">Tool</th>
-                    <th className="pb-3">Category</th>
-                    <th className="pb-3">Pricing</th>
-                    <th className="pb-3">Score</th>
-                    <th className="pb-3 text-right">Manage</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60 text-xs">
-                  {tools.map((t) => (
-                    <tr key={t.id} className="hover:bg-slate-900/40 transition">
-                      <td className="py-3.5 pr-4 font-bold text-white">
-                        <p>{t.name}</p>
-                        <p className="text-[10px] text-slate-500">/tool/{t.slug}</p>
-                      </td>
-                      <td className="py-3.5 pr-4 capitalize text-slate-400">{t.category || "AI"}</td>
-                      <td className="py-3.5 pr-4 text-slate-300">{t.pricing || "Freemium"}</td>
-                      <td className="py-3.5 pr-4 font-black text-blue-400">{t.score || 90}/100</td>
-                      <td className="py-3.5 text-right space-x-2">
-                        <Link
-                          href={`/tool/${encodeURIComponent(String(t.slug || ""))}`}
-                          target="_blank"
-                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
-                        >
-                          View ↗
-                        </Link>
-                        <button
-                          onClick={() => {
-                            setEditingToolRecord(t);
-                            setFormName(t.name || "");
-                            setFormCategory(t.category || "Productivity");
-                            setFormPricing(t.pricing || "Freemium");
-                            setFormWebsite(t.website_url || t.website || "");
-                            setFormOverview(t.overview || t.description || "");
-                            setFormScore(String(t.score || "92"));
-                            setIsAddModalOpen(true);
-                          }}
-                          className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTool(t)}
-                          className="rounded-lg bg-rose-600/20 border border-rose-600/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
-                        >
-                          Delete
-                        </button>
-                      </td>
+            {tools.length === 0 ? (
+              <EmptyState text="No tools found in the catalog." />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[750px] border-collapse text-left">
+                  <thead>
+                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      <th className="pb-3">
+                        Tool
+                      </th>
+                      <th className="pb-3">
+                        Category
+                      </th>
+                      <th className="pb-3">
+                        Pricing
+                      </th>
+                      <th className="pb-3">
+                        Score
+                      </th>
+                      <th className="pb-3 text-right">
+                        Manage
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-800/60 text-xs">
+                    {tools.map((tool) => (
+                      <tr
+                        key={String(tool.id)}
+                        className="hover:bg-slate-900/40"
+                      >
+                        <td className="py-3.5 pr-4">
+                          <p className="font-bold text-white">
+                            {tool.name ||
+                              "Unnamed"}
+                          </p>
+
+                          <p className="text-[10px] text-slate-500">
+                            /tool/
+                            {tool.slug}
+                          </p>
+                        </td>
+
+                        <td className="py-3.5 pr-4 text-slate-400">
+                          {tool.category ||
+                            "AI"}
+                        </td>
+
+                        <td className="py-3.5 pr-4 text-slate-300">
+                          {tool.pricing ||
+                            "Freemium"}
+                        </td>
+
+                        <td className="py-3.5 pr-4 font-black text-blue-400">
+                          {Number(
+                            tool.score ||
+                              tool.ai_vault_score ||
+                              90
+                          )}
+                          /100
+                        </td>
+
+                        <td className="py-3.5 text-right">
+                          <div className="flex justify-end gap-2">
+                            <Link
+                              href={`/tool/${encodeURIComponent(
+                                String(
+                                  tool.slug ||
+                                    ""
+                                )
+                              )}`}
+                              target="_blank"
+                              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
+                            >
+                              View ↗
+                            </Link>
+
+                            <button
+                              onClick={() =>
+                                openEditToolModal(
+                                  tool
+                                )
+                              }
+                              className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-bold text-slate-200 hover:bg-slate-700"
+                            >
+                              Edit
+                            </button>
+
+                            <button
+                              onClick={() =>
+                                handleDeleteTool(
+                                  tool
+                                )
+                              }
+                              className="rounded-lg border border-rose-600/30 bg-rose-600/10 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         )}
 
-        {/* TAB 5: USER REVIEWS */}
+        {/* ======================================================
+            REVIEWS
+        ====================================================== */}
+
         {activeTab === "reviews" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl space-y-6">
-            <div className="flex items-center justify-between">
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+            <div className="mb-6 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Community Reviews & Sentiment ({reviews.length})</h2>
-                <p className="text-xs text-slate-400">Live submissions on tool pages</p>
+                <h2 className="text-lg font-black text-white">
+                  Community Reviews (
+                  {reviews.length})
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Manage reviews submitted on tool pages.
+                </p>
               </div>
+
               <button
                 onClick={loadAdminData}
                 className="rounded-xl border border-slate-700 bg-slate-800 px-3.5 py-2 text-xs font-bold text-slate-300 hover:text-white"
               >
-                🔄 Refresh Reviews
+                🔄 Refresh
               </button>
             </div>
 
             {reviews.length === 0 ? (
-              <div className="p-12 text-center text-xs text-slate-500 rounded-2xl border border-slate-800">
-                No user reviews submitted yet.
-              </div>
+              <EmptyState text="No reviews submitted yet." />
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[700px]">
+                <table className="w-full min-w-[760px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      <th className="pb-3">User / Author</th>
-                      <th className="pb-3">Tool Target</th>
-                      <th className="pb-3">Rating</th>
-                      <th className="pb-3">User Comment / Feedback</th>
-                      <th className="pb-3">Date</th>
+                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      <th className="pb-3">
+                        Author
+                      </th>
+                      <th className="pb-3">
+                        Tool
+                      </th>
+                      <th className="pb-3">
+                        Rating
+                      </th>
+                      <th className="pb-3">
+                        Comment
+                      </th>
+                      <th className="pb-3">
+                        Date
+                      </th>
+                      <th className="pb-3 text-right">
+                        Action
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {reviews.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-900/40 transition">
-                        <td className="py-3.5 pr-4 font-bold text-white whitespace-nowrap">{r.author_name}</td>
-                        <td className="py-3.5 pr-4">
-                          <Link
-                            href={`/tool/${encodeURIComponent(r.tool_slug)}`}
-                            target="_blank"
-                            className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[10px] font-bold text-blue-400 hover:underline"
-                          >
-                            /tool/{r.tool_slug} ↗
-                          </Link>
-                        </td>
-                        <td className="py-3.5 pr-4 whitespace-nowrap">
-                          <span className="text-amber-400 font-bold">
-                            {"★".repeat(r.rating)}
-                            {"☆".repeat(5 - r.rating)}
-                          </span>
-                          <span className="text-[10px] text-slate-400 ml-1">({r.rating}/5)</span>
-                        </td>
-                        <td className="py-3.5 pr-4 text-slate-300 max-w-xs truncate">&ldquo;{r.comment}&rdquo;</td>
-                        <td className="py-3.5 pr-4 text-slate-400 text-[10px] whitespace-nowrap">
-                          {r.created_at ? new Date(r.created_at).toLocaleDateString() : "Recent"}
-                        </td>
-                      </tr>
-                    ))}
+                    {reviews.map((review) => {
+                      const rating = Math.max(
+                        0,
+                        Math.min(
+                          5,
+                          Number(
+                            review.rating || 0
+                          )
+                        )
+                      );
+
+                      return (
+                        <tr
+                          key={String(
+                            review.id
+                          )}
+                          className="hover:bg-slate-900/40"
+                        >
+                          <td className="py-3.5 pr-4 font-bold text-white">
+                            {review.author_name ||
+                              "Anonymous"}
+                          </td>
+
+                          <td className="py-3.5 pr-4">
+                            <Link
+                              href={`/tool/${encodeURIComponent(
+                                review.tool_slug
+                              )}`}
+                              target="_blank"
+                              className="text-blue-400 hover:underline"
+                            >
+                              /tool/
+                              {
+                                review.tool_slug
+                              }{" "}
+                              ↗
+                            </Link>
+                          </td>
+
+                          <td className="py-3.5 pr-4 whitespace-nowrap">
+                            <span className="text-amber-400">
+                              {"★".repeat(
+                                rating
+                              )}
+                              {"☆".repeat(
+                                5 - rating
+                              )}
+                            </span>
+
+                            <span className="ml-1 text-[10px] text-slate-500">
+                              ({rating}/5)
+                            </span>
+                          </td>
+
+                          <td className="max-w-xs truncate py-3.5 pr-4 text-slate-300">
+                            {review.comment}
+                          </td>
+
+                          <td className="py-3.5 pr-4 text-[10px] text-slate-500">
+                            {review.created_at
+                              ? new Date(
+                                  review.created_at
+                                ).toLocaleDateString()
+                              : "Recent"}
+                          </td>
+
+                          <td className="py-3.5 text-right">
+                            <button
+                              onClick={() =>
+                                handleDeleteReview(
+                                  review.id
+                                )
+                              }
+                              className="rounded-lg border border-rose-600/30 bg-rose-600/10 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1361,147 +2784,431 @@ export default function MasterAdminSuite() {
           </section>
         )}
 
-        {/* TAB 6: EMAIL LEADS */}
+        {/* ======================================================
+            SUBSCRIBERS
+        ====================================================== */}
+
         {activeTab === "subscribers" && (
-          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-6 shadow-xl">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <section className="rounded-3xl border border-slate-800 bg-[#070a1e] p-5 shadow-xl sm:p-6">
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-lg font-black text-white">Email Leads & Subscribers ({subscribers.length})</h2>
-                <p className="text-xs text-slate-400">Captured through global footer and price alert forms</p>
+                <h2 className="text-lg font-black text-white">
+                  Email Leads & Subscribers (
+                  {subscribers.length})
+                </h2>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  Captured newsletter and alert subscribers.
+                </p>
               </div>
 
               <button
                 onClick={handleExportCSV}
-                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700 transition shadow-md shadow-blue-600/20"
+                className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white hover:bg-blue-700"
               >
-                📥 Export to CSV
+                📥 Export CSV
               </button>
             </div>
 
-            {subscribers.length > 0 ? (
+            {subscribers.length === 0 ? (
+              <EmptyState text="No email subscribers collected yet." />
+            ) : (
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse min-w-[650px]">
+                <table className="w-full min-w-[680px] border-collapse text-left">
                   <thead>
-                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-400">
-                      <th className="pb-3">Subscriber Email</th>
-                      <th className="pb-3">Source Channel</th>
-                      <th className="pb-3">Subscribed Date</th>
-                      <th className="pb-3 text-right">Action</th>
+                    <tr className="border-b border-slate-800 text-[10px] font-black uppercase tracking-wider text-slate-500">
+                      <th className="pb-3">
+                        Email
+                      </th>
+                      <th className="pb-3">
+                        Source
+                      </th>
+                      <th className="pb-3">
+                        Date
+                      </th>
+                      <th className="pb-3 text-right">
+                        Action
+                      </th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-800/60 text-xs">
-                    {subscribers.map((sub) => (
-                      <tr key={sub.id} className="hover:bg-slate-900/40 transition">
-                        <td className="py-3.5 pr-4 font-bold text-white">{sub.email}</td>
-                        <td className="py-3.5 pr-4">
-                          <span className="rounded-md bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-[9px] font-black uppercase text-blue-400">
-                            {sub.source || "global_footer"}
-                          </span>
-                        </td>
-                        <td className="py-3.5 pr-4 text-slate-400">
-                          {new Date(sub.created_at).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </td>
-                        <td className="py-3.5 text-right">
-                          <button
-                            onClick={() => handleDeleteSubscriber(sub.id)}
-                            className="rounded-lg bg-rose-600/20 border border-rose-600/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {subscribers.map(
+                      (subscriber) => (
+                        <tr
+                          key={String(
+                            subscriber.id
+                          )}
+                          className="hover:bg-slate-900/40"
+                        >
+                          <td className="py-3.5 pr-4 font-bold text-white">
+                            {subscriber.email}
+                          </td>
+
+                          <td className="py-3.5 pr-4">
+                            <span className="rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[9px] font-black uppercase text-blue-400">
+                              {subscriber.source ||
+                                "global_footer"}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 pr-4 text-slate-400">
+                            {subscriber.created_at
+                              ? new Date(
+                                  subscriber.created_at
+                                ).toLocaleDateString(
+                                  "en-US",
+                                  {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                  }
+                                )
+                              : "Recent"}
+                          </td>
+
+                          <td className="py-3.5 text-right">
+                            <button
+                              onClick={() =>
+                                handleDeleteSubscriber(
+                                  subscriber.id
+                                )
+                              }
+                              className="rounded-lg border border-rose-600/30 bg-rose-600/10 px-2.5 py-1 text-[11px] font-bold text-rose-400 hover:bg-rose-600 hover:text-white"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    )}
                   </tbody>
                 </table>
-              </div>
-            ) : (
-              <div className="p-12 text-center text-xs text-slate-500">
-                No email subscribers collected yet.
               </div>
             )}
           </section>
         )}
       </div>
 
-      {/* CONFIGURE MODAL */}
+      {/* ========================================================
+          AFFILIATE CONFIG MODAL
+      ======================================================== */}
+
       {selectedTool && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div className="mb-5 flex items-center justify-between border-b border-slate-800 pb-4">
               <div>
-                <h3 className="text-sm font-black text-white">Configure Links & Tracking</h3>
-                <p className="text-xs text-slate-400">{selectedTool.name} (/tool/{selectedTool.slug})</p>
+                <h3 className="text-sm font-black text-white">
+                  Configure Links & Tracking
+                </h3>
+
+                <p className="mt-1 text-xs text-slate-400">
+                  {selectedTool.name}{" "}
+                  (/tool/
+                  {selectedTool.slug})
+                </p>
               </div>
-              <button onClick={() => setSelectedTool(null)} className="text-slate-400 hover:text-white font-bold text-sm">
+
+              <button
+                onClick={() =>
+                  setSelectedTool(null)
+                }
+                className="text-sm font-bold text-slate-500 hover:text-white"
+              >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={handleSaveAffiliate} className="space-y-4">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+            <form
+              onSubmit={handleSaveAffiliate}
+              className="space-y-4"
+            >
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
                   Official Website URL
-                </label>
+                </span>
+
                 <input
-                  type="text"
-                  placeholder="https://example.com"
+                  type="url"
                   value={editWebsiteUrl}
-                  onChange={(e) => setEditWebsiteUrl(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:border-blue-500"
+                  onChange={(event) =>
+                    setEditWebsiteUrl(
+                      event.target.value
+                    )
+                  }
+                  placeholder="https://example.com"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                 />
-              </div>
+              </label>
 
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[10px] font-black uppercase text-blue-400">
-                    Monetized Affiliate Redirect URL
-                  </label>
-                  <span className="text-[9px] font-bold text-emerald-400">Primary Redirect</span>
-                </div>
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-blue-400">
+                  Affiliate Redirect URL
+                </span>
+
                 <input
-                  type="text"
-                  placeholder="https://example.com/?ref=aivault"
+                  type="url"
                   value={editAffiliateUrl}
-                  onChange={(e) => setEditAffiliateUrl(e.target.value)}
-                  className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
+                  onChange={(event) =>
+                    setEditAffiliateUrl(
+                      event.target.value
+                    )
+                  }
+                  placeholder="https://example.com/?ref=..."
+                  className="w-full rounded-xl border border-blue-500 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
                   Affiliate Network
-                </label>
+                </span>
+
                 <select
                   value={editNetwork}
-                  onChange={(e) => setEditNetwork(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs text-white outline-none"
+                  onChange={(event) =>
+                    setEditNetwork(
+                      event.target.value
+                    )
+                  }
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white outline-none"
                 >
-                  {AFFILIATE_NETWORKS.map((net) => (
-                    <option key={net} value={net}>
-                      {net}
-                    </option>
-                  ))}
+                  {AFFILIATE_NETWORKS.map(
+                    (network) => (
+                      <option
+                        key={network}
+                        value={network}
+                      >
+                        {network}
+                      </option>
+                    )
+                  )}
                 </select>
-              </div>
+              </label>
 
-              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800">
+              <div className="flex flex-col-reverse gap-2 border-t border-slate-800 pt-4 sm:flex-row sm:items-center sm:justify-between">
                 <button
                   type="button"
-                  onClick={() => setSelectedTool(null)}
+                  onClick={
+                    handleRemoveAffiliate
+                  }
+                  disabled={saving}
+                  className="rounded-xl border border-rose-600/30 bg-rose-600/10 px-3.5 py-2 text-xs font-bold text-rose-400 hover:bg-rose-600 hover:text-white disabled:opacity-50"
+                >
+                  Remove Affiliate
+                </button>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedTool(null)
+                    }
+                    className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {saving
+                      ? "Saving..."
+                      : "Save Configuration"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================
+          ADD / EDIT TOOL MODAL
+      ======================================================== */}
+
+      {isAddModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
+          <div className="my-8 w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between border-b border-slate-800 pb-4">
+              <h3 className="text-sm font-black text-white">
+                {editingToolRecord
+                  ? `Edit ${
+                      editingToolRecord.name ||
+                      "Tool"
+                    }`
+                  : "Add New AI Tool"}
+              </h3>
+
+              <button
+                onClick={() =>
+                  setIsAddModalOpen(false)
+                }
+                className="text-sm font-bold text-slate-500 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleSaveToolRecord}
+              className="space-y-4"
+            >
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                  Tool Name
+                </span>
+
+                <input
+                  required
+                  value={formName}
+                  onChange={(event) =>
+                    setFormName(
+                      event.target.value
+                    )
+                  }
+                  placeholder="e.g. ChatEngine Pro"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    Category
+                  </span>
+
+                  <select
+                    value={formCategory}
+                    onChange={(event) =>
+                      setFormCategory(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white"
+                  >
+                    {CATEGORIES.map(
+                      (category) => (
+                        <option
+                          key={category}
+                          value={category}
+                        >
+                          {category}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    Pricing
+                  </span>
+
+                  <select
+                    value={formPricing}
+                    onChange={(event) =>
+                      setFormPricing(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2.5 text-xs text-white"
+                  >
+                    {PRICING_OPTIONS.map(
+                      (pricing) => (
+                        <option
+                          key={pricing}
+                          value={pricing}
+                        >
+                          {pricing}
+                        </option>
+                      )
+                    )}
+                  </select>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    Website URL
+                  </span>
+
+                  <input
+                    type="url"
+                    value={formWebsite}
+                    onChange={(event) =>
+                      setFormWebsite(
+                        event.target.value
+                      )
+                    }
+                    placeholder="https://example.ai"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                    AI Vault Score
+                  </span>
+
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={formScore}
+                    onChange={(event) =>
+                      setFormScore(
+                        event.target.value
+                      )
+                    }
+                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                  Overview / Description
+                </span>
+
+                <textarea
+                  rows={5}
+                  value={formOverview}
+                  onChange={(event) =>
+                    setFormOverview(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Describe what the tool does..."
+                  className="w-full resize-none rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
+                />
+              </label>
+
+              <div className="flex justify-end gap-2 border-t border-slate-800 pt-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsAddModalOpen(false)
+                  }
                   className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
+                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {saving ? "Saving..." : "Save Configuration"}
+                  {saving
+                    ? "Saving..."
+                    : editingToolRecord
+                    ? "Update Tool"
+                    : "Save Tool"}
                 </button>
               </div>
             </form>
@@ -1509,131 +3216,27 @@ export default function MasterAdminSuite() {
         </div>
       )}
 
-      {/* ADD / EDIT TOOL MODAL */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-black text-white">
-                {editingToolRecord ? `Edit ${editingToolRecord.name}` : "Add New AI Tool"}
-              </h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-white font-bold text-sm">
-                ✕
-              </button>
-            </div>
+      {/* ========================================================
+          CHANGE PIN MODAL
+      ======================================================== */}
 
-            <form onSubmit={handleSaveToolRecord} className="space-y-3.5 text-xs">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Tool Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. ChatEngine Pro"
-                  value={formName}
-                  onChange={(e) => setFormName(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Category</label>
-                  <select
-                    value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
-                  >
-                    {CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Pricing Tier</label>
-                  <select
-                    value={formPricing}
-                    onChange={(e) => setFormPricing(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-white outline-none"
-                  >
-                    <option value="Free">Free</option>
-                    <option value="Freemium">Freemium</option>
-                    <option value="Paid">Paid</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2.5">
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Website URL</label>
-                  <input
-                    type="url"
-                    placeholder="https://example.ai"
-                    value={formWebsite}
-                    onChange={(e) => setFormWebsite(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">AI Vault Score</label>
-                  <input
-                    type="number"
-                    min="60"
-                    max="99"
-                    value={formScore}
-                    onChange={(e) => setFormScore(e.target.value)}
-                    className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">Overview / Description</label>
-                <textarea
-                  rows={3}
-                  placeholder="Short description of capabilities..."
-                  value={formOverview}
-                  onChange={(e) => setFormOverview(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none resize-none"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="rounded-xl border border-slate-700 px-4 py-2 font-bold text-slate-300 hover:bg-slate-800"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 disabled:opacity-50 transition"
-                >
-                  {saving ? "Saving..." : "Save Tool"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* CHANGE PIN MODAL */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      {showResetModal && isAuthenticated && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-[#0c102b] p-6 shadow-2xl">
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
+            <div className="mb-5 flex items-center justify-between border-b border-slate-800 pb-4">
               <div className="flex items-center gap-2">
-                <span className="text-base">🔑</span>
-                <h3 className="text-sm font-black text-white">Update Admin Security PIN</h3>
+                <span>🔑</span>
+
+                <h3 className="text-sm font-black text-white">
+                  Update Admin Security PIN
+                </h3>
               </div>
+
               <button
-                onClick={() => setShowResetModal(false)}
-                className="text-slate-400 hover:text-white font-bold text-sm"
+                onClick={() =>
+                  setShowResetModal(false)
+                }
+                className="text-sm font-bold text-slate-500 hover:text-white"
               >
                 ✕
               </button>
@@ -1645,63 +3248,89 @@ export default function MasterAdminSuite() {
               </div>
             )}
 
-            <form onSubmit={handleResetPinSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                  Master Recovery Key or Current PIN *
-                </label>
+            <form
+              onSubmit={handleResetPinSubmit}
+              className="space-y-4"
+            >
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                  Recovery Key
+                </span>
+
                 <input
                   type="password"
                   required
-                  placeholder="RESET2026 or Current PIN"
+                  autoComplete="off"
                   value={recoveryInput}
-                  onChange={(e) => setRecoveryInput(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  onChange={(event) =>
+                    setRecoveryInput(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Enter recovery key"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">Master Recovery Key: RESET2026</p>
-              </div>
+              </label>
 
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                  New Security PIN *
-                </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                  New PIN
+                </span>
+
                 <input
                   type="password"
                   required
-                  placeholder="Enter new PIN"
+                  autoComplete="new-password"
                   value={newPinInput}
-                  onChange={(e) => setNewPinInput(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  onChange={(event) =>
+                    setNewPinInput(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Minimum 8 characters"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                 />
-              </div>
+              </label>
 
-              <div>
-                <label className="text-[10px] font-black uppercase text-slate-400 mb-1 block">
-                  Confirm New Security PIN *
-                </label>
+              <label className="block">
+                <span className="mb-1.5 block text-[10px] font-black uppercase text-slate-400">
+                  Confirm New PIN
+                </span>
+
                 <input
                   type="password"
                   required
-                  placeholder="Re-enter new PIN"
+                  autoComplete="new-password"
                   value={confirmPinInput}
-                  onChange={(e) => setConfirmPinInput(e.target.value)}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2 text-white outline-none focus:border-blue-500"
+                  onChange={(event) =>
+                    setConfirmPinInput(
+                      event.target.value
+                    )
+                  }
+                  placeholder="Repeat new PIN"
+                  className="w-full rounded-xl border border-slate-700 bg-slate-900 px-3.5 py-2.5 text-xs text-white outline-none focus:border-blue-500"
                 />
-              </div>
+              </label>
 
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+              <div className="flex justify-end gap-2 border-t border-slate-800 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowResetModal(false)}
-                  className="rounded-xl border border-slate-700 px-4 py-2 font-bold text-slate-300 hover:bg-slate-800"
+                  onClick={() =>
+                    setShowResetModal(false)
+                  }
+                  className="rounded-xl border border-slate-700 px-4 py-2 text-xs font-bold text-slate-300 hover:bg-slate-800"
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
-                  className="rounded-xl bg-blue-600 px-5 py-2 font-black text-white hover:bg-blue-700 shadow-md transition"
+                  disabled={resetLoading}
+                  className="rounded-xl bg-blue-600 px-5 py-2 text-xs font-black text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  Update PIN
+                  {resetLoading
+                    ? "Updating..."
+                    : "Update PIN"}
                 </button>
               </div>
             </form>
@@ -1709,5 +3338,98 @@ export default function MasterAdminSuite() {
         </div>
       )}
     </main>
+  );
+}
+
+/* ================================================================
+   SMALL UI COMPONENTS
+================================================================ */
+
+function EmptyState({
+  text,
+}: {
+  text: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-800 p-12 text-center text-xs text-slate-500">
+      {text}
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="p-10 text-center text-xs text-slate-500">
+      <div className="mx-auto mb-3 h-6 w-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+      Loading admin data...
+    </div>
+  );
+}
+
+function Badge({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <span className="rounded-md border border-blue-500/20 bg-blue-500/10 px-2 py-0.5 text-[9px] font-bold text-blue-400">
+      {children}
+    </span>
+  );
+}
+
+function MetaCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-900/80 p-3">
+      <span className="block text-[9px] font-bold uppercase text-slate-500">
+        {label}
+      </span>
+
+      <span className="mt-1 block truncate text-xs font-bold text-slate-200">
+        {value}
+      </span>
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  footer,
+  valueClass = "text-white",
+  wide = false,
+}: {
+  label: string;
+  value: string | number;
+  footer: string;
+  valueClass?: string;
+  wide?: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border border-slate-800 bg-[#0c102b] p-4 ${
+        wide ? "col-span-2 sm:col-span-1" : ""
+      }`}
+    >
+      <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+        {label}
+      </p>
+
+      <p
+        className={`mt-1 text-2xl font-black ${valueClass}`}
+      >
+        {value}
+      </p>
+
+      <p className="mt-0.5 text-[10px] text-slate-500">
+        {footer}
+      </p>
+    </div>
   );
 }
