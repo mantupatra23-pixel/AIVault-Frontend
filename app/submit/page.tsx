@@ -23,11 +23,14 @@ const PRICING_MODELS = [
   "Enterprise",
 ];
 
+const PAYPAL_HANDLE = "MANTUPATRA372";
+
 const TIERS = [
   {
     id: "standard",
-    name: "Standard Queue",
+    name: "Standard",
     price: "$0",
+    amount: 0,
     badge: "Free",
     turnaround: "7–14 Days Review",
     perks: [
@@ -38,21 +41,23 @@ const TIERS = [
   },
   {
     id: "featured",
-    name: "⚡ Fast-Track Featured",
+    name: "Fast-Track Featured",
     price: "$29",
+    amount: 29,
     badge: "Popular 🔥",
     turnaround: "24-Hour Express Publish",
     perks: [
       "Guaranteed 24-Hour Review & Publish",
-      "Homepage Top Featured Carousel (30 Days)",
+      "Homepage Top Featured Spotlight (30 Days)",
       "Verified Blue Partner Glow Badge",
       "Priority Placement in AI Matcher Quiz",
     ],
   },
   {
     id: "spotlight",
-    name: "👑 Category Takeover",
+    name: "Category Takeover",
     price: "$79",
+    amount: 79,
     badge: "Maximum ROI",
     turnaround: "Instant 12h Priority",
     perks: [
@@ -65,9 +70,8 @@ const TIERS = [
 ];
 
 export default function SubmitToolPage() {
-  const [selectedTier, setSelectedTier] = useState("featured");
+  const [selectedTier, setSelectedTier] = useState<"standard" | "featured" | "spotlight">("featured");
 
-  // Form Fields
   const [name, setName] = useState("");
   const [website, setWebsite] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
@@ -83,6 +87,11 @@ export default function SubmitToolPage() {
   const activeTierObj = useMemo(() => {
     return TIERS.find((t) => t.id === selectedTier) || TIERS[0];
   }, [selectedTier]);
+
+  const paypalCheckoutUrl = useMemo(() => {
+    if (activeTierObj.amount <= 0) return "";
+    return `https://www.paypal.com/paypalme/${PAYPAL_HANDLE}/${activeTierObj.amount}USD`;
+  }, [activeTierObj]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -120,6 +129,11 @@ export default function SubmitToolPage() {
       }
 
       setStatus("success");
+
+      // Paid Tier: Auto-open PayPal Checkout
+      if (activeTierObj.amount > 0 && paypalCheckoutUrl) {
+        window.open(paypalCheckoutUrl, "_blank", "noopener,noreferrer");
+      }
     } catch (err: unknown) {
       setStatus("error");
       setFeedbackMsg(err instanceof Error ? err.message : "Something went wrong.");
@@ -139,7 +153,7 @@ export default function SubmitToolPage() {
 
   return (
     <main className="min-h-screen bg-[#FAFBFD] text-slate-900 pb-28 font-sans">
-      {/* HEADER */}
+      {/* NAVBAR */}
       <header className="sticky top-0 z-50 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 py-3 sm:px-8">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight text-slate-950">
@@ -179,8 +193,8 @@ export default function SubmitToolPage() {
         </div>
 
         {status === "success" ? (
-          /* SUCCESS CONFIRMATION STATE */
-          <div className="max-w-2xl mx-auto rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 shadow-sm text-center space-y-5 animate-in fade-in zoom-in duration-200">
+          /* SUCCESS / CHECKOUT CONFIRMATION SCREEN */
+          <div className="max-w-2xl mx-auto rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 shadow-sm text-center space-y-6 animate-in fade-in zoom-in duration-200">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-3xl font-black shadow-inner">
               ✓
             </div>
@@ -188,13 +202,36 @@ export default function SubmitToolPage() {
               Tool Placed in Review Queue!
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Our editorial team will review technical compliance and index your software into AI Vault.
+              Thank you for submitting <strong className="text-slate-950 font-black">{name}</strong>. Your tool metadata has been recorded.
             </p>
 
-            <div className="inline-block rounded-2xl bg-blue-50 border border-blue-200/60 px-5 py-3 text-xs font-bold text-blue-800 text-left space-y-1">
-              <p>🎯 <strong>Selected Tier:</strong> {activeTierObj.name} ({activeTierObj.price})</p>
-              <p>⏱️ <strong>Estimated Verification:</strong> {activeTierObj.turnaround}</p>
-            </div>
+            {activeTierObj.amount > 0 ? (
+              <div className="rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50/80 via-indigo-50/40 to-white p-5 text-left space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-blue-900 uppercase tracking-wider">
+                    {activeTierObj.name} Payment ({activeTierObj.price} USD)
+                  </span>
+                  <span className="rounded-full bg-emerald-600 text-white text-[10px] font-black px-2.5 py-0.5">
+                    Express 24h Queue
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  If the PayPal checkout tab did not open automatically, click the button below to complete the {activeTierObj.price} payment directly:
+                </p>
+                <a
+                  href={paypalCheckoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 w-full rounded-xl bg-[#0070BA] hover:bg-[#003087] py-3 text-xs font-black text-white shadow-md transition"
+                >
+                  <span>🅿 Complete {activeTierObj.price} Checkout via PayPal ↗</span>
+                </a>
+              </div>
+            ) : (
+              <div className="inline-block rounded-2xl bg-slate-50 border border-slate-200 px-5 py-3 text-xs font-bold text-slate-700">
+                Standard Queue ($0 Free) — Review within 7–14 days.
+              </div>
+            )}
 
             <div className="pt-4 flex flex-wrap items-center justify-center gap-3">
               <button
@@ -212,11 +249,11 @@ export default function SubmitToolPage() {
             </div>
           </div>
         ) : (
-          /* MAIN SUBMISSION GRID */
+          /* MAIN FORM */
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT COLUMN: FORM & TIER SELECTION (7 COLS) */}
+            {/* LEFT COLUMN: FORM (7 COLS) */}
             <div className="lg:col-span-7 space-y-6">
-              {/* TIER SELECTION CARDS */}
+              {/* TIER SELECTION */}
               <div>
                 <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-3">
                   1. Select Placement Tier
@@ -227,7 +264,7 @@ export default function SubmitToolPage() {
                     return (
                       <div
                         key={t.id}
-                        onClick={() => setSelectedTier(t.id)}
+                        onClick={() => setSelectedTier(t.id as "standard" | "featured" | "spotlight")}
                         className={`cursor-pointer rounded-2xl p-4 transition-all duration-150 flex flex-col justify-between ${
                           isSelected
                             ? "border-2 border-blue-600 bg-blue-50/40 ring-2 ring-blue-500/10 shadow-sm"
@@ -304,7 +341,7 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Logo Image URL (Optional — Auto-detected from domain if empty)
+                      Logo Image URL (Optional — Auto-detected if empty)
                     </label>
                     <input
                       type="url"
@@ -357,7 +394,7 @@ export default function SubmitToolPage() {
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. Autonomous AI engineer that builds and deploys full-stack web apps."
+                      placeholder="e.g. Autonomous AI engineer that builds full-stack apps."
                       value={tagline}
                       onChange={(e) => setTagline(e.target.value)}
                       className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-600 focus:bg-white"
@@ -366,7 +403,7 @@ export default function SubmitToolPage() {
 
                   <div>
                     <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                      Founder / Submitter Email
+                      Founder / Contact Email
                     </label>
                     <input
                       type="email"
@@ -394,11 +431,17 @@ export default function SubmitToolPage() {
                   <button
                     type="submit"
                     disabled={status === "loading"}
-                    className="w-full rounded-xl bg-blue-600 py-3.5 text-xs font-black text-white hover:bg-blue-700 shadow-md shadow-blue-500/20 transition disabled:opacity-50 mt-2"
+                    className={`w-full rounded-xl py-3.5 text-xs font-black text-white shadow-md transition disabled:opacity-50 mt-2 ${
+                      activeTierObj.amount > 0
+                        ? "bg-[#0070BA] hover:bg-[#003087] shadow-blue-500/20"
+                        : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20"
+                    }`}
                   >
                     {status === "loading"
-                      ? "Submitting to Editorial Queue..."
-                      : `Submit to ${activeTierObj.name} (${activeTierObj.price}) 🚀`}
+                      ? "Processing Submission..."
+                      : activeTierObj.amount > 0
+                      ? `Proceed to PayPal Checkout (${activeTierObj.price}) 🅿`
+                      : "Submit to Standard Queue ($0 Free) 🚀"}
                   </button>
                 </form>
               </div>
@@ -411,7 +454,6 @@ export default function SubmitToolPage() {
                   Live Catalog Card Preview
                 </span>
 
-                {/* REAL-TIME CARD PREVIEW */}
                 <div className="rounded-3xl border-2 border-dashed border-blue-300/80 bg-white p-6 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full">
@@ -454,10 +496,10 @@ export default function SubmitToolPage() {
                   <div className="border-t border-slate-100 pt-3">
                     <div className="flex items-center justify-between text-[10px] font-bold mb-1">
                       <span className="text-slate-400 uppercase tracking-wider">AI Vault Score</span>
-                      <span className="text-blue-600 font-black">{selectedTier !== "standard" ? "96/100" : "92/100"}</span>
+                      <span className="text-blue-600 font-black">{selectedTier !== "standard" ? "97/100" : "91/100"}</span>
                     </div>
                     <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100 mb-4">
-                      <div className="h-full bg-blue-600 rounded-full w-[94%]" />
+                      <div className="h-full bg-blue-600 rounded-full w-[95%]" />
                     </div>
 
                     <div className="flex items-center gap-2">
