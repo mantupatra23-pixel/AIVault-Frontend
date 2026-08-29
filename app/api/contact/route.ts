@@ -26,14 +26,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Email and Message are required." }, { status: 400 });
     }
 
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      return NextResponse.json({ error: "Database configuration missing." }, { status: 500 });
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
     const slug = `inquiry-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
 
+    // Exact Supabase ai_tools schema (NO 'website', NO 'tagline', NO 'pricing_model')
     const payload: Record<string, unknown> = {
       name: cleanName,
       slug: slug,
       website_url: `https://mailto:${cleanEmail}`,
-      website: `https://mailto:${cleanEmail}`,
       category: cleanSubject,
       pricing: cleanTx !== "N/A" ? `Tx: ${cleanTx}` : "Direct Contact",
       description: cleanMessage,
